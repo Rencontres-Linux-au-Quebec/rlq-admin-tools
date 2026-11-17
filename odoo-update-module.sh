@@ -86,10 +86,13 @@
 #   WAIT_ANONYMOUS=30             attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs
 #   WAIT_ANONYMOUS_LOW=2          idem si l'activité est faible
 #   LIGHT_WRITES=                 écritures HTTP légères en plus (expression régulière des adresses, sans le « / » du début) : comme les visiteurs, elles n'annulent pas la mise à jour
+#   LIGHT_WRITES_WAIT=non         attendre aussi pendant les écritures légères (oui / non ; non : simple note, elles ne retardent plus la mise à jour)
 #   READ_REQUESTS=                requêtes POST en lecture seule en plus (expression régulière des adresses, sans le « / » du début) : ignorées, elles ne retardent ni n'annulent la mise à jour
 #   LOW_REQUESTS=10               activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
 #   CONNECTED_WINDOW=15           un utilisateur connecté compte s'il a été actif dans les N dernières minutes (session encore valide ignorée)
 #   FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)
+#   WRITE_GRACE=60                une écriture de l'administration d'Odoo (call_kw) terminée depuis plus de N secondes ne bloque plus, sauf si un formulaire
+#                                est de nouveau en cours de modification (onchange après elle) ; 0 = toute écriture des 5 dernières minutes bloque (comme avant)
 #
 # ========================================================================================================================
 
@@ -97,7 +100,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.31.20261117.143528"
+readonly SCRIPT_VERSION="1.32.20261117.183619"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -135,7 +138,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-LIGHT_WRITES=""; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+LIGHT_WRITES=""; LIGHT_WRITES_WAIT=0; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -154,6 +157,8 @@ if declare -F config_lire >/dev/null; then
     config_defaut DO_BACKUP BACKUP --backup booleen
     config_defaut BUSY_VISITORS BUSY_VISITORS --busy-visitors nombre
     config_defaut LIGHT_WRITES LIGHT_WRITES LIGHT_WRITES texte
+    config_defaut LIGHT_WRITES_WAIT LIGHT_WRITES_WAIT LIGHT_WRITES_WAIT booleen
+    config_defaut WRITE_GRACE WRITE_GRACE WRITE_GRACE nombre
     config_defaut READ_REQUESTS READ_REQUESTS READ_REQUESTS texte
     config_defaut VISITOR_WINDOW VISITOR_WINDOW --visitor-window nombre
     config_defaut MODULES_BACKUP_DIR MODULES_BACKUP_DIR MODULES_BACKUP_DIR texte
@@ -717,7 +722,7 @@ BACKGROUND = re.compile(r"^/(websocket|bus/\w+|longpolling/\w+)(\?|$)")
 # 1.29: website_mail/is_follower (asked by every page of the website, robots included), web/login and xmlrpc db / common (sign-in and probes of
 # scanners: no data of the site is written), html_editor/get_ice_servers, and more read methods of call_kw. A method that is not in the list
 # stays a write.
-READ_POST = re.compile(r"^/(web/action/load|web/session/get_session_info|web/webclient/\w+|mail/data|mail/thread/data|mail/thread/messages|im_livechat/init|"
+READ_POST = re.compile(r"^/(web/action/load|web/action/load_breadcrumbs|event/init_barcode_interface|web/dataset/call_kw/ir\.config_parameter/get_\w+|web/session/get_session_info|web/webclient/\w+|mail/data|mail/thread/data|mail/thread/messages|im_livechat/init|"
                        r"mail/(inbox|starred|history)/messages|discuss/channel/(messages|info|members)|"
                        r"website/snippet/filters|hr_attendance/attendance_user_data|"
                        r"website_mail/is_follower|web/login|xmlrpc/(2/)?(db|common)|html_editor/get_ice_servers|"
@@ -730,8 +735,15 @@ READ_POST = re.compile(r"^/(web/action/load|web/session/get_session_info|web/web
 # 1.29: html_editor/bus_broadcast (somebody types in a collaborative editor: the text stays in the browser, the save itself is a real write).
 LIGHT_POST = re.compile(r"^/(im_livechat/\S*|discuss/\S*|mail/message/(post|reaction|update_content)|mail/link_preview\S*|mail/thread/(subscribe|unsubscribe)|"
                         r"mail/(read|set|unstar)\S*|website/track\S*|website/update_visitor_timezone|html_editor/bus_broadcast|"
-                        r"web/dataset/call_kw/res\.users\.settings/\S*|web/dataset/call_kw/(discuss\.channel|mail\.message|mail\.notification|bus\.presence)/\S*"
+                        r"web/dataset/call_kw/res\.users\.settings/\S*|web/dataset/call_kw/(discuss\.channel|mail\.message|mail\.notification|bus\.presence|mail\.push\.device)/\S*"
                         + (r"|" + _extra_light if _extra_light else "") + r")(\?|$)")
+
+
+# 1.32: requests of the administration of Odoo (only a logged-in user can send them), a form being edited (onchange) and a write of the
+# administration (call_kw: the form keeps its values in the browser, the write is over when nginx logs it).
+BACKEND = re.compile(r"^/(web/dataset/|web/action/|odoo(/|\?|$))")
+ONCHANGE = re.compile(r"^/web/dataset/call_kw/[^ ?]*/onchange(\?|$)")
+CALL_KW = re.compile(r"^/web/dataset/call_kw/")
 
 
 def request_kind(method, url):
@@ -834,14 +846,19 @@ db_activity() {       # prints "sessions locks writes" (numbers), or "?" when th
     echo "${s:-?} ${l:-?} $(( ${b:-0} - ${a:-0} ))"
 }
 
-nginx_writes() {      # 1.29: first line "WRITES LIGHT READS" (numbers) of the last ACTIVITY_WINDOW seconds, then up to 3 "W time method address", 3 "L ..." and 3 "D ..." (read-only POST, ignored); "?" if unreadable
-    ACTIVITY_PY="$ACTIVITY_PY" ACTIVITY_LIGHT="${LIGHT_WRITES:-}" ACTIVITY_READ="${READ_REQUESTS:-}" python3 - "$NGINX_LOG_DIR" "$ACTIVITY_WINDOW" <<'PYEOF'
+# nginx_writes: first line "WRITES LIGHT READS EDITS DONE" (numbers) of the last ACTIVITY_WINDOW seconds, then up to 3 "W time method address",
+# 3 "L ...", 3 "D ..." (read-only POST, ignored), 3 "E time address model" (1.32: form being edited, onchange after the last write of that
+# address) and 3 "F ..." (1.32: writes of the administration over for more than WRITE_GRACE seconds: a note); "?" if unreadable
+nginx_writes() {
+    ACTIVITY_PY="$ACTIVITY_PY" ACTIVITY_LIGHT="${LIGHT_WRITES:-}" ACTIVITY_READ="${READ_REQUESTS:-}" ACTIVITY_GRACE="${WRITE_GRACE:-0}" python3 - "$NGINX_LOG_DIR" "$ACTIVITY_WINDOW" <<'PYEOF'
 import datetime, glob, os, re, sys
 exec(os.environ["ACTIVITY_PY"])
 LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)[^"]*"\s+(\d{3})')
 now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
 limit = float(sys.argv[2])
-found, light, reads, readable = [], [], [], False
+grace = float(os.environ.get("ACTIVITY_GRACE") or 0)
+found, light, reads, done, readable = [], [], [], [], False
+last_write, last_change = {}, {}                   # 1.32: ip -> time of its last write; ip -> (time, model) of its last onchange
 for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
     try:
         with open(path, "rb") as f:
@@ -862,16 +879,26 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
         if 0 <= (now - t).total_seconds() <= limit:
             # 1.29: only POST can be a read; PUT, PATCH and DELETE are always writes; the polls of the bus are not counted at all
             kind = request_kind(m.group(3), m.group(4))
-            if kind != "background":
-                {"read": reads, "light": light, "write": found}[kind].append((t, m.group(3), m.group(4), m.group(1)))
+            item = (t, m.group(3), m.group(4), m.group(1))
+            if kind == "write":
+                last_write[m.group(1)] = max(last_write.get(m.group(1), t), t)
+                # 1.32: a write of the administration (call_kw) over for more than WRITE_GRACE seconds no longer blocks
+                (done if grace > 0 and CALL_KW.match(m.group(4)) and (now - t).total_seconds() > grace else found).append(item)
+            elif kind != "background":
+                {"read": reads, "light": light}.get(kind, []).append(item)
+            if ONCHANGE.match(m.group(4)) and (m.group(1) not in last_change or last_change[m.group(1)][0] <= t):
+                last_change[m.group(1)] = (t, m.group(4).split("/")[4])
 if not readable:
     print("?")
     sys.exit(0)
+# 1.32: a form being edited: onchange after the last write of the same address (values not saved yet)
+edits = sorted((t, "onchange", model, ip) for ip, (t, model) in last_change.items() if ip not in last_write or t > last_write[ip])
 found.sort()
 light.sort()
 reads.sort()
-print(len(found), len(light), len(reads))
-for tag, items in (("W", found), ("L", light), ("D", reads)):
+done.sort()
+print(len(found), len(light), len(reads), len(edits), len(done))
+for tag, items in (("W", found), ("L", light), ("D", reads), ("E", edits), ("F", done)):
     for t, method, url, ip in items[-3:]:
         print(tag + " " + t.astimezone().strftime("%H:%M:%S") + " " + method + " " + url[:80] + " (" + ip + ")")     # 1.27: with the address
 PYEOF
@@ -906,7 +933,7 @@ def module(name):
 
 countries, cache = module("_countries"), module("_cache_ip")
 cache = cache.ouvrir() if cache else None
-seen, kinds = {}, {}                               # ip -> [requests, last time, writes]; ip -> kinds of its requests (1.29)
+seen, kinds, backend = {}, {}, set()               # ip -> [requests, last time, writes]; ip -> kinds of its requests (1.29); addresses of the administration (1.32)
 for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
     try:
         with open(path, "rb") as f:
@@ -926,6 +953,8 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
         if 0 <= (now - t).total_seconds() <= window:
             kind = request_kind(m.group(3), m.group(4))
             kinds.setdefault(m.group(1), set()).add(kind)
+            if BACKEND.match(m.group(4)):                  # 1.32: only a logged-in user reaches the administration
+                backend.add(m.group(1))
             if kind == "background":                   # 1.29: the polls of the bus are not requests of somebody working
                 continue
             e = seen.setdefault(m.group(1), [0, t, 0])
@@ -966,7 +995,7 @@ waited = counted_visitors(kinds, connected_addresses(os.environ.get("WHO_DEVICES
 for ip, (n, last, writes) in sorted(seen.items(), key=lambda kv: -kv[1][1].timestamp()):
     if ip not in waited and not writes:
         continue
-    print("|".join(("V", ip, country(ip), who(ip), str(n), last.astimezone().strftime("%H:%M:%S"), str(writes))))
+    print("|".join(("V", ip, country(ip), who(ip), str(n), last.astimezone().strftime("%H:%M:%S"), str(writes), "1" if ip in backend else "0")))
 for ip, found in users.items():
     if ip not in seen:
         last = found[0][3]
@@ -975,11 +1004,13 @@ PYEOF
 )
     [[ -n "$liste" ]] || return 0
     printf 'I|%s\n' "en attente de :"
-    while IFS='|' read -r type ip pays qui n derniere ecritures; do
+    while IFS='|' read -r type ip pays qui n derniere ecritures admin; do
         total=$(( total + 1 ))
         (( total <= 8 )) || continue
         [[ -n "$pays" ]] || pays="pays inconnu"
         if [[ "$type" == "V" ]]; then
+            # 1.32: an address of the administration of Odoo is a logged-in user whose account res_device_log did not give (other address noted)
+            if [[ -z "$qui" && "${admin:-0}" == 1 ]]; then qui="utilisateur connecté (compte non identifié)"; fi
             [[ -n "$qui" ]] || qui="visiteur non connecté"
             if (( ${ecritures:-0} > 0 )); then
                 printf 'I|  %s\n' "$ip $pays · $qui · $n requêtes, dernière à $derniere, $ecritures POST"
@@ -987,7 +1018,7 @@ PYEOF
                 printf 'I|  %s\n' "$ip $pays · $qui · $n requêtes, dernière à $derniere"
             fi
         else
-            printf 'I|  %s\n' "${ip:-?} $pays · $qui · connecté à Odoo, dernière activité à $n"
+            printf 'I|  %s\n' "${ip:-?} $pays · $qui · connecté à Odoo, dernière activité à $n (aucune requête récente : ne retarde pas la mise à jour)"
         fi
     done <<< "$liste"
     (( total <= 8 )) || printf 'I|  %s\n' "et $(( total - 8 )) autres"
@@ -1009,13 +1040,20 @@ site_reasons() {
     if [[ "$w_nombre" == "?" ]]; then
         printf 'W|%s\n' "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
     else
-        local w_legeres=0 w_lues=0
-        read -r w_nombre w_legeres w_lues <<< "$w_nombre"
+        local w_legeres=0 w_lues=0 w_saisies=0 w_finies=0
+        read -r w_nombre w_legeres w_lues w_saisies w_finies <<< "$w_nombre"
         if (( w_nombre > 0 )); then
             printf 'W|%s\n' "$w_nombre écritures HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(grep '^W ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
         fi
+        if (( ${w_saisies:-0} > 0 )); then    # 1.32: a form is being edited (onchange after the last save): its values are not saved yet
+            printf 'W|%s\n' "$w_saisies formulaire(s) en cours de modification (onchange sans enregistrement après), le plus récent : $(grep '^E ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
+        fi
+        if (( ${w_finies:-0} > 0 )); then     # 1.32: saves of the administration over for more than WRITE_GRACE s: a note, never a reason
+            printf 'N|%s\n' "$w_finies écritures terminées depuis plus de ${WRITE_GRACE} s (enregistrées, aucun formulaire ouvert après), la plus récente : $(grep '^F ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
+        fi
         if (( ${w_legeres:-0} > 0 )); then    # 1.26: chat, presence, visitor tracking: like visitors, they do not cancel the update
-            printf 'R|%s\n' "$w_legeres écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : $(grep '^L ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
+            # 1.32: LIGHT_WRITES_WAIT=no (default): a note only, they no longer delay the update
+            printf '%s|%s\n' "$( (( LIGHT_WRITES_WAIT )) && echo R || echo N)" "$w_legeres écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : $(grep '^L ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
         fi
         if (( ${w_lues:-0} > 0 )); then       # 1.29: read-only POST (sign-in, access checks, probes): a note, never a reason
             printf 'N|%s\n' "$w_lues requêtes POST en lecture seule ignorées (connexion, vérifications, sondes : aucune donnée modifiée), la plus récente : $(grep '^D ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
@@ -1173,7 +1211,7 @@ changer_parametres() {
 # seconds (300 by default), asks whether to change the settings (10 s to answer; otherwise the settings are kept).
 wait_for_quiet_site() {
     local debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}" ask_every="${ODOO_UPDATE_MODULE_ASK_EVERY:-300}"
-    local prochaine=$(( SECONDS + ask_every )) raisons ecritures resume r stamp
+    local prochaine=$(( SECONDS + ask_every )) raisons ecritures resume r stamp precedentes=""
     attente_maximale
     etape "Attente d'un site calme (occupé dès ${BUSY_VISITORS} visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
     detail "attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
@@ -1193,9 +1231,14 @@ wait_for_quiet_site() {
             exit 3
         fi
         stamp=$(date +%H:%M:%S)
+        if [[ "$raisons" == "${precedentes:-}" ]]; then          # 1.32: same state as the previous check: one line only
+            echo "  ${C_YELLOW}[$stamp] site occupé :${C_RESET} ${C_DIM}inchangé depuis le contrôle précédent${C_RESET}"
+        else
+        precedentes="$raisons"
         echo "  ${C_YELLOW}[$stamp] site occupé :${C_RESET}"
         while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail "${r#I|}"; else detail "· ${r#*|}"; fi; done <<< "$raisons"
         detail "· attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
+        fi
         if (( SECONDS >= prochaine )); then
             prochaine=$(( SECONDS + ask_every ))
             if peut_demander; then changer_parametres; fi
