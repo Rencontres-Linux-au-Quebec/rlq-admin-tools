@@ -3791,6 +3791,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.30.20261117.092016 - New option --i18n-overwrite
+
+- Title: --i18n-overwrite replaces the translations already loaded in the database with those of the modules.
+- Reason: request of the administrator on 2026-11-17: "odoo-update-module.sh ... --i18n-overwrite" answered "Argument inconnu". rlq_survey_report 18.0.1.129.0 corrects French translations already loaded by 18.0.1.127.0; Odoo keeps a translation already loaded unless the update is run with its option --i18n-overwrite.
+- Changes: new option --i18n-overwrite (variable DO_I18N_OVERWRITE): added to the command "odoo -u ... --stop-after-init" of mettre_a_jour(), and a detail line in the update step; help line (French and English: lang/odoo-update-module.en.po); listed with the command-line-only options at the end of doc/fr and doc/en odoo-update-module.conf.example; the documentation (doc/fr and doc/en 09-odoo-update-module.md) shows the help.
+- Bugs fixed: none.
+- Safeguards and edge cases: without the option, the command of Odoo is unchanged; the option also applies to the second update of an automatic rollback (same command); with --dry-run, the simulated command shows it; no configuration key (an option for one update, not a setting).
+- Checks performed: bash -n; --help in French and English; nginx-tools-tests/test_odoo_update_module.py: 48 tests [OK], new test_230_i18n_overwrite_transmis_a_odoo; test_i18n, test_conventions, test_docs, test_config_defaut, test_alignement: no new failure (19 failures before and after, all on other programs; one of them moved by two lines in the generated pages, because the help has two more lines).
+- Action required: none.
+
 ### 1.29.20261114.090010 - Only real activity makes the site busy: reads, anonymous visitors and idle tabs ignored
 
 - Title: read-only POST requests, visitors not logged in who only read and the bus polls of a tab left open neither delay nor cancel the update.
