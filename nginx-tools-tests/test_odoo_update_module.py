@@ -441,6 +441,18 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertIn("--stop-after-init", out)
         self.assertFalse(os.path.exists(os.path.join(self.d, "journaux")))
 
+    def test_230_i18n_overwrite_transmis_a_odoo(self):
+        """1.30: --i18n-overwrite is passed to « odoo -u » (a corrected translation of a module replaces the loaded one); without
+        it, the command is unchanged."""
+        rc, out, err = self.lancer("--dry-run", "--i18n-overwrite")
+        self.assertEqual(rc, 0, out + err)
+        ligne = [l for l in out.splitlines() if "--stop-after-init" in l][0]
+        self.assertIn("--i18n-overwrite", ligne)
+        self.assertIn("traductions déjà chargées remplacées", out)
+        rc, out, err = self.lancer("--dry-run")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("--i18n-overwrite", [l for l in out.splitlines() if "--stop-after-init" in l][0])
+
     def test_service_detecte_unique(self):
         self.write("unites", "odoo-warmup.service loaded inactive dead x\nerplibre.service loaded active running ERPLibre\nnginx.service loaded active running n\n")
         self.lancer_detecte = self.lancer()

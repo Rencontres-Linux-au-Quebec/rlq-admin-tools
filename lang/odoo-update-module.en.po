@@ -39,6 +39,15 @@ msgstr "  --force                      carry on despite an Odoo started by hand 
 msgid "  -h, --help                   affiche cette aide et quitte"
 msgstr "  -h, --help                   show this help and quit"
 
+msgid "  --i18n-overwrite             remplacer les traductions déjà chargées dans la base par celles des fichiers .po des modules (option --i18n-overwrite d'Odoo) ;"
+msgstr "  --i18n-overwrite             replace the translations already loaded in the database with those of the .po files of the modules (Odoo option --i18n-overwrite);"
+
+msgid "                               sans elle, une traduction déjà chargée est gardée même si le module la corrige"
+msgstr "                               without it, a translation already loaded is kept even when the module corrects it"
+
+msgid "traductions déjà chargées remplacées par celles des modules (--i18n-overwrite)"
+msgstr "translations already loaded replaced with those of the modules (--i18n-overwrite)"
+
 msgid "  --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)"
 msgstr "  --lang LANG                  display language: en or fr (default: LANGUAGE of the configuration file, else LC_ALL / LC_MESSAGES / LANG)"
 

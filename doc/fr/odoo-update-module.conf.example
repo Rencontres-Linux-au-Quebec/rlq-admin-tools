@@ -81,6 +81,7 @@
 #   --config-merge       Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --dry-run            montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force              continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
+#   --i18n-overwrite     remplacer les traductions déjà chargées dans la base par celles des fichiers .po des modules (option --i18n-overwrite d'Odoo)
 #   --report-err         afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --verbose            afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)
 #   --version            affiche la version et quitte

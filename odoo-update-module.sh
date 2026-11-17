@@ -38,6 +38,8 @@
 #   --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
 #   --force-busy                 conservée pour compatibilité : les lectures seules ne bloquent jamais la mise à jour, les écritures la bloquent toujours (même avec cette option) ; FORCE_BUSY
 #   -h, --help                   affiche cette aide et quitte
+#   --i18n-overwrite             remplacer les traductions déjà chargées dans la base par celles des fichiers .po des modules (option --i18n-overwrite d'Odoo) ;
+#                                sans elle, une traduction déjà chargée est gardée même si le module la corrige
 #   --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)
 #   --menu   menu interactif des opérations courantes (dialog si installé ; terminal requis)
 #   --module PATTERN             module à mettre à jour ; motif accepté (« rlq_* »), option répétable (défaut : MODULES, soit rlq_*)
@@ -95,7 +97,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.29.20261114.090010"
+readonly SCRIPT_VERSION="1.30.20261117.092016"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -132,7 +134,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
-TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
+TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
 LIGHT_WRITES=""; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
@@ -217,6 +219,7 @@ while [[ $# -gt 0 ]]; do
         --db) ONLY_DB="${2:-}"; shift 2 ;;
         --dry-run) DO_DRY_RUN=1; shift ;;
         --force) DO_FORCE=1; shift ;;
+        --i18n-overwrite) DO_I18N_OVERWRITE=1; shift ;;   # 1.30: passed to odoo -u (translations of the modules replace those of the database)
         -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --lang) shift 2 ;;                     # lu avant (apps/_i18n.sh)
         --module)
@@ -588,6 +591,7 @@ mettre_a_jour() {
     local -a odoo=("$CMD_ODOO" -c "$ODOO_CONF_UTILISEE" -d "$DB" -u "$liste"
                    --stop-after-init --no-http --workers=0 --max-cron-threads=0
                    --limit-time-real="$TIMEOUT" --limit-time-cpu="$TIMEOUT" --limit-memory-hard=0 --log-level=info)
+    if (( DO_I18N_OVERWRITE )); then odoo+=(--i18n-overwrite); fi       # 1.30: a corrected translation of a module replaces the one already loaded
     # shellcheck disable=SC2016  # the apostrophes are intended: bash -c receives the script as is
     local -a lancer=(timeout --kill-after=30 "$TIMEOUT" bash -c 'cd "$1" && shift && exec "$@"' _ "${ODOO_DIR:-.}" "${odoo[@]}")
     if [[ -n "$RUN_USER" && "$(id -un)" != "$RUN_USER" ]]; then
@@ -596,6 +600,7 @@ mettre_a_jour() {
         # shellcheck disable=SC2016  # idem
         lancer=(timeout --kill-after=30 "$TIMEOUT" runuser -u "$RUN_USER" -- env "HOME=${maison:-/nonexistent}" bash -c 'cd "$1" && shift && exec "$@"' _ "${ODOO_DIR:-.}" "${odoo[@]}")
     fi
+    if (( DO_I18N_OVERWRITE )); then detail "traductions déjà chargées remplacées par celles des modules (--i18n-overwrite)"; fi
     if (( DO_DRY_RUN )); then sim "$(printf '%q ' "${lancer[@]}")> $JOURNAL"; return 0; fi
     echo "  ${C_DIM}${#MODULES_TROUVES[@]} modules, compte ${RUN_USER:-$(id -un)}, délai maximal ${TIMEOUT} s — en cours…${C_RESET}"
     detail "journal : $JOURNAL"
