@@ -27,7 +27,7 @@ try:                    # line editing in all the input() prompts (backspace ^H 
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.24.20261109.190000"
+__version__ = "1.25.20261117.143528"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -171,6 +171,31 @@ MOTS_FRANCAIS = re.compile(r"\b(?:le|la|les|des|du|une?|aucune?|pas|est|sont|ave
 
 
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# Abbreviations of the North American time zones (1.25): in French, those of the OQLF (« N » = heure normale, « A » = heure avancée); the system
+# (date +%Z, strftime("%Z")) only gives the English ones. The change of time is already in the abbreviation, computed by the system from the date.
+FUSEAUX_FR = {"NST": "HNT", "NDT": "HAT", "AST": "HNA", "ADT": "HAA", "EST": "HNE", "EDT": "HAE",
+              "CST": "HNC", "CDT": "HAC", "MST": "HNR", "MDT": "HAR", "PST": "HNP", "PDT": "HAP"}
+FUSEAUX_EN = {fr: en for en, fr in FUSEAUX_FR.items()}
+# Only after an hour (« 11:14 EST », « 11:14:02 HNE ») or « local time, » / « heure locale, »: « EST » elsewhere (a word, a name) is never touched.
+_CONTEXTE_FUSEAU = r"(\d{1,2}:\d{2}(?::\d{2})? |local time, |heure locale, )"
+MOTIFS_FUSEAU = {"fr": re.compile(_CONTEXTE_FUSEAU + r"(" + "|".join(FUSEAUX_FR) + r")(?![\w])"),
+                 "en": re.compile(_CONTEXTE_FUSEAU + r"(" + "|".join(FUSEAUX_EN) + r")(?![\w])")}
+
+
+def abreviation_fuseau(abreviation, langue_affichage="fr"):
+    """« HNE » for « EST » in French, « EST » for « HNE » in English; unchanged otherwise (« UTC », « CET », empty)."""
+    abreviation = (abreviation or "").strip()
+    table = FUSEAUX_FR if str(langue_affichage or "fr").lower().startswith("fr") else FUSEAUX_EN
+    return table.get(abreviation, abreviation)
+
+
+def fuseaux_ligne(ligne, langue_affichage):
+    """The abbreviations of time zones of a displayed line in the display language (see MOTIFS_FUSEAU); other languages: unchanged."""
+    motif = MOTIFS_FUSEAU.get(str(langue_affichage or "")[:2].lower())
+    if motif is None:
+        return ligne
+    table = FUSEAUX_FR if motif is MOTIFS_FUSEAU["fr"] else FUSEAUX_EN
+    return motif.sub(lambda m: m.group(1) + table[m.group(2)], ligne)
 CHEMINS = re.compile(r"(?<!\w)/\S+|\S*[_$]\S*")        # paths and URLs ("/event/journee-portes-ouvertes-sur-linux"), variable names: DATA, not French sentences left to translate
 
 
@@ -266,7 +291,8 @@ class Traducteur:
         return traduit + codes + apres
 
     def _ligne(self, original, traduite):
-        if self.langue != "fr" and traduite != original and MOTS_FRANCAIS.search(CHEMINS.sub(" ", traduite)):
+        # 1.25: an abbreviation of time zone after an hour (« 11:14 EST ») is not the French word « est »: left out of the check
+        if self.langue != "fr" and traduite != original and MOTS_FRANCAIS.search(CHEMINS.sub(" ", MOTIFS_FUSEAU["fr"].sub(r"\1", traduite))):
             fichier = os.environ.get("NGINX_TOOLS_I18N_DEBUG")
             if fichier:
                 try:
@@ -308,8 +334,9 @@ class Traducteur:
     UNITES_EN = {"o": "B", "Ko": "KB", "Mo": "MB", "Go": "GB", "To": "TB"}
 
     def _locale(self, ligne):
-        """Langue anglaise : unités (o, Ko, Mo, Go, To -> B, KB, MB, GB, TB) et virgule décimale (« 22,8 Mo » -> « 22.8 MB », « 0,68 · 0,65 » -> « 0.68 · 0.65 ») ; la largeur
+        """Fuseau horaire (1.25) : HNE / HAE en français, EST / EDT en anglais, après une heure (voir MOTIFS_FUSEAU). Langue anglaise : unités (o, Ko, Mo, Go, To -> B, KB, MB, GB, TB) et virgule décimale (« 22,8 Mo » -> « 22.8 MB », « 0,68 · 0,65 » -> « 0.68 · 0.65 ») ; la largeur
         change au plus d'un caractère : l'espace de remplissage qui suit l'absorbe. Autre langue : inchangé."""
+        ligne = fuseaux_ligne(ligne, self.langue)          # 1.25: « 11:14 EST » <-> « 11:14 HNE », in both directions
         if self.langue != "en":
             return ligne
         ligne = re.sub(r"(?<![\w.,])(\d+)(?:,(\d+))? (o|Ko|Mo|Go|To)(?![\w])",

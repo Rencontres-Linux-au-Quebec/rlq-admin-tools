@@ -478,6 +478,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.196.20261117.143528 - HNE / HAE in the export for verification
+
+- Title: HNE / HAE in the export for verification.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: line "Written on" of the export: the whole line goes through the translator, so the abbreviation of the zone follows the display language (apps/_i18n.py 1.25).
+- Bugs fixed: Symptom: "(heure locale, EST)" in French. Diagnosis: the abbreviation was added after the translation. Fix: outer TR().
+- Safeguards and edge cases: The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
+
 ### 1.195.20261115.191052 - Generic block owner shown as the network name
 
 - Title: the owner of an address block named "Admin" (or another generic word) is replaced by the network name.
@@ -3695,6 +3705,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-backup.sh
 
+### 1.27.20261117.143528 - HNE / HAE in the date of the backup
+
+- Title: HNE / HAE in the date of the backup.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: Line of the destination: the displayed date uses $(zone_locale) of apps/_i18n.sh instead of %Z (fallback: date +%Z when the shared library is missing). In English (--lang en), apps/_traduire.py gives back EST / EDT.
+- Bugs fixed: Symptom: "2026-11-17 11:14:02 EST" in French. Diagnosis: date +%Z only gives the English abbreviation. Fix: zone_locale.
+- Safeguards and edge cases: The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
+
 ### 1.26.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
@@ -3800,6 +3820,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
+
+### 1.31.20261117.143528 - HNE / HAE in the title line
+
+- Title: HNE / HAE in the title line.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: Title line: the displayed date uses $(zone_locale) of apps/_i18n.sh instead of %Z (fallback: date +%Z when the shared library is missing). In English (--lang en), apps/_traduire.py gives back EST / EDT.
+- Bugs fixed: Symptom: "2026-11-17 11:14:02 EST" in French. Diagnosis: date +%Z only gives the English abbreviation. Fix: zone_locale.
+- Safeguards and edge cases: The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
 
 ### 1.30.20261117.092016 - New option --i18n-overwrite
 
@@ -4078,6 +4108,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.108.20261117.143528 - HNE / HAE in the displayed date
+
+- Title: HNE / HAE in the displayed date.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: Line "date :" of the diagnosis: the displayed date uses $(zone_locale) of apps/_i18n.sh instead of %Z (fallback: date +%Z when the shared library is missing). In English (--lang en), apps/_traduire.py gives back EST / EDT. SETUP_DATE (written in the state file) is not changed.
+- Bugs fixed: Symptom: "2026-11-17 11:14:02 EST" in French. Diagnosis: date +%Z only gives the English abbreviation. Fix: zone_locale.
+- Safeguards and edge cases: The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
 
 ### 2.107.20261115.163001 - No "HOME: unbound variable" without HOME (apps/_listes.sh)
 
@@ -5692,6 +5732,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.98.20261117.143528 - HNE / HAE in the reports
+
+- Title: HNE / HAE in the reports.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: Header of the report, of the comparison, of the export of manual bans, and the date of the last run: the displayed date uses $(zone_locale) of apps/_i18n.sh instead of %Z (fallback: date +%Z when the shared library is missing). In English (--lang en), apps/_traduire.py gives back EST / EDT.
+- Bugs fixed: Symptom: "2026-11-17 11:14:02 EST" in French. Diagnosis: date +%Z only gives the English abbreviation. Fix: zone_locale.
+- Safeguards and edge cases: The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are. A last-run file written by an older version keeps its EST until the next run.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
+
 ### 2.97.20261112.095816 - Robots refused with 403: are they really robots? (--verify-bots, --bot-exempt)
 
 - Title: each address refused with 403 by the User-Agent rule gets a verdict; a person can be exempted from that rule only.
@@ -6606,6 +6656,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
+### 1.34.20261117.143528 - HNE / HAE in the date of the run
+
+- Title: HNE / HAE in the date of the run.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: Date line of the run: the displayed date uses $(zone_locale) of apps/_i18n.sh instead of %Z (fallback: date +%Z when the shared library is missing). In English (--lang en), apps/_traduire.py gives back EST / EDT.
+- Bugs fixed: Symptom: "2026-11-17 11:14:02 EST" in French. Diagnosis: date +%Z only gives the English abbreviation. Fix: zone_locale.
+- Safeguards and edge cases: The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
+
 ### 1.33.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
@@ -7361,6 +7421,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: none.
 
 ## apps/_i18n.py
+
+### 1.25.20261117.143528 - Time zones HNE / HAE in French, EST / EDT in English
+
+- Title: Time zones HNE / HAE in French, EST / EDT in English.
+- Reason: request of the administrator on 2026-11-17: the dates shown "EST" in French; in French, the abbreviation of the time zone is the one of the OQLF (HNE for heure normale de l'Est, HAE for heure avancée de l'Est).
+- Changes: new FUSEAUX_FR, FUSEAUX_EN, MOTIFS_FUSEAU, abreviation_fuseau(), fuseaux_ligne(); Traducteur._locale() converts the abbreviation in both directions (English source displayed in French: EST -> HNE; French source displayed in English: HNE -> EST). apps/_i18n.sh: new function zone_locale (abbreviation of the local zone in French, for the French messages of the Bash programs).
+- Bugs fixed: Symptom: "(local time, EST)" or "11:14 EST" in the French screens. Diagnosis: the system gives only the English abbreviations. Fix: conversion by the translator. Found by the new test: in English, "11:14 EST" was taken for the French word "est" and the whole line was left in French; Traducteur._ligne() now leaves the abbreviations after an hour out of that check.
+- Safeguards and edge cases: Only after an hour ("11:14 EST", "11:14:02 HNE") or after "local time, " / "heure locale, ": the word "EST" elsewhere is never touched. The change of time comes from the system (date +%Z, computed from the date): nothing is hard-coded; unknown zones (UTC, CET) are left as they are.
+- Checks: test_i18n (new classes FuseauxHoraires and ZoneLocaleBash), shellcheck, run-all.sh.
+- Action required: none
 
 ### 1.24.20261109.190000 - Own line editor of the answers: ^H and ^? erase (also apps/_i18n.sh, apps/_menu.py)
 

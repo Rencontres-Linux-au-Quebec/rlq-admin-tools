@@ -69,7 +69,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-readonly SCRIPT_VERSION="1.26.20261112.082236"
+readonly SCRIPT_VERSION="1.27.20261117.143528"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -797,7 +797,7 @@ if [[ "$DO_DRY_RUN" != "1" && "$EUID" -ne 0 && -n "$PG_USER" && "$(id -un)" != "
     echo "ERREUR: root requis (pg_dump sous le compte $PG_USER)." >&2
     exit 1
 fi
-echo "$(date '+%Y-%m-%d %H:%M:%S %Z') — destination : $DEST"
+echo "$(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)") — destination : $DEST"
 afficher_configuration
 mapfile -t LISTE < <(bases)
 if (( ${#LISTE[@]} == 0 )); then

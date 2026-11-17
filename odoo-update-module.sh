@@ -97,7 +97,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.30.20261117.092016"
+readonly SCRIPT_VERSION="1.31.20261117.143528"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -1340,7 +1340,7 @@ if (( ! DO_DRY_RUN )) && [[ "$EUID" -ne 0 && -z "${NGINX_TOOLS_TESTS:-}" ]]; the
     exit 1
 fi
 if (( ! DO_DRY_RUN )); then prendre_verrou; fi
-echo "${C_BOLD}Mise à jour des modules Odoo${C_RESET}  ${C_DIM}$(date '+%Y-%m-%d %H:%M:%S %Z')${C_RESET}"
+echo "${C_BOLD}Mise à jour des modules Odoo${C_RESET}  ${C_DIM}$(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")${C_RESET}"
 detecter_service
 trouver_conf
 if declare -F odoo_conf_charger >/dev/null; then odoo_conf_charger "$ODOO_CONF_UTILISEE" 2>/dev/null || true; fi
