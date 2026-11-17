@@ -2235,6 +2235,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.22.20261117.113000 - Irreversible deletions need the word DELETE
+
+- Title: a command that deletes data (backup files, Proxmox snapshots, ZFS datasets) no longer runs on a simple "y".
+- Reason: on 2026-11-17 the report of proxmox1 showed 102 old backups (1.0 TiB) and 4 snapshots of guest 105 removed after a plain "y" at each "Run it? [y/N]" prompt. A one-key answer is too easy to give to an irreversible action.
+- Changes: host-perf-audit.py: new constant IRREVERSIBLE_RE, new function is_irreversible(cmd); confirm_changes() asks for the word DELETE (or SUPPRIMER) for those commands and keeps "[y/N]" for the others; print_commands() marks them "[irrevers.]" in the report. Test: nginx-tools-tests/test_host_perf_audit.py, test_suppression_irreversible_exige_delete.
+- Bugs fixed: symptom: a single "y" deleted files and snapshots that could not be recovered. Diagnosis: confirm_changes() accepted "o", "oui", "y", "yes" for every change, deletions included. Fix: a separate, explicit confirmation for deletions.
+- Safeguards and edge cases: only rm, unlink, shred, pct/qm delsnapshot, zfs destroy and zpool destroy are treated as irreversible; the read-only commands and the other changes (compression, ARC, swappiness) keep their prompt. A deletion is refused without a terminal, as before. Anything other than DELETE or SUPPRIMER (case ignored) skips the command.
+- Checks performed: unit test for is_irreversible (true and false cases) and for the prompt (a "y" is refused, DELETE runs the command); the existing test test_changements_confirmes_un_par_un still passes.
+- Action required: none. The next report will show "[irrevers.]" on deletion commands. To delete the old backups or snapshots, type DELETE at the prompt, after checking the list.
+
 ### 1.21.20261115.163001 - HOME given to the commands run in a VM
 
 - Title: the commands run in a VM through the QEMU guest agent receive HOME (/root when the agent gives none).

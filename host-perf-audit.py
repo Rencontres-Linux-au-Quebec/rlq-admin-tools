@@ -46,7 +46,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.21.20261115.163001"
+__version__ = "1.22.20261117.113000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2032,6 +2032,14 @@ READ_ONLY_RE = re.compile(
 WRAPPER_RE = re.compile(r"^(?:pct exec \d+ --|qm guest exec \d+(?: --timeout \d+)? --)\s*")
 COLLECT_BUDGET = 240          # seconds for all the read-only commands of one run
 COLLECT_LINES = 40            # lines of output kept per command
+# 1.22: commands that destroy data (backup files, snapshots, ZFS datasets) cannot be undone: they need the word DELETE, not a simple « y »
+IRREVERSIBLE_RE = re.compile(r"(?:^|[\s;&|])(?:rm|unlink|shred)\s|\b(?:pct|qm) delsnapshot\b|\bzfs destroy\b|\bzpool destroy\b|\bvzdump\b.*--remove")
+IRREVERSIBLE_WORDS = ("delete", "supprimer")
+
+
+def is_irreversible(cmd):
+    """1.22: True when the command deletes data that cannot be recovered (rm, snapshot or ZFS dataset destruction)."""
+    return bool(IRREVERSIBLE_RE.search(strip_comment(cmd)))
 
 
 def strip_comment(cmd):
@@ -2096,7 +2104,7 @@ def commands_lines(commands, results=None):
     lines.append("COMMANDS — [read]: run by the program, output below · [change]: run only after your confirmation")
     for title, cmds in commands:
         lines.append(f"  # {title}")
-        lines.extend(f"  {'[read]  ' if is_read_only(c) else '[change]'} {c}" for c in cmds)
+        lines.extend(f"  {'[read]  ' if is_read_only(c) else ('[irrevers.] ' if is_irreversible(c) else '[change]')} {c}" for c in cmds)
     if results:
         lines.append("")
         lines.append("COLLECTED — output of the [read] commands (send it with this report)")
@@ -2140,11 +2148,17 @@ def confirm_changes(commands):
     print(f"CHANGES — {len(changes)} commands that modify something; each one is run only if you answer « y »")
     for title, cmd in changes:
         try:
-            answer = input(f"\n  # {title[:200]}\n  {cmd}\n  Run it? [y/N]: ").strip().lower()
+            if is_irreversible(cmd):
+                print("  [IRREVERSIBLE] this deletes data that cannot be recovered (type DELETE or SUPPRIMER to run it; anything else skips it)")
+                answer = input(f"\n  # {title[:200]}\n  {cmd}\n  Type DELETE to run it: ").strip().lower()
+                accepted = answer in IRREVERSIBLE_WORDS
+            else:
+                answer = input(f"\n  # {title[:200]}\n  {cmd}\n  Run it? [y/N]: ").strip().lower()
+                accepted = answer in ("o", "oui", "y", "yes")
         except (KeyboardInterrupt, EOFError):
             print("\n  Remaining changes not run.")
             return
-        if answer not in ("o", "oui", "y", "yes"):
+        if not accepted:
             print("  not run")
             continue
         code, out = run(["bash", "-c", strip_comment(cmd)], timeout=600)
