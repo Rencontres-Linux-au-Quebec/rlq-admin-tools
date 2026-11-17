@@ -751,6 +751,38 @@ print(json.dumps({{"exitcode": p.returncode, "exited": 1, "out-data": p.stdout.d
         self.assertIn("CHANGES — 2 commands that modify something", sortie.getvalue())
         self.assertIn("not run", sortie.getvalue())
 
+    def test_suppression_irreversible_exige_delete(self):
+        """1.22 : une commande qui supprime des données (rm, delsnapshot, zfs destroy) n'accepte pas « y » ; seul « DELETE » ou « SUPPRIMER » la lance."""
+        import builtins
+        import io
+        m = charger("hpa_irr", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        self.assertTrue(m.is_irreversible(f"rm -- {self.d}/a"))
+        self.assertTrue(m.is_irreversible("xargs -d '\\n' -a /tmp/liste rm -v --   # deletes the files"))
+        self.assertTrue(m.is_irreversible("pct delsnapshot 105 Debian13"))
+        self.assertTrue(m.is_irreversible("zfs destroy data/zd0/test@old"))
+        self.assertFalse(m.is_irreversible("touch /tmp/x"))
+        self.assertFalse(m.is_irreversible("echo rm"))
+        self.assertFalse(m.is_irreversible("zpool list -o name,alloc,free,cap data"))
+        fa, fb = os.path.join(self.d, "a"), os.path.join(self.d, "b")
+        for f in (fa, fb):
+            open(f, "w").close()
+        commandes = [("supprimer a", [f"rm -- {fa}"]), ("supprimer b", [f"rm -- {fb}"])]
+        reponses = iter(["y", "DELETE"])
+        class Terminal(io.StringIO):
+            def isatty(self):
+                return True
+        anciens = (sys.stdin, sys.stdout, builtins.input, os.geteuid)
+        sortie = Terminal()
+        sys.stdin, sys.stdout, builtins.input, os.geteuid = Terminal(), sortie, lambda _q="": next(reponses), lambda: 0
+        m.input = builtins.input
+        try:
+            m.confirm_changes(commandes)
+        finally:
+            sys.stdin, sys.stdout, builtins.input, os.geteuid = anciens
+        self.assertTrue(os.path.exists(fa))                                         # « y » refused
+        self.assertFalse(os.path.exists(fb))                                        # « DELETE » accepted
+        self.assertIn("IRREVERSIBLE", sortie.getvalue())
+
     def test_retention_qui_ne_s_applique_pas(self):
         """1.15 : des sauvegardes dans un sous-dossier que Proxmox ne voit pas (sa rétention ne s'y applique jamais) ; au-delà de keep-last, la liste
         des fichiers à supprimer est écrite et la place libérée annoncée ; les sauvegardes d'un invité disparu sont gardées."""
