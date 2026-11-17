@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.195.20261115.191052"
+__version__ = "1.196.20261117.143528"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -8608,7 +8608,7 @@ def follow(cmd, people, resolver, options, output):
         anonymized = output.anonymize is not None
         out = [f"# {os.path.basename(__file__)} v{__version__} - " + TR("export for verification"), "",
                "- " + TR("Server: ") + host + (" · " + str(options.get("app_label") or options.get("app")) if options.get("app_label") or options.get("app") else ""),
-               "- " + TR("Written on: ") + stamp(time.time()) + " (" + TR("local time") + f", {time.strftime('%Z')})",
+               TR("- " + TR("Written on: ") + stamp(time.time()) + " (" + TR("local time") + f", {time.strftime('%Z')})"),   # 1.196: outer TR: « EST » -> « HNE » in French (apps/_i18n.py 1.25)
                "- " + TR("Window: from {start} to {end}").format(start=stamp(facts.get("start")), end=stamp(facts.get("end")))
                + (" · " + TR("first request read: ") + stamp(facts["requests_start"]) if facts.get("requests_start") else ""),
                "- " + TR("Mode: ") + ("--advise" if batch else TR("z key of the dashboard")) + " · " + TR("command: ") + " ".join([os.path.basename(__file__)] + sys.argv[1:]),

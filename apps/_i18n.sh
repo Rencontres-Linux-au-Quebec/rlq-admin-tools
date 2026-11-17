@@ -27,6 +27,20 @@ pad_cols() {
     printf '%s%*s' "$texte" "$n" ""
 }
 
+# zone_locale [DATE ARGS...]: abbreviation of the local time zone in French, as written in the messages of the programs (1.25 of apps/_i18n.py):
+# HNE / HAE instead of EST / EDT (OQLF). The change of time comes from the system (date +%Z). In another display language, apps/_traduire.py
+# gives back the English abbreviation after an hour (« 11:14 HNE » -> « 11:14 EST »). Unknown zones (UTC, CET...) are left as they are.
+# Use: date "+%Y-%m-%d %H:%M:%S $(zone_locale)"   (never %Z directly in a displayed date)
+zone_locale() {
+    local z
+    z=$(date "$@" +%Z 2>/dev/null) || z=""
+    case "$z" in
+        NST) echo HNT ;; NDT) echo HAT ;; AST) echo HNA ;; ADT) echo HAA ;; EST) echo HNE ;; EDT) echo HAE ;;
+        CST) echo HNC ;; CDT) echo HAC ;; MST) echo HNR ;; MDT) echo HAR ;; PST) echo HNP ;; PDT) echo HAP ;;
+        *) echo "$z" ;;
+    esac
+}
+
 _I18N_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # i18n_relancer PROGRAM LANGUAGE_VARIABLE SCRIPT ARGUMENTS...: relaunches the program behind the translator if the language is not French. No effect (return 0) if the

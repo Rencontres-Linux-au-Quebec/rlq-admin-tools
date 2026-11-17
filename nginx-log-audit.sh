@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.97.20261112.095816"
+readonly SCRIPT_VERSION="2.98.20261117.143528"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -1838,7 +1838,7 @@ if [[ -n "$EXPORT_BANS" ]]; then
     fi
     mapfile -t EXP < <(list_manual_bans)
     {
-        echo "# nginx-tools — bannissements manuels exportés de $(hostname) le $(date '+%Y-%m-%d %H:%M %Z') (${#EXP[@]} IP)"
+        echo "# nginx-tools — bannissements manuels exportés de $(hostname) le $(date "+%Y-%m-%d %H:%M $(zone_locale 2>/dev/null || date +%Z)") (${#EXP[@]} IP)"
         echo "# Import : nginx-log-audit.sh --import-bans FICHIER   (IP<TAB>date du bannissement<TAB>serveur d'origine)"
         for ip in "${EXP[@]}"; do
             quand=$(awk -F'\t' -v ip="$ip" '$3 == ip && $2 == "banni" { d = $1 } END { print d }' "$BAN_LOG" 2>/dev/null) || quand=""
@@ -3934,7 +3934,7 @@ compare_report() {
     }' "$src" > "$counts"
     {
         echo "=============================================================="
-        echo " Comparaison nginx — $ENV — $(hostname) — $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo " Comparaison nginx — $ENV — $(hostname) — $(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")"
         echo " Dernières 24 h comparées aux 24 h précédentes. Lecture seule. Ce fichier contient des adresses IP (mode 600)."
         echo "=============================================================="
         awk -F'\t' '
@@ -3981,7 +3981,7 @@ fi
 LASTRUN_FILE="$STATE_DIR/${ENV}-lastrun"
 LASTRUN_PREVIOUS="jamais executee avant"
 [[ -f "$LASTRUN_FILE" ]] && LASTRUN_PREVIOUS=$(cat "$LASTRUN_FILE")
-date '+%Y-%m-%d %H:%M:%S %Z' > "$LASTRUN_FILE"
+date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)" > "$LASTRUN_FILE"
 
 # Displays the lines added to $1 since the last call (position kept in $2), UNLESS --init is active:
 # in that case, the whole file is displayed (last_pos forced to 0), and the position is still updated at the
@@ -4070,7 +4070,7 @@ if [[ "$DO_COMPARE" == "1" ]]; then
 fi
 
 echo "=============================================================="
-echo " Rapport nginx — $ENV — $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo " Rapport nginx — $ENV — $(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")"
 echo " IP publique de ce serveur : $PUBLIC_IP"
 echo " Système d'exploitation    : $OS_NAME"
 if [[ -n "$LAST_HOURS" ]]; then

@@ -81,7 +81,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.33.20261112.082236"
+readonly SCRIPT_VERSION="1.34.20261117.143528"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -767,7 +767,7 @@ if [[ "$DO_UFW_START" == "1" ]]; then
     ufw_start_restore
 fi
 
-date '+%Y-%m-%d %H:%M:%S %Z'
+date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)"
 
 # --- --ufw-hook / --ufw-hook-remove -------------------------------------------------------------------------------------
 if [[ "$DO_UFW_HOOK" == "1" || "$DO_UFW_HOOK_REMOVE" == "1" ]]; then

@@ -208,6 +208,38 @@ class LangueEtTraducteur(unittest.TestCase):
             self.assertEqual(en("connexion refusée"), "connection refused")
 
 
+class FuseauxHoraires(unittest.TestCase):
+    """apps/_i18n.py 1.25 : HNE / HAE en français, EST / EDT en anglais, seulement après une heure ou « heure locale, »."""
+    def setUp(self):
+        self.i18n = charger_i18n()
+
+    def test_abreviation(self):
+        f = self.i18n.abreviation_fuseau
+        self.assertEqual((f("EST", "fr"), f("EDT", "fr"), f("PDT", "fr_CA")), ("HNE", "HAE", "HAP"))
+        self.assertEqual((f("HNE", "en"), f("HAE", "en")), ("EST", "EDT"))
+        self.assertEqual((f("UTC", "fr"), f("", "fr")), ("UTC", ""))
+
+    def test_traducteur_dans_les_deux_sens(self):
+        vers_fr = self.i18n.Traducteur({"Written on: ": "Écrit le : ", "local time": "heure locale"})
+        vers_fr.langue = "fr"
+        self.assertEqual(vers_fr("Written on: 2026-11-17 11:14:02 (local time, EST)"), "Écrit le : 2026-11-17 11:14:02 (heure locale, HNE)")
+        self.assertEqual(vers_fr("Written on: 2026-07-01 09:00 EDT"), "Écrit le : 2026-07-01 09:00 HAE")
+        self.assertEqual(vers_fr("Written on: EST"), "Écrit le : EST")                 # not after an hour: left alone
+        vers_en = self.i18n.Traducteur({"Rapport nginx": "nginx report"})
+        vers_en.langue = "en"
+        self.assertEqual(vers_en(" Rapport nginx — PROD — 2026-11-17 11:14:02 HNE"), " nginx report — PROD — 2026-11-17 11:14:02 EST")
+
+
+class ZoneLocaleBash(EnvTest):
+    """apps/_i18n.sh zone_locale : abréviation française du fuseau, changement d'heure donné par le système."""
+    def test_zone_locale(self):
+        for tz, date, attendu in (("America/Toronto", "2026-11-17", "HNE"), ("America/Toronto", "2026-07-01", "HAE"),
+                                  ("America/Vancouver", "2026-07-01", "HAP"), ("UTC", "2026-07-01", "UTC")):
+            script = f'. "{SCRIPTS_DIR}/apps/_i18n.sh"\nzone_locale -d {date}\n'
+            rc, out, err = self.run_cmd(["bash", "-c", script, "bash"], {"TZ": tz})
+            self.assertEqual((rc, out.strip()), (0, attendu), err)
+
+
 class LangueDeLEnvironnement(EnvTest):
     """1.17 d'apps/_i18n.py : la langue suit l'environnement comme gettext — GNU LANGUAGE (sauf locale C), puis LC_ALL, LC_MESSAGES, LANG — et la ligne
     « Options : --lang xx (origine) » dit QUELLE variable a décidé et lesquelles sont ignorées (un LC_ALL oublié qui masque LANG se voit)."""

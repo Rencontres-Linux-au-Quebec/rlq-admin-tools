@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.107.20261115.163001"
+readonly SCRIPT_VERSION="2.108.20261117.143528"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1103,7 +1103,7 @@ sauvegarde_creer() {     # $1 label: prints the archive path; returns 1 if it co
     if ! tar -czf "$chemin" -C / "${racines[@]}" 2>/dev/null; then rm -f "$chemin"; return 1; fi
     {
         echo "nginx-hardening.sh v$SCRIPT_VERSION"
-        echo "date : $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "date : $(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")"
         echo "etiquette : $etiquette"
         echo "racines : ${racines[*]}"
     } > "$chemin.txt"
