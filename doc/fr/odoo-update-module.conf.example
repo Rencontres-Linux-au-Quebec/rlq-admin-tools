@@ -30,6 +30,8 @@
 # écritures HTTP légères en plus de la discussion, de la présence et du suivi des visiteurs (expression régulière des adresses,
 # sans le « / » du début, ex. : my_module/ping|other/heartbeat) : comme les visiteurs, elles n'annulent pas la mise à jour
 #LIGHT_WRITES=
+# attendre aussi pendant les écritures légères (discussion, présence, suivi des visiteurs) : yes / no ; no (défaut) : simple note, elles ne retardent plus la mise à jour
+#LIGHT_WRITES_WAIT=no
 # activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
 #LOW_REQUESTS=10
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)
@@ -71,6 +73,9 @@
 #WAIT_QUIET=
 # préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py : pages publiques, derniers événements et sondages, administration) ; no = --no-warmup
 #WARMUP=yes
+# une écriture de l'administration d'Odoo (call_kw : web_save, action_...) terminée depuis plus de N secondes ne bloque plus la mise à jour, sauf si
+# un formulaire est de nouveau en cours de modification (onchange après elle) ; 0 = toute écriture des 5 dernières minutes bloque (comme avant 1.32)
+#WRITE_GRACE=60
 # archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »
 # du dossier courant (ex. rlq_survey_report.zip) ; no : ne rien décompresser (défaut : « MODULE*.zip » le plus récent du dossier courant)
 #ZIP=

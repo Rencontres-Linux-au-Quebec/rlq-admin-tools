@@ -115,6 +115,9 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 0, out + err)
         maintenant = self._journal_post("/im_livechat/get_session", "/mail/message/post", "/discuss/channel/notify_typing")
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)                     # 1.32: LIGHT_WRITES_WAIT=no (default): a note only
+        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES_WAIT=yes\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
         self.assertEqual(rc, 3, out + err)
         self.assertIn("écritures légères", out)
         self.assertNotIn("écritures HTTP (POST", out)
@@ -128,7 +131,7 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 3, out + err)
         self.assertIn("ANNULÉE", out)
         self.assertIn("/survey/submit", out)
-        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES=survey/submit/\\S*\n")
+        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES=survey/submit/\\S*\nLIGHT_WRITES_WAIT=yes\n")
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
         self.assertIn("écritures légères", out, out + err)
         self.write("etc/odoo-update-module.conf", "LIGHT_WRITES=survey/(\n")          # invalid expression: ignored, the write still blocks
@@ -146,6 +149,7 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 0, out + err)
         self.assertIn("site calme", out)
         maintenant = self._journal_post("/html_editor/bus_broadcast", *lectures)          # collaborative editor: a light write
+        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES_WAIT=yes\n")                # 1.32: light writes delay the update only with this key
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
         self.assertEqual(rc, 3, out + err)
         self.assertIn("écritures légères", out)
@@ -157,6 +161,43 @@ class OdooUpdateModule(EnvTest):
             rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=maintenant)
             self.assertEqual(rc, 3, ecriture + out + err)
             self.assertIn("ANNULÉE", out, ecriture)
+
+    def test_232_ecriture_terminee_formulaire_en_cours_et_administration(self):
+        """1.32 : cas réel du 2026-11-17 (comptoir d'inscription) : un web_save terminé depuis plus de WRITE_GRACE s ne bloque plus ; un onchange
+        après lui (formulaire en cours de modification) bloque ; load_breadcrumbs, init_barcode_interface et ir.config_parameter/get_* sont des
+        lectures ; une adresse de l'administration est un utilisateur connecté ; WRITE_GRACE=0 : comme avant."""
+        def journal(*lignes):
+            self.write("nginx/exemple-access.log", "\n".join(f'96.21.220.4 - - [09/Nov/2026:19:00:{s:02d} +0000] "POST {a} HTTP/1.1" 200 12 "-" "Mozilla/5.0"'
+                                                             for s, a in lignes) + "\n")
+        maintenant = self._epoch("2026-11-09 19:02:00 UTC")
+        lectures = [(1, "/web/action/load_breadcrumbs"), (2, "/event/init_barcode_interface"),
+                    (3, "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config")]
+        journal(*lectures)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)
+        journal((10, "/web/dataset/call_kw/rlq.registration.desk/onchange"), (20, "/web/dataset/call_kw/rlq.registration.desk/web_save"), *lectures)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)                     # saved 100 s ago, no form opened after
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-11-09 19:00:50 UTC"))
+        self.assertEqual(rc, 3, out + err)                     # saved 30 s ago: still blocks
+        self.assertIn("écritures HTTP (POST", out)
+        journal((10, "/web/dataset/call_kw/rlq.registration.desk/web_save"), (30, "/web/dataset/call_kw/rlq.volunteer.coordinator/onchange"))
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("formulaire(s) en cours de modification", out)
+        self.assertIn("rlq.volunteer.coordinator", out)
+        self.assertIn("écritures terminées depuis plus de 60 s", out)
+        self.assertIn("utilisateur connecté (compte non identifié)", out)
+        self.assertNotIn("visiteur non connecté", out)
+        journal((10, "/web/dataset/call_kw/rlq.registration.desk/web_save"))
+        self.write("etc/odoo-update-module.conf", "WRITE_GRACE=0\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("écritures HTTP (POST", out)
+        journal((10, "/survey/submit/a/b"))                    # a write of the public site keeps the 5-minute window
+        self.write("etc/odoo-update-module.conf", "")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
 
     def test_229_read_requests(self):
         """1.29 : READ_REQUESTS ajoute des lectures ; une expression invalide est ignorée (l'écriture bloque toujours)."""

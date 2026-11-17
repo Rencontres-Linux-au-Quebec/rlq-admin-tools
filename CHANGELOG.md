@@ -3821,6 +3821,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.32.20261117.183619 - Restart sooner: finished saves, forms being edited, logged-in users of the administration
+
+- Title: a finished save of the Odoo administration no longer blocks the update; a form being edited does; light writes are a note only.
+- Reason: request of the administrator on 2026-11-17 ("voit-tu des améliorations où on aurait pu le redémarrer ?"). Real case of 2026-11-17 18:06 to 18:19 (registration desk): the update could have run at 18:06 (only chat and reads) and from about 18:15 (last web_save at 18:14:43, no form opened after), but kept waiting: the 5-minute window of a finished web_save, the light writes (chat) that made the site busy, three read-only requests counted as writes, and two logged-in users of the administration shown as "visiteur non connecté".
+- Changes:
+  - ACTIVITY_PY: new BACKEND, ONCHANGE and CALL_KW expressions. READ_POST: web/action/load_breadcrumbs, event/init_barcode_interface, web/dataset/call_kw/ir.config_parameter/get_* (reads). LIGHT_POST: web/dataset/call_kw/mail.push.device/* (registration of the browser for push notifications).
+  - nginx_writes(): first line "WRITES LIGHT READS EDITS DONE"; a call_kw write older than WRITE_GRACE seconds goes to "F" (finished: a note); "E" lines: a form being edited (onchange of an address after its last write). Variable ACTIVITY_GRACE passed to Python.
+  - site_reasons(): "W|" line "N formulaire(s) en cours de modification ..." (blocks); "N|" note "N écritures terminées depuis plus de WRITE_GRACE s ..."; the light writes are "R|" only with LIGHT_WRITES_WAIT=yes, otherwise an "N|" note.
+  - who_waits(): an address that reached the administration (/web/dataset/, /web/action/, /odoo) without a user found in res_device_log is "utilisateur connecté (compte non identifié)"; the logged-in users with no recent request say "(aucune requête récente : ne retarde pas la mise à jour)".
+  - wait_for_quiet_site(): a check identical to the previous one prints one line "inchangé depuis le contrôle précédent".
+  - New configuration keys WRITE_GRACE (seconds, default 60; 0 = every write of the window blocks, as before) and LIGHT_WRITES_WAIT (yes / no, default no).
+  - Files: odoo-update-module.sh, lang/odoo-update-module.en.po, doc/fr and doc/en odoo-update-module.conf.example and 09-odoo-update-module.md, doc/conf-history/odoo-update-module.history, nginx-tools-tests/test_odoo_update_module.py.
+- Bugs fixed:
+  - Symptom: "écritures HTTP (POST...)" for /web/action/load_breadcrumbs, /event/init_barcode_interface and call_kw/ir.config_parameter/get_web_dialog_size_config. Diagnosis: missing from the reads (web/action/load did not cover load_breadcrumbs). Fix: added to READ_POST.
+  - Symptom: 96.21.220.4 and 192.222.161.166 shown as "visiteur non connecté" while they called call_kw (only possible when logged in). Diagnosis: res_device_log had noted another address for their account. Fix: label from the requests of the administration.
+- Safeguards and edge cases: only the writes of the administration (call_kw) get the grace; a write of the public site (/survey/submit, registrations...), PUT, PATCH, DELETE and xmlrpc keep the 5-minute window; a write younger than WRITE_GRACE always blocks; an onchange after the last save of the same address blocks (values not saved yet); the PostgreSQL checks (sessions, locks on ir_cron, writes in the activity tables) are unchanged and still see a write in progress; a value that cannot be read still blocks; the visitors threshold (BUSY_VISITORS) is unchanged.
+- Checks performed: bash -n; nginx-tools-tests/test_odoo_update_module.py: 49 tests [OK], new test_232_ecriture_terminee_formulaire_en_cours_et_administration, test_226 and test_229 adapted (LIGHT_WRITES_WAIT=yes where the light writes must delay the update); test_i18n, test_config_commune, test_cles_modeles, test_config_defaut, test_conventions: no new failure for odoo-update-module (the failures left concern other programs and exist on main).
+- Action required: none. To keep the old behaviour: WRITE_GRACE=0 and LIGHT_WRITES_WAIT=yes in /etc/default/odoo-update-module.conf.
+
 ### 1.31.20261117.143528 - HNE / HAE in the title line
 
 - Title: HNE / HAE in the title line.

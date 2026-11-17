@@ -873,3 +873,30 @@ msgstr " · logged in to Odoo, last activity at "
 
 msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
 msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"
+
+msgid "  LIGHT_WRITES_WAIT=non         attendre aussi pendant les écritures légères (oui / non ; non : simple note, elles ne retardent plus la mise à jour)"
+msgstr "  LIGHT_WRITES_WAIT=no          also wait during light writes (yes / no; no: a note only, they no longer delay the update)"
+
+msgid "  WRITE_GRACE=60                une écriture de l'administration d'Odoo (call_kw) terminée depuis plus de N secondes ne bloque plus, sauf si un formulaire"
+msgstr "  WRITE_GRACE=60                a write of the Odoo administration (call_kw) over for more than N seconds no longer blocks, unless a form"
+
+msgid "                               est de nouveau en cours de modification (onchange après elle) ; 0 = toute écriture des 5 dernières minutes bloque (comme avant)"
+msgstr "                               is being edited again (onchange after it); 0 = every write of the last 5 minutes blocks (as before)"
+
+msgid " formulaire(s) en cours de modification (onchange sans enregistrement après), le plus récent : "
+msgstr " form(s) being edited (onchange not saved yet), the most recent: "
+
+msgid " écritures terminées depuis plus de "
+msgstr " writes over for more than "
+
+msgid " s (enregistrées, aucun formulaire ouvert après), la plus récente : "
+msgstr " s (saved, no form opened after them), the most recent: "
+
+msgid "utilisateur connecté (compte non identifié)"
+msgstr "logged-in user (account not identified)"
+
+msgid " (aucune requête récente : ne retarde pas la mise à jour)"
+msgstr " (no recent request: does not delay the update)"
+
+msgid "inchangé depuis le contrôle précédent"
+msgstr "unchanged since the previous check"
