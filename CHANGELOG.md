@@ -2245,6 +2245,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.27.20261118.114500 - --io-latency on a recent kernel: libbpf-tools first, failures reported
+
+- Title: filetop and biolatency of libbpf-tools are used first (no compilation, no kernel headers); a failure of filetop or biolatency is reported instead of "no file read or written"; the compilation failure of bcc on a kernel newer than itself is explained.
+- Reason: export export-ai-proxmox1-20261118-112834.md (Proxmox 9, kernel 7.0.14-29-pve): zfsslower failed ("include/linux/fs.h: static assertion failed"), the files section said "no file read or written during the measurement" and the disks section was missing, while both tools had failed in the same way.
+- Changes: apps/_iolatency.py 1.2 (FILETOP_TOOLS and BIOLAT_TOOLS start with filetop-libbpf and biolatency-libbpf; Tracer keeps filetop_error, bio_error, filetop_tool, bio_tool; results "path" and "error"; function bcc_compile_failure); host-perf-audit.py: ensure_required installs libbpf-tools when apt knows it; analyze_io_latency prints the failure of filetop or biolatency, "not found" when missing, and the explanation of the compilation failure of bcc. lang/host-perf-audit.fr.po.
+- Bugs fixed: symptom, "Files the most read and written (filetop): no file read or written during the measurement" and no disk section; diagnosis, bcc compiles its probes against the headers of the running kernel and cannot compile against kernel 7.0 (too recent for the bcc of Debian 13): filetop and biolatency of bcc stopped at once, their error lines were not kept; fix, libbpf-tools first (CO-RE, read the types of the kernel in its BTF), error lines kept and shown.
+- Safeguards and edge cases: bcc stays as a fallback when libbpf-tools is missing; zfsslower has no libbpf version: the slow ZFS operations file by file stay unavailable on this kernel until bpfcc-tools is updated (said in the report); a tool that gives nothing without an error line is reported as "gave no histogram".
+- Checks performed: test_host_perf_audit (36 tests pass), LatenceES127 (order of the tools, errors kept, explanation of bcc, no "nothing read" after a failure), PaquetsRequis (libbpf-tools installed).
+- Action required: copy the suite to proxmox1 and run host-perf-audit.py --duration 1h --io-latency --export-ai again (installs libbpf-tools the first time); PostgreSQL now has track_io_timing and pg_stat_statements: the SQL queries appear in this measurement.
+
 ### 1.26.20261118.101500 - --io-latency: top files, response time of the disks, PostgreSQL
 
 - Title: --io-latency also gives the files the most read and written, the histogram of the response times of each disk, and in each PostgreSQL container the tables and SQL queries that read the most from the disk.
@@ -4173,6 +4183,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.114.20261118.114500 - report.url: the databases that Odoo really serves
+
+- Title: step 17b finds the databases on the command line of the running Odoo processes (-d NAME), and never says nothing.
+- Reason: report report-proxmox1-20261118-100852.md: in 104 and 105, step 17b printed the line of TMPDIR only, nothing about report.url.
+- Changes: nginx-hardening.sh: new function odoo_bases_servies (-d NAME, -dNAME, --database NAME, --database=NAME, several names separated by commas; NGINX_HARDENING_PS for the tests); odoo_rapports_et_tmp: databases from the Odoo processes, then db_name without False/None, then every database; [INFO] for a database that is not a readable Odoo database; [ATTN] when no database was found. lang/nginx-hardening.en.po. Test: RapportsEtTmp2113.test_2114_base_de_la_ligne_de_commande_et_db_name_false.
+- Bugs fixed: symptom, no line at all about report.url; diagnosis, ERPLibre gives the database with "-d NAME" in run.sh and the configuration has db_name = False: the step looked for a database named "False", skipped it without a word and did nothing; fix, the databases of the running Odoo processes first, "False" and "None" left out, and a message for every skip.
+- Safeguards and edge cases: same rules as 2.113 (only when absent, never over a value set by hand, never with a dbfilter on %h or %d).
+- Checks performed: RapportsEtTmp2113 (3 tests pass).
+- Action required: copy the suite and run nginx-hardening.sh --update in 104 and 105 (host-perf-audit.py --guest-sync --guest-run --guests 104,105).
 
 ### 2.113.20261118.101500 - PDF reports through 127.0.0.1 (report.url), temporary files of Odoo in memory
 
@@ -7539,6 +7559,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: none.
 
 ## apps/_iolatency.py
+
+### 1.2.20261118.114500 - libbpf-tools first, failures kept
+
+- Title: filetop-libbpf and biolatency-libbpf before the tools of bcc; error lines of filetop and biolatency kept.
+- Reason: see host-perf-audit.py 1.27.20261118.114500.
+- Changes: FILETOP_TOOLS, BIOLAT_TOOLS, ERROR_WORDS, BCC_COMPILE_WORDS, bcc_compile_failure; Tracer.filetop_error, bio_error, filetop_tool, bio_tool.
+- Bugs fixed: see host-perf-audit.py 1.27.
+- Safeguards and edge cases: bcc kept as a fallback.
+- Checks performed: test_host_perf_audit.LatenceES127.
+- Action required: none.
 
 ### 1.1.20261118.100000 - filetop, biolatency, PostgreSQL
 

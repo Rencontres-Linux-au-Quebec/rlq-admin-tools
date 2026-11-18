@@ -982,10 +982,10 @@ class PaquetsRequis(unittest.TestCase):
         m = self.m
         self.addCleanup(setattr, os, "geteuid", os.geteuid)                       # the tests change os.geteuid: put it back
         m.shutil = type("S", (), {"which": staticmethod(lambda n: "/usr/bin/apt-get" if n == "apt-get" else None)})
-        m.run = lambda cmd, timeout=20: (0, "") if cmd[:2] == ["apt-cache", "show"] and cmd[2].startswith("proxmox-headers-") else (100, "")
+        m.run = lambda cmd, timeout=20: (0, "") if cmd[:2] == ["apt-cache", "show"] and (cmd[2].startswith("proxmox-headers-") or cmd[2] == "libbpf-tools") else (100, "")
         m.subprocess = type("P", (), {"call": staticmethod(lambda cmd, **k: self.appels.append(cmd) or 0),
                                       "SubprocessError": Exception, "DEVNULL": -3})
-        m.IOLAT = type("I", (), {"Tracer": lambda *a, **k: type("T", (), {"find_slow_tool": lambda self: None})()})
+        m.IOLAT = type("I", (), {"Tracer": lambda *a, **k: type("T", (), {"find_slow_tool": lambda self: None, "find_tool": lambda self, n: None})()})
 
     def args(self, io):
         return type("A", (), {"io_latency": io})()
@@ -995,8 +995,9 @@ class PaquetsRequis(unittest.TestCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             self.m.ensure_required(self.args(20.0))
-        self.assertEqual(len(self.appels), 2)
+        self.assertEqual(len(self.appels), 3)
         self.assertEqual(self.appels[0][-1], "smartmontools")
+        self.assertEqual(self.appels[2][-1], "libbpf-tools")                          # 1.27: no compiler, no headers
         self.assertIn("bpfcc-tools", self.appels[1])
         self.assertTrue(any(a.startswith("proxmox-headers-") for a in self.appels[1]))
         self.assertIn("[OK] installed: bpfcc-tools", err.getvalue())
@@ -1091,6 +1092,37 @@ class LatenceES126(unittest.TestCase):
         self.assertTrue(cmds[0].startswith("pct exec 105 -- sh -c "))
         self.assertTrue(any("systemctl restart postgresql" in c for c in cmds))
         self.assertFalse(any(hpa.is_read_only(c) for c in cmds))                         # changes: confirmed one by one
+
+
+class LatenceES127(unittest.TestCase):
+    """1.27 : libbpf-tools d'abord (pas de compilation), un échec de filetop ou de biolatency est dit (jamais « aucun fichier lu »),
+    l'échec de compilation de bcc sur un noyau trop récent est expliqué."""
+
+    def test_echecs_dits(self):
+        m = charger("iol_127", "apps/_iolatency.py", {})
+        self.assertEqual(m.FILETOP_TOOLS[0], "filetop-libbpf")
+        self.assertEqual(m.BIOLAT_TOOLS[0], "biolatency-libbpf")
+        t = m.Tracer(20, 5, which=lambda n: None)
+        t._read_filetop(io.StringIO("In file included from <built-in>:2:\ninclude/linux/fs.h:2432:15: error: static assertion failed\n"))
+        t._read_bio(io.StringIO("libbpf: failed to load object 'biolatency_bpf'\n"))
+        t.filetop_proc = t.bio_proc = object()
+        r = t.results()
+        self.assertIn("static assertion", r["filetop"]["error"])
+        self.assertIn("failed to load", r["biolatency"]["error"])
+        self.assertTrue(m.bcc_compile_failure("include/linux/fs.h:2432:15: error: static assertion failed due to requirement"))
+        self.assertFalse(m.bcc_compile_failure(""))
+        hpa = charger("hpa_iol127", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        res = {"delayacct": "on", "procs": [], "pools": {},
+               "slow": {"tool": "/usr/sbin/zfsslower-bpfcc", "count": 0, "files": [], "threshold": 20.0,
+                        "error": "include/linux/fs.h:2432:15: error: static assertion failed due to requirement 'sizeof(struct filename) % 64 == 0'"},
+               "filetop": r["filetop"], "biolatency": r["biolatency"], "postgres": {}}
+        fd, out = hpa.Findings(), []
+        hpa.analyze_io_latency(res, {}, fd, out)
+        texte = "\n".join(out)
+        self.assertIn("bcc (bpfcc-tools) cannot compile its probes for this kernel", texte)
+        self.assertIn("filetop failed", texte)
+        self.assertNotIn("no file read or written", texte)
+        self.assertIn("biolatency gave no histogram", texte)
 
 
 if __name__ == "__main__":

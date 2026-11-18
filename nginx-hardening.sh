@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.113.20261118.101500"
+readonly SCRIPT_VERSION="2.114.20261118.114500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -4058,6 +4058,17 @@ fi
 #   TMPDIR: the temporary files of Odoo (tempfile: PDF in the making, exports, imports) in /run/odoo-tmp (tmpfs, in memory, emptied when Odoo
 #   stops: nothing in it is kept). systemd drop-in of the Odoo unit (RuntimeDirectory, Environment=TMPDIR); applied at the next restart of Odoo,
 #   never restarted by this script. Not done when /run has less than 1 GiB free.
+# odoo_bases_servies (2.114): the databases named on the command line of the running Odoo processes (« -d NAME », « -dNAME », « --database NAME »,
+# « --database=NAME »), several separated by commas; NGINX_HARDENING_PS replaces « ps -eo args » in the tests.
+odoo_bases_servies() {
+    local ligne
+    { if [[ -n "${NGINX_HARDENING_PS:-}" ]]; then cat "$NGINX_HARDENING_PS"; else ps -eo args 2>/dev/null; fi; } | grep -E 'odoo-bin|openerp-server|odoo ' | while IFS= read -r ligne; do
+        if [[ "$ligne" =~ (^|[[:space:]])(-d|--database)[[:space:]=]*([^[:space:]-][^[:space:]]*) ]]; then
+            printf '%s\n' "${BASH_REMATCH[3]}" | tr ',' '\n'
+        fi
+    done | sort -u | tr '\n' ' '
+}
+
 odoo_rapports_et_tmp() {
     local db dbs filtre actuel voulu unite dropin dir libre
     voulu="http://127.0.0.1:${ODOO_HTTP_PORT:-8069}"
@@ -4069,11 +4080,19 @@ odoo_rapports_et_tmp() {
         elif [[ -z "${NGINX_HARDENING_PSQL:-}" ]] && { ! command -v psql >/dev/null 2>&1 || [[ "$EUID" -ne 0 ]]; }; then
             echo "  [INFO] report.url non vérifié : psql absent ou pas root."
         else
-            dbs=$(odoo_conf_valeur "$ODOO_CONF" db_name 2>/dev/null | tr ',' ' ' || true)
+            # 2.114: the databases that Odoo really serves: « -d NAME » / « --database=NAME » of its running processes (run.sh of ERPLibre),
+            # then db_name of the configuration (« False » = none: 2.113 looked for a database named False and said nothing), then every database
+            dbs=$(odoo_bases_servies)
+            [[ -n "${dbs// /}" ]] || dbs=$(odoo_conf_valeur "$ODOO_CONF" db_name 2>/dev/null | tr ',' '\n' | grep -vxE '[[:space:]]*(False|false|None)?[[:space:]]*' | tr '\n' ' ' || true)
             [[ -n "${dbs// /}" ]] || dbs=$(pgq postgres "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate AND datname <> 'postgres' ORDER BY 1" 2>/dev/null || true)
+            local vues=0
             for db in $dbs; do
                 [[ "$db" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
-                [[ "$(pgq "$db" "SELECT to_regclass('ir_config_parameter') IS NOT NULL" 2>/dev/null)" == "t" ]] || continue
+                if [[ "$(pgq "$db" "SELECT to_regclass('ir_config_parameter') IS NOT NULL" 2>/dev/null)" != "t" ]]; then
+                    echo "  [INFO] report.url : $db n'est pas une base d'Odoo lisible (pas de table ir_config_parameter, ou base absente) — ignorée."
+                    continue
+                fi
+                vues=$((vues + 1))
                 actuel=$(pgq "$db" "SELECT value FROM ir_config_parameter WHERE key = 'report.url'" 2>/dev/null || true)
                 if [[ "$actuel" == "$voulu" ]]; then
                     pass "Odoo ($db) : report.url = $voulu — les rapports PDF lisent les styles directement chez Odoo."
@@ -4088,6 +4107,7 @@ odoo_rapports_et_tmp() {
                     warn "Odoo ($db) : report.url non ajouté (PostgreSQL a refusé) — à régler à la main : Paramètres > Technique > Paramètres système, report.url = $voulu."
                 fi
             done
+            (( vues > 0 )) || warn "Odoo : report.url non vérifié — aucune base d'Odoo trouvée (processus d'Odoo, db_name, liste des bases)."
         fi
     fi
     if [[ "${ODOO_TMPDIR_RAM:-1}" == "1" ]]; then

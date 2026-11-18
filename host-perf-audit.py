@@ -48,7 +48,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.26.20261118.101500"
+__version__ = "1.27.20261118.114500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1219,8 +1219,13 @@ def ensure_required(args):
     and the headers of the running kernel that bcc needs to compile its probe."""
     if not shutil.which("smartctl"):
         install_packages(["smartmontools"], "health of the disks (smartctl)")
-    if getattr(args, "io_latency", None) is not None and IOLAT is not None and IOLAT.Tracer(20).find_slow_tool() is None:
-        install_packages(["bpfcc-tools", headers_package()], "--io-latency: ZFS operations file by file (zfsslower)")
+    if getattr(args, "io_latency", None) is not None and IOLAT is not None:
+        tracer = IOLAT.Tracer(20)
+        if tracer.find_slow_tool() is None:
+            install_packages(["bpfcc-tools", headers_package()], "--io-latency: ZFS operations file by file (zfsslower)")
+        # 1.27: libbpf-tools (filetop-libbpf, biolatency-libbpf) need no compiler and no kernel headers: they work on a kernel newer than bcc
+        if tracer.find_tool(("filetop-libbpf", "/usr/sbin/filetop-libbpf")) is None and apt_has("libbpf-tools"):
+            install_packages(["libbpf-tools"], "--io-latency: files and disks without compiling (libbpf-tools)")
 
 
 def start_io_latency(threshold, interval, zfs, names=None, guests=None):
@@ -1336,6 +1341,8 @@ def analyze_io_latency(io, names, fd, out):
         fd.ask("--io-latency: install bpfcc-tools (zfsslower: the ZFS operations slower than a threshold, with the process and the file)", [BCC_INSTALL])
     elif slow["error"] and not slow["count"]:
         out.append(f"  File names: zfsslower failed: {slow['error']}")
+        if IOLAT.bcc_compile_failure(slow["error"]):         # 1.27
+            out.append(f"    bcc (bpfcc-tools) cannot compile its probes for this kernel ({os.uname().release}), newer than bcc: the slow ZFS operations are not traced file by file until bpfcc-tools is updated; filetop and biolatency of libbpf-tools work without compiling")
     elif not slow["count"]:
         out.append(f"  ZFS operations slower than {threshold:g} ms: none — no read, write, open or fsync of a file waited that long: the disks did not slow the applications down during the measurement")
     else:
@@ -1349,9 +1356,17 @@ def analyze_io_latency(io, names, fd, out):
         out.append("        read     written   reads  writes  guest                  process         file")
         for f in top["files"]:
             out.append(f"      {f['rkb'] / 1024:>6.1f} MiB {f['wkb'] / 1024:>6.1f} MiB {f['reads']:>7} {f['writes']:>7}  {guest_label(f['guest'], names)[:22]:<22} {f['comm'][:15]:<15} {f['file'][:60]}")
+    elif top.get("tool") and top.get("error"):                # 1.27: never « nothing read » when filetop failed
+        out.append(f"  Files the most read and written: filetop failed ({top.get('path')}): {top['error']}")
     elif top.get("tool"):
         out.append("  Files the most read and written (filetop): no file read or written during the measurement")
+    else:
+        out.append("  Files the most read and written: filetop not found (libbpf-tools or bpfcc-tools)")
     bio = (io.get("biolatency") or {})
+    if bio.get("tool") and not bio.get("disks"):            # 1.27
+        out.append(f"  Response time of each disk: biolatency gave no histogram ({bio.get('path')})" + (f": {bio['error']}" if bio.get("error") else ""))
+    elif not bio.get("tool"):
+        out.append("  Response time of each disk: biolatency not found (libbpf-tools or bpfcc-tools)")
     if bio.get("tool") and bio.get("disks"):
         out.append("  Response time of each disk (biolatency, every operation of the measurement):")
         for disk, rows in sorted(bio["disks"].items()):

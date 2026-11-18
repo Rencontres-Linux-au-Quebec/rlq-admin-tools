@@ -30,7 +30,7 @@ import signal
 import subprocess
 import threading
 
-__version__ = "1.1.20261118.100000"
+__version__ = "1.2.20261118.114500"
 
 ROOT = os.environ.get("NGINX_TOOLS_PROC_ROOT", "")
 DELAYACCT = "/proc/sys/kernel/task_delayacct"
@@ -38,8 +38,13 @@ SLOWER_TOOLS = ("zfsslower-bpfcc", "/usr/share/bcc/tools/zfsslower", "/usr/sbin/
 # bcc zfsslower:  TIME     COMM           PID    T BYTES   OFF_KB   LAT(ms) FILENAME
 SLOW_RE = re.compile(r"^\d\d:\d\d:\d\d\s+(\S.{0,15}?)\s+(\d+)\s+([RWOS])\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$")
 OPS = {"R": "read", "W": "write", "O": "open", "S": "fsync"}
-FILETOP_TOOLS = ("filetop-bpfcc", "/usr/share/bcc/tools/filetop", "/usr/sbin/filetop-bpfcc", "filetop")
-BIOLAT_TOOLS = ("biolatency-bpfcc", "/usr/share/bcc/tools/biolatency", "/usr/sbin/biolatency-bpfcc", "biolatency")
+# 1.2: the versions of libbpf-tools first (« CO-RE »: compiled once, read the types of the running kernel in its BTF): bcc compiles its probes
+# against the headers of the kernel and fails on a kernel newer than itself (Proxmox 9, kernel 7.0: « static assertion failed » in fs.h)
+FILETOP_TOOLS = ("filetop-libbpf", "/usr/sbin/filetop-libbpf", "filetop-bpfcc", "/usr/share/bcc/tools/filetop", "/usr/sbin/filetop-bpfcc", "filetop")
+BIOLAT_TOOLS = ("biolatency-libbpf", "/usr/sbin/biolatency-libbpf", "biolatency-bpfcc", "/usr/share/bcc/tools/biolatency", "/usr/sbin/biolatency-bpfcc",
+                "biolatency")
+ERROR_WORDS = ("error", "cannot", "failed", "failure", "not found", "permission denied")
+BCC_COMPILE_WORDS = ("static assertion", "include/linux/", ".h:", "failed to compile", "bpf: Failed")
 # filetop -C:  TID     COMM             READS  WRITES R_Kb    W_Kb    T FILE
 FILETOP_RE = re.compile(r"^\s*(\d+)\s+(\S.{0,15}?)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([RSO])\s+(.+)$")
 # biolatency -D -m:  disk = sda   /   "     2 -> 3          : 12       |***   |"
@@ -143,6 +148,8 @@ class Tracer:
         self.files = {}              # 1.1 (guest, comm, file) -> [reads, writes, read KiB, written KiB]
         self.bio_proc = None
         self.bio_lines = []
+        self.filetop_tool = self.bio_tool = None
+        self.filetop_error = self.bio_error = ""
         self.pool_data = {}
         self.threads = []
         self.lock = threading.Lock()
@@ -213,6 +220,8 @@ class Tracer:
         for line in stream:
             m = FILETOP_RE.match(line.rstrip("\n"))
             if not m:
+                if not self.filetop_error and any(w in line.lower() for w in ERROR_WORDS):
+                    self.filetop_error = line.strip()[:300]            # 1.2: a failure of filetop is reported, never silent
                 continue
             tid, comm, reads, writes, rkb, wkb, kind, name = m.groups()
             if kind != "R":                      # regular files only (S socket, O other)
@@ -230,6 +239,8 @@ class Tracer:
 
     def _read_bio(self, stream):
         for line in stream:
+            if not self.bio_error and any(w in line.lower() for w in ERROR_WORDS):
+                self.bio_error = line.strip()[:300]
             with self.lock:
                 self.bio_lines.append(line.rstrip("\n"))
 
@@ -269,12 +280,12 @@ class Tracer:
         self.slow_tool = self.find_slow_tool()
         if self.slow_tool:
             self.slow_proc, self.slow_error = self._spawn([self.slow_tool, str(int(self.threshold) if self.threshold >= 1 else 1)], self._read_slow)
-        tool = self.find_tool(FILETOP_TOOLS)
+        tool = self.filetop_tool = self.find_tool(FILETOP_TOOLS)
         if tool:
-            self.filetop_proc, _err = self._spawn([tool, "-C", "-r", "60", "-s", "all", str(self.interval)], self._read_filetop)
-        tool = self.find_tool(BIOLAT_TOOLS)
+            self.filetop_proc, self.filetop_error = self._spawn([tool, "-C", "-r", "60", "-s", "all", str(self.interval)], self._read_filetop)
+        tool = self.bio_tool = self.find_tool(BIOLAT_TOOLS)
         if tool:
-            self.bio_proc, _err = self._spawn([tool, "-D", "-m"], self._read_bio)       # prints its histograms on Ctrl-C (SIGINT)
+            self.bio_proc, self.bio_error = self._spawn([tool, "-D", "-m"], self._read_bio)       # prints its histograms on Ctrl-C (SIGINT)
         if self.pools and self.which("zpool"):
             self.pool_proc, _err = self._spawn(["zpool", "iostat", "-y", "-l", "-H", "-p"] + self.pools + [str(self.interval)], self._read_pools)
 
@@ -325,8 +336,8 @@ class Tracer:
         return {"delayacct": self.state, "procs": procs[:top], "procs_all": len(procs),
                 "slow": {"tool": self.slow_tool, "count": count, "files": files[:top], "error": self.slow_error, "threshold": self.threshold},
                 "pools": pools,
-                "filetop": {"tool": self.filetop_proc is not None, "files": topf[:top_n]},
-                "biolatency": {"tool": self.bio_proc is not None, "disks": parse_biolatency(bio_lines)}}
+                "filetop": {"tool": self.filetop_proc is not None, "path": self.filetop_tool, "files": topf[:top_n], "error": self.filetop_error},
+                "biolatency": {"tool": self.bio_proc is not None, "path": self.bio_tool, "disks": parse_biolatency(bio_lines), "error": self.bio_error}}
 
 
 def parse_biolatency(lines):
@@ -451,3 +462,8 @@ def pg_enable_commands(spl, has_tio, has_pss, has_ext):
     if not has_ext:
         out.append(("CREATE EXTENSION IF NOT EXISTS pg_stat_statements", False))
     return out
+
+
+def bcc_compile_failure(message):
+    """1.2: True when the message is bcc failing to compile its probe against the headers of the running kernel."""
+    return bool(message) and any(w in message for w in BCC_COMPILE_WORDS)
