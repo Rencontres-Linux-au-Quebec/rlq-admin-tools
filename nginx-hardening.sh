@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.110.20261118.073500"
+readonly SCRIPT_VERSION="2.111.20261118.082500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -878,6 +878,118 @@ nginx_appliquer() {
         ligne=$(grep '\[emerg\]' "$journal" 2>/dev/null | tail -n 1)
         echo "        nginx a refusé la configuration au rechargement : ${ligne:-voir $journal}" >&2
         return 1
+    fi
+    return 0
+}
+# 2.110: ws_lire_fichier, ws_config_aplatie and nginx_journaux_tampon defined at the top level (they were inside the Odoo steps: « command not found » on BBB)
+ws_lire_fichier() {
+    local f="$1" prof="${2:-0}" n=0 ligne motif g
+    [[ -f "$f" ]] || return 0
+    while IFS= read -r ligne || [[ -n "$ligne" ]]; do
+        n=$((n + 1))
+        ligne="${ligne//$'\t'/ }"
+        if [[ "$ligne" =~ ^[[:space:]]*include[[:space:]]+([^\;]+)\; ]] && (( prof < 5 )); then
+            motif="${BASH_REMATCH[1]}"
+            [[ "$motif" == /* ]] || motif="$ws_racine/$motif"
+            if [[ "$motif" == /etc/nginx/* && "$ws_racine" != /etc/nginx ]]; then motif="$ws_racine/${motif#/etc/nginx/}"; fi      # dossier nginx de remplacement (tests)
+            for g in $motif; do                                  # deliberately unprotected glob
+                if [[ -f "$g" ]]; then ws_lire_fichier "$g" $((prof + 1)); fi
+            done
+        else
+            printf '%s:%s\t%s\n' "$f" "$n" "$ligne"
+        fi
+    done < "$f"
+    return 0
+}
+ws_config_aplatie() {
+    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" f
+    ws_racine="$dir"
+    if [[ -f "$dir/nginx.conf" ]]; then
+        ws_lire_fichier "$dir/nginx.conf" 0
+    else
+        printf 'x:0\thttp {\n'
+        for f in "$dir"/sites-enabled/* "$dir"/conf.d/*.conf; do ws_lire_fichier "$f" 0; done
+        printf 'x:0\t}\n'
+    fi
+    return 0
+}
+
+# nginx_journaux_tampon (2.109, --update; Odoo and BBB since 2.110): every access_log of the configuration in effect (files of NGINX_HARDENING_NGINX_DIR
+# and of the nginx folder of BBB, flattened) gets « buffer=ACCESS_LOG_BUFFER flush=ACCESS_LOG_FLUSH »: nginx writes the lines by blocks (64 KiB, at
+# least every 10 s) instead of one small write per request. A directive without a format gets « combined » first (nginx reads the 2nd word as the
+# format name: « access_log FILE buffer=64k; » is refused). Left out: access_log off, syslog:, a file name with a variable (nginx refuses buffered
+# logs with variables), gzip or flush already there, blocked-probes.log (the jail nginx-blocked-probes must see the attacks at once), and every
+# directive of a log file that already has buffer= somewhere (nginx refuses the same file with conflicting parameters). nginx -t already failing:
+# nothing changed. Each file is copied first; nginx -t refuses: every copy is put back, nginx not reloaded, the message of nginx -t is shown.
+nginx_journaux_tampon() {
+    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" bbb="${NGINX_HARDENING_BBB_NGINX_DIR:-/etc/bigbluebutton/nginx}"
+    local lieu texte fic num sauv copie fichiers="" n=0 f args chemin ligne m nouveau sortie
+    local re='(^|[{;])[[:space:]]*access_log[[:space:]]+([^;]*);'
+    case "${ACCESS_LOG_BUFFER:-off},${ACCESS_LOG_FLUSH:-off}" in off,*|0,*|*,off|*,0) return 0 ;; esac
+    local -A copies=() deja=()
+    local -a a_faire=() w=()
+    local plat
+    plat=$(ws_config_aplatie 2>/dev/null || true)
+    while IFS=$'\t' read -r lieu texte; do                  # 1st pass: the log files that already have buffer= somewhere
+        texte="${texte%%#*}"
+        [[ "$texte" =~ $re ]] || continue
+        read -r -a w <<< "${BASH_REMATCH[2]}"
+        [[ "${BASH_REMATCH[2]}" == *buffer=* ]] && deja[${w[0]}]=1
+    done <<< "$plat"
+    while IFS=$'\t' read -r lieu texte; do
+        texte="${texte%%#*}"
+        [[ "$texte" =~ $re ]] || continue
+        args="${BASH_REMATCH[2]}"
+        read -r -a w <<< "$args"
+        chemin="${w[0]:-}"
+        case "$chemin" in ""|off|syslog:*|*blocked-probes.log|*'$'*) continue ;; esac
+        [[ -n "${deja[$chemin]:-}" || "$args" == *gzip* || "$args" == *flush=* ]] && continue
+        fic="${lieu%:*}"; num="${lieu##*:}"
+        [[ ( "$fic" == "$dir"/* || "$fic" == "$bbb"/* ) && -f "$fic" && "$num" =~ ^[0-9]+$ ]] || continue
+        a_faire+=("$fic:$num")
+    done <<< "$plat"
+    if (( ${#a_faire[@]} == 0 )); then
+        pass "nginx : journaux d'accès écrits par blocs (buffer=, flush=) ou rien à changer."
+        return 0
+    fi
+    if [[ "${CHECK_ONLY:-0}" == "1" ]]; then
+        warn "nginx : ${#a_faire[@]} access_log sans buffer= : une petite écriture sur le disque par requête — --update ajoute « buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH} » (ACCESS_LOG_BUFFER, ACCESS_LOG_FLUSH)."
+        return 0
+    fi
+    if ! sortie=$(run nginx -t 2>&1); then
+        warn "nginx : nginx -t échoue déjà avant ce changement : buffer= et flush= non ajoutés aux ${#a_faire[@]} access_log (corriger d'abord l'erreur de nginx -t, voir l'étape 0a)."
+        return 0
+    fi
+    sauv="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}"
+    mkdir -p "$sauv" 2>/dev/null || true
+    for lieu in "${a_faire[@]}"; do
+        fic="${lieu%:*}"; num="${lieu##*:}"
+        if [[ -z "${copies[$fic]:-}" ]]; then
+            copie="$sauv/$(basename "$fic").$(date +%Y%m%d-%H%M%S).bak"
+            cp -p "$fic" "$copie" 2>/dev/null || { fail "nginx : copie de sauvegarde de $fic impossible — ses access_log ne sont pas modifiés."; continue; }
+            copies[$fic]="$copie"
+            fichiers+="${fichiers:+, }$fic"
+        fi
+        ligne=$(sed -n "${num}p" "$fic")
+        [[ "$ligne" =~ $re ]] || continue
+        m="${BASH_REMATCH[0]}"; args="${BASH_REMATCH[2]}"
+        read -r -a w <<< "$args"
+        if (( ${#w[@]} == 1 )) || [[ "${w[1]}" == *=* ]]; then
+            w=("${w[0]}" combined "${w[@]:1}")            # no format: « combined » (the default of nginx), else buffer= would be read as a format name
+        fi
+        nouveau="${m%"$args;"}${w[*]} buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH};"
+        ligne="${ligne/"$m"/"$nouveau"}"
+        NJT_LIGNE="$ligne" awk -v n="$num" 'NR == n {print ENVIRON["NJT_LIGNE"]; next} {print}' "$fic" > "$fic.njt.$$" && cat "$fic.njt.$$" > "$fic" && n=$((n + 1))
+        rm -f "$fic.njt.$$"
+    done
+    (( ${#copies[@]} > 0 )) || return 0
+    if sortie=$(run nginx -t 2>&1); then
+        nginx_appliquer || true
+        pass "nginx : ${n} access_log écrits par blocs (buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH}) dans ${fichiers} : moins de petites écritures sur les disques ; les lignes arrivent dans les journaux au plus ${ACCESS_LOG_FLUSH} plus tard (blocked-probes.log reste immédiat pour fail2ban) ; nginx -t réussi, nginx rechargé. Sauvegardes dans $sauv"
+    else
+        for f in "${!copies[@]}"; do cp -p "${copies[$f]}" "$f" 2>/dev/null || true; done
+        fail "nginx : buffer= et flush= sur les access_log refusés par nginx -t — anciennes versions restaurées, nginx NON rechargé."
+        printf '%s\n' "$sortie" | grep -v 'syntax is ok\|test is successful' | head -5 | sed 's/^/        nginx -t : /'
     fi
     return 0
 }
@@ -2040,37 +2152,6 @@ fi
 # to 55 s; the nginx default is 60 s) and the nginx connection count. Reads nginx.conf with its "include" (or sites-enabled/ and conf.d/ otherwise).
 WS_DELAI_MIN=120        # secondes : en dessous, la marge sur les pings d'Odoo est trop mince
 WS_DELAI_REGLE=300      # seconds: value set by --update
-ws_lire_fichier() {
-    local f="$1" prof="${2:-0}" n=0 ligne motif g
-    [[ -f "$f" ]] || return 0
-    while IFS= read -r ligne || [[ -n "$ligne" ]]; do
-        n=$((n + 1))
-        ligne="${ligne//$'\t'/ }"
-        if [[ "$ligne" =~ ^[[:space:]]*include[[:space:]]+([^\;]+)\; ]] && (( prof < 5 )); then
-            motif="${BASH_REMATCH[1]}"
-            [[ "$motif" == /* ]] || motif="$ws_racine/$motif"
-            if [[ "$motif" == /etc/nginx/* && "$ws_racine" != /etc/nginx ]]; then motif="$ws_racine/${motif#/etc/nginx/}"; fi      # dossier nginx de remplacement (tests)
-            for g in $motif; do                                  # deliberately unprotected glob
-                if [[ -f "$g" ]]; then ws_lire_fichier "$g" $((prof + 1)); fi
-            done
-        else
-            printf '%s:%s\t%s\n' "$f" "$n" "$ligne"
-        fi
-    done < "$f"
-    return 0
-}
-ws_config_aplatie() {
-    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" f
-    ws_racine="$dir"
-    if [[ -f "$dir/nginx.conf" ]]; then
-        ws_lire_fichier "$dir/nginx.conf" 0
-    else
-        printf 'x:0\thttp {\n'
-        for f in "$dir"/sites-enabled/* "$dir"/conf.d/*.conf; do ws_lire_fichier "$f" 0; done
-        printf 'x:0\t}\n'
-    fi
-    return 0
-}
 ws_analyser() {   # $1 Odoo HTTP port, $2 gevent port: lines (separated by \037) "G|H", path, file:line, timeout, file:line of the timeout, HTTP version, Upgrade, Connection, indentation, own timeout
     awk -F'\t' -v HTTP="$1" -v GEVENT="$2" -v q="'" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
@@ -2203,54 +2284,6 @@ nginx_moins_de_disque() {
     return 0
 }
 
-# nginx_journaux_tampon (2.109, --update): every access_log of the configuration in effect (files of NGINX_HARDENING_NGINX_DIR, flattened) gets
-# « buffer=ACCESS_LOG_BUFFER flush=ACCESS_LOG_FLUSH »: nginx writes the lines by blocks (64 KiB, at least every 10 s) instead of one small write per
-# request. Left out: access_log off, syslog:, a line that already has buffer=, blocked-probes.log (the jail nginx-blocked-probes must see the
-# attacks at once) and the files outside the nginx folder and the nginx folder of BigBlueButton (2.110: called for Odoo AND for BBB). Each file is copied first; nginx -t refuses: every copy is put back, nginx not reloaded.
-nginx_journaux_tampon() {
-    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" bbb="${NGINX_HARDENING_BBB_NGINX_DIR:-/etc/bigbluebutton/nginx}" ligne lieu texte fic num sauv copie fichiers="" n=0 f
-    case "${ACCESS_LOG_BUFFER:-off},${ACCESS_LOG_FLUSH:-off}" in off,*|0,*|*,off|*,0) return 0 ;; esac
-    local -A copies=()
-    local -a a_faire=()
-    while IFS=$'\t' read -r lieu texte; do
-        texte="${texte%%#*}"
-        [[ "$texte" =~ (^|[\{\;])[[:space:]]*access_log[[:space:]]+([^[:space:]\;]+) ]] || continue      # own line or « location /x { access_log ...; } »
-        case "${BASH_REMATCH[2]}" in off|syslog:*|*blocked-probes.log) continue ;; esac
-        [[ "$texte" == *buffer=* ]] && continue
-        fic="${lieu%:*}"; num="${lieu##*:}"
-        [[ ( "$fic" == "$dir"/* || "$fic" == "$bbb"/* ) && -f "$fic" && "$num" =~ ^[0-9]+$ ]] || continue      # 2.110: also the files of BigBlueButton
-        a_faire+=("$fic:$num")
-    done < <(ws_config_aplatie 2>/dev/null || true)
-    if (( ${#a_faire[@]} == 0 )); then
-        pass "nginx : journaux d'accès écrits par blocs (buffer=, flush=) ou rien à changer."
-        return 0
-    fi
-    if [[ "${CHECK_ONLY:-0}" == "1" ]]; then
-        warn "nginx : ${#a_faire[@]} access_log sans buffer= : une petite écriture sur le disque par requête — --update ajoute « buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH} » (ACCESS_LOG_BUFFER, ACCESS_LOG_FLUSH)."
-        return 0
-    fi
-    sauv="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}"
-    mkdir -p "$sauv" 2>/dev/null || true
-    for lieu in "${a_faire[@]}"; do
-        fic="${lieu%:*}"; num="${lieu##*:}"
-        if [[ -z "${copies[$fic]:-}" ]]; then
-            copie="$sauv/$(basename "$fic").$(date +%Y%m%d-%H%M%S).bak"
-            cp -p "$fic" "$copie" 2>/dev/null || { fail "nginx : copie de sauvegarde de $fic impossible — ses access_log ne sont pas modifiés."; continue; }
-            copies[$fic]="$copie"
-            fichiers+="${fichiers:+, }$fic"
-        fi
-        sed -i -E "${num}s/((^|[{;])[[:space:]]*access_log[[:space:]][^;#]*[^;#[:space:]])[[:space:]]*;/\1 buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH};/" "$fic" && n=$((n + 1))
-    done
-    (( ${#copies[@]} > 0 )) || return 0
-    if run nginx -t >/dev/null 2>&1; then
-        nginx_appliquer || true
-        pass "nginx : ${n} access_log écrits par blocs (buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH}) dans ${fichiers} : moins de petites écritures sur les disques ; les lignes arrivent dans les journaux au plus ${ACCESS_LOG_FLUSH} plus tard (blocked-probes.log reste immédiat pour fail2ban) ; nginx -t réussi, nginx rechargé. Sauvegardes dans $sauv"
-    else
-        for f in "${!copies[@]}"; do cp -p "${copies[$f]}" "$f" 2>/dev/null || true; done
-        fail "nginx : buffer= et flush= sur les access_log refusés par nginx -t — anciennes versions restaurées, nginx NON rechargé."
-    fi
-    return 0
-}
 
 # nginx_worker_connections CURRENT (2.89, --update, Odoo server only: step 4 is an Odoo step): worker_connections of the events block of
 # nginx.conf set to WORKER_CONNECTIONS (absent: nginx's default 512, the line is added), and worker_rlimit_nofile (4 x that, at least 8192) added

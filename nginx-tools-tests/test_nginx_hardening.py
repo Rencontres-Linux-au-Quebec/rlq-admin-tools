@@ -1217,7 +1217,7 @@ class JournauxTampon2109(unittest.TestCase):
     """2.109 : --update ajoute « buffer=64k flush=10s » aux access_log des sites ; blocked-probes.log, off et syslog: laissés tels quels ;
     nginx -t refuse : les copies sont remises."""
 
-    def lancer(self, fichiers, nginx_t_rc=0, check=0):
+    def lancer(self, fichiers, nginx_t_rc=0, check=0, nginx_t_avant=0):
         d = tempfile.mkdtemp(prefix="test-rlq-tampon-")
         self.addCleanup(shutil.rmtree, d, True)
         for nom, contenu in fichiers.items():
@@ -1236,7 +1236,8 @@ class JournauxTampon2109(unittest.TestCase):
                     f.write(contenu.replace("@D@", d))
         script = (f"NGINX_HARDENING_NGINX_DIR={d}\nNGINX_HARDENING_BBB_NGINX_DIR={d}/bbb\nNGINX_HARDENING_BACKUP_DIR={d}/sauv\nACCESS_LOG_BUFFER=64k\nACCESS_LOG_FLUSH=10s\nCHECK_ONLY={check}\n"
                   f"pass() {{ echo \"PASS $*\"; }}\nwarn() {{ echo \"WARN $*\"; }}\nfail() {{ echo \"FAIL $*\"; }}\n"
-                  f"run() {{ return {nginx_t_rc}; }}\nnginx_appliquer() {{ echo RECHARGE; }}\n{fonctions}\nnginx_journaux_tampon\n")
+                  f"run() {{ echo x >> {d}/appels; if (( $(wc -l < {d}/appels) == 1 )); then return {nginx_t_avant}; fi; echo 'unknown log format \"x\"'; return {nginx_t_rc}; }}\n"
+                  f"nginx_appliquer() {{ echo RECHARGE; }}\n{fonctions}\nnginx_journaux_tampon\n")
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
         self.dossier = d
         with open(os.path.join(d, "sites-enabled/site")) as f:
@@ -1247,24 +1248,28 @@ class JournauxTampon2109(unittest.TestCase):
         out, site = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n",
                                  "sites-enabled/site": "server {\n    access_log /var/log/nginx/bigbluebutton.access.log;\n    include @D@/bbb/*.nginx;\n}\n",
                                  "bbb/web.nginx": "location /html5client { access_log /var/log/nginx/html5-client.log main; }\n"})
-        self.assertIn("bigbluebutton.access.log buffer=64k flush=10s;", site)
+        self.assertIn("bigbluebutton.access.log combined buffer=64k flush=10s;", site)
         with open(os.path.join(self.dossier, "bbb/web.nginx")) as f:
             self.assertIn("html5-client.log main buffer=64k flush=10s; }", f.read())
         self.assertIn("PASS nginx : 2 access_log écrits par blocs", out)
 
     SITE = ("server {\n    access_log /var/log/nginx/site-access.log combined_host;   # site\n\taccess_log /var/log/nginx/deux.log;\n"
             "    access_log off;\n    access_log syslog:server=127.0.0.1;\n    access_log /var/log/nginx/deja.log buffer=32k;\n"
+            "    access_log /var/log/nginx/deja.log;\n    access_log /var/log/nginx/$host.log main;\n    access_log /var/log/nginx/trois.log main if=$log_ok;\n"
             "    location /x { access_log /var/log/nginx/blocked-probes.log combined_host; }\n}\n")
 
     def test_2109_tampon_ajoute(self):
         out, site = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n", "sites-enabled/site": self.SITE})
         self.assertIn("access_log /var/log/nginx/site-access.log combined_host buffer=64k flush=10s;   # site", site)
-        self.assertIn("\taccess_log /var/log/nginx/deux.log buffer=64k flush=10s;", site)
+        self.assertIn("\taccess_log /var/log/nginx/deux.log combined buffer=64k flush=10s;", site)    # no format: « combined » first
+        self.assertIn("    access_log /var/log/nginx/deja.log;\n", site)              # same file already buffered elsewhere: left alone
+        self.assertIn("access_log /var/log/nginx/$host.log main;", site)           # variable in the name: nginx refuses buffered logs
+        self.assertIn("trois.log main if=$log_ok buffer=64k flush=10s;", site)
         self.assertIn("access_log off;", site)
         self.assertIn("access_log syslog:server=127.0.0.1;", site)
         self.assertIn("deja.log buffer=32k;", site)
         self.assertIn("blocked-probes.log combined_host; }", site)              # fail2ban must see the attacks at once
-        self.assertIn("PASS nginx : 2 access_log écrits par blocs", out)
+        self.assertIn("PASS nginx : 3 access_log écrits par blocs", out)
         self.assertIn("RECHARGE", out)
         out2, site2 = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n", "sites-enabled/site": site})
         self.assertEqual(site2, site)                                            # second run: nothing to change
@@ -1274,10 +1279,14 @@ class JournauxTampon2109(unittest.TestCase):
         out, site = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n", "sites-enabled/site": self.SITE}, nginx_t_rc=1)
         self.assertEqual(site, self.SITE)
         self.assertIn("FAIL", out)
+        self.assertIn("nginx -t : unknown log format", out)                      # the reason given by nginx is shown
         self.assertNotIn("RECHARGE", out)
+        out, site = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n", "sites-enabled/site": self.SITE}, nginx_t_avant=1)
+        self.assertEqual(site, self.SITE)                                        # nginx -t already failing: nothing touched
+        self.assertIn("WARN nginx : nginx -t échoue déjà avant ce changement", out)
         out, site = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n", "sites-enabled/site": self.SITE}, check=1)
         self.assertEqual(site, self.SITE)
-        self.assertIn("WARN nginx : 2 access_log sans buffer=", out)
+        self.assertIn("WARN nginx : 3 access_log sans buffer=", out)
 
 
 class MoinsDeDisque291(unittest.TestCase):
