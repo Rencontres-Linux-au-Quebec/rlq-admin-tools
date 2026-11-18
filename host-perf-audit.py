@@ -47,7 +47,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.24.20261118.073000"
+__version__ = "1.25.20261118.091000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1166,6 +1166,60 @@ def analyze_zfs(zfs, facts, worst, io_avg, fd, out, names=None):
 
 # ---------------------------------------------------------------------------------------------------------------- --io-latency (1.23)
 BCC_INSTALL = "apt-get install -y bpfcc-tools proxmox-headers-$(uname -r)"
+
+
+# ---------------------------------------------------------------------------------------------------------------- required packages (1.25)
+APT_ENV = dict(os.environ, DEBIAN_FRONTEND="noninteractive", NEEDRESTART_MODE="a")
+
+
+def apt_has(package):
+    """True when apt knows this package (apt-cache show)."""
+    code, _out = run(["apt-cache", "show", package], timeout=60)
+    return code == 0
+
+
+def headers_package():
+    """The kernel headers of the RUNNING kernel: proxmox-headers-X (Proxmox 8 and 9), pve-headers-X (older Proxmox), else linux-headers-X."""
+    release = os.uname().release
+    for name in (f"proxmox-headers-{release}", f"pve-headers-{release}", f"linux-headers-{release}"):
+        if apt_has(name):
+            return name
+    return None
+
+
+def install_packages(packages, why):
+    """1.25: installs the missing packages with apt-get (root), output shown as it goes; True when they are installed. Never fatal: on failure the
+    program goes on without the function that needed them."""
+    packages = [p for p in packages if p]
+    if not packages:
+        return False
+    if os.geteuid() != 0:
+        eprint(f"WARNING: {why}: {' '.join(packages)} missing and not installed (root required).")
+        return False
+    if not shutil.which("apt-get"):
+        eprint(f"WARNING: {why}: {' '.join(packages)} missing and not installed (apt-get not found).")
+        return False
+    eprint(f"Installing the required packages ({why}): {' '.join(packages)}")
+    try:
+        code = subprocess.call(["apt-get", "install", "-y", "--no-install-recommends"] + packages, stdout=sys.stderr, stderr=sys.stderr,
+                               stdin=subprocess.DEVNULL, env=APT_ENV, timeout=1800)
+    except (OSError, subprocess.SubprocessError) as e:
+        eprint(f"WARNING: installation of {' '.join(packages)} failed ({e}).")
+        return False
+    if code != 0:
+        eprint(f"WARNING: apt-get install {' '.join(packages)} failed (exit code {code}): the program goes on without it.")
+        return False
+    eprint(f"  [OK] installed: {' '.join(packages)}")
+    return True
+
+
+def ensure_required(args):
+    """1.25: every program installs what it needs. smartctl (smartmontools) for the health of the disks; with --io-latency, zfsslower (bpfcc-tools)
+    and the headers of the running kernel that bcc needs to compile its probe."""
+    if not shutil.which("smartctl"):
+        install_packages(["smartmontools"], "health of the disks (smartctl)")
+    if getattr(args, "io_latency", None) is not None and IOLAT is not None and IOLAT.Tracer(20).find_slow_tool() is None:
+        install_packages(["bpfcc-tools", headers_package()], "--io-latency: ZFS operations file by file (zfsslower)")
 
 
 def start_io_latency(threshold, interval, zfs):
@@ -2829,6 +2883,7 @@ def main():
     if args.health:                           # 1.12: quick check, no measurement
         if os.geteuid() != 0:
             eprint("Limited rights: without root, smartctl, the ZFS commands and the guests are unreadable (sudo for a complete check).")
+        ensure_required(args)                             # 1.25: smartctl installed when missing
         return health(args, host_facts(), zfs_facts(), guest_names(), {} if args.no_guests else guest_cgroups())
     try:
         duration = parse_duration(args.duration)
@@ -2843,6 +2898,7 @@ def main():
         return 2
     if os.geteuid() != 0:
         eprint("Limited rights: without root, smartctl, the ZFS commands and some counters are unreadable (sudo for a complete report).")
+    ensure_required(args)                                 # 1.25: before the priority is lowered (apt-get would run at idle I/O class)
     lower_own_priority()
     export_path = export_ai_path(args.export_ai)
     tee = None

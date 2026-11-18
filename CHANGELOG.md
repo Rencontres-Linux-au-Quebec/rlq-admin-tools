@@ -2245,6 +2245,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.25.20261118.091000 - The required packages are installed by the program itself
+
+- Title: smartmontools, and with --io-latency bpfcc-tools and the headers of the running kernel, are installed automatically when missing.
+- Reason: request of the administrator on 2026-11-18: host-perf-audit.py --duration 1h --io-latency ran without zfsslower (bpfcc-tools not installed), so the slow ZFS operations were not traced file by file; every program must install the software it needs.
+- Changes: host-perf-audit.py: new functions apt_has, headers_package, install_packages, ensure_required and constant APT_ENV; ensure_required is called before the measurement (before the priority of the program is lowered) and before --health. Test: nginx-tools-tests/test_host_perf_audit.py, class PaquetsRequis.
+- Bugs fixed: symptom, "--io-latency" measured without the file names and only offered the installation at the end of the report (after the hour of measurement); diagnosis, the program detected the missing zfsslower but did not install it; fix, apt-get install -y --no-install-recommends bpfcc-tools HEADERS before the measurement.
+- Safeguards and edge cases: the headers package is the one of the running kernel: proxmox-headers-X first (Proxmox 8 and 9), then pve-headers-X, then linux-headers-X; apt-get runs non-interactive (DEBIAN_FRONTEND=noninteractive), its output is shown as it goes (standard error, not in the --export-ai file); without root or without apt-get, a warning and the measurement goes on; a failed installation is never fatal (the [change] command is still offered at the end); bpfcc-tools is installed only with --io-latency.
+- Checks performed: test_host_perf_audit (32 tests pass), PaquetsRequis: installation with --io-latency (smartmontools, then bpfcc-tools with proxmox-headers-X), nothing run without root.
+- Action required: copy the new version to proxmox1, then run host-perf-audit.py --duration 14h --io-latency --export-ai (the first run installs bpfcc-tools, about 1 to 3 minutes).
+
 ### 1.24.20261118.073000 - recordsize=16K offered for the dataset of PostgreSQL
 
 - Title: the dataset that holds /var/lib/postgresql of each LXC container is found, and recordsize=16K is offered (--apply, or a [change] command confirmed with "y").
@@ -4150,6 +4160,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.112.20261118.091500 - English messages of the access_log step
+
+- Title: the messages of the step "access_log written by blocks" (2.109 to 2.111) are translated in English.
+- Reason: in the report report-proxmox1-20261118-084325.md, these lines stayed in French in the guests that run in English (101, 430, 433).
+- Changes: lang/nginx-hardening.en.po: 10 entries added (messages of nginx_journaux_tampon).
+- Bugs fixed: symptom, French lines in an English output; diagnosis, the catalogue had no entry for the new messages; fix, entries added.
+- Safeguards and edge cases: none (catalogue only).
+- Checks performed: test_i18n.Catalogues.test_catalogue_de_chaque_programme_bash no longer lists these messages for nginx-hardening (the other missing entries, older, are unchanged).
+- Action required: none.
 
 ### 2.111.20261118.082500 - access_log by blocks: refused by nginx -t (Odoo), command not found (BBB)
 

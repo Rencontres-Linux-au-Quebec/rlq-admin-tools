@@ -972,5 +972,44 @@ class RecordsizePostgres(unittest.TestCase):
         self.assertIn("zfs set recordsize=16K data/zd0/subvol-105-disk-1", [c for _t, cmds in fd.commands for c in cmds])
 
 
+class PaquetsRequis(unittest.TestCase):
+    """1.25 : le programme installe lui-même ce qu'il lui faut : smartmontools, et avec --io-latency bpfcc-tools et les en-têtes du noyau
+    en marche (proxmox-headers-X d'abord) ; sans root : avertissement, la mesure continue."""
+
+    def setUp(self):
+        self.m = charger("hpa_paq", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        self.appels = []
+        m = self.m
+        self.addCleanup(setattr, os, "geteuid", os.geteuid)                       # the tests change os.geteuid: put it back
+        m.shutil = type("S", (), {"which": staticmethod(lambda n: "/usr/bin/apt-get" if n == "apt-get" else None)})
+        m.run = lambda cmd, timeout=20: (0, "") if cmd[:2] == ["apt-cache", "show"] and cmd[2].startswith("proxmox-headers-") else (100, "")
+        m.subprocess = type("P", (), {"call": staticmethod(lambda cmd, **k: self.appels.append(cmd) or 0),
+                                      "SubprocessError": Exception, "DEVNULL": -3})
+        m.IOLAT = type("I", (), {"Tracer": lambda *a, **k: type("T", (), {"find_slow_tool": lambda self: None})()})
+
+    def args(self, io):
+        return type("A", (), {"io_latency": io})()
+
+    def test_installation_avec_io_latency(self):
+        self.m.os.geteuid = lambda: 0
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.m.ensure_required(self.args(20.0))
+        self.assertEqual(len(self.appels), 2)
+        self.assertEqual(self.appels[0][-1], "smartmontools")
+        self.assertIn("bpfcc-tools", self.appels[1])
+        self.assertTrue(any(a.startswith("proxmox-headers-") for a in self.appels[1]))
+        self.assertIn("[OK] installed: bpfcc-tools", err.getvalue())
+
+    def test_sans_io_latency_ni_root(self):
+        self.m.os.geteuid = lambda: 1000
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.m.ensure_required(self.args(None))
+        self.assertEqual(self.appels, [])                                            # nothing run without root
+        self.assertIn("smartmontools missing and not installed (root required)", err.getvalue())
+        self.assertNotIn("bpfcc-tools", err.getvalue())                              # not needed without --io-latency
+
+
 if __name__ == "__main__":
     unittest.main()
