@@ -1923,3 +1923,24 @@ msgstr "--io-latency : PostgreSQL de "
 
 msgid ": switch on "
 msgstr " : activer "
+
+msgid "--io-latency: files and disks without compiling (libbpf-tools)"
+msgstr "--io-latency : fichiers et disques sans compilation (libbpf-tools)"
+
+msgid "    bcc (bpfcc-tools) cannot compile its probes for this kernel ("
+msgstr "    bcc (bpfcc-tools) ne peut pas compiler ses sondes pour ce noyau ("
+
+msgid "), newer than bcc: the slow ZFS operations are not traced file by file until bpfcc-tools is updated; filetop and biolatency of libbpf-tools work without compiling"
+msgstr "), plus récent que bcc : les opérations ZFS lentes ne sont pas tracées fichier par fichier tant que bpfcc-tools n'est pas mis à jour ; filetop et biolatency de libbpf-tools fonctionnent sans compilation"
+
+msgid "  Files the most read and written: filetop failed ("
+msgstr "  Fichiers les plus lus et écrits : échec de filetop ("
+
+msgid "  Files the most read and written: filetop not found (libbpf-tools or bpfcc-tools)"
+msgstr "  Fichiers les plus lus et écrits : filetop introuvable (libbpf-tools ou bpfcc-tools)"
+
+msgid "  Response time of each disk: biolatency gave no histogram ("
+msgstr "  Temps de réponse de chaque disque : biolatency n'a donné aucun histogramme ("
+
+msgid "  Response time of each disk: biolatency not found (libbpf-tools or bpfcc-tools)"
+msgstr "  Temps de réponse de chaque disque : biolatency introuvable (libbpf-tools ou bpfcc-tools)"

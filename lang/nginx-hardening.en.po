@@ -3076,3 +3076,12 @@ msgstr "# Added by nginx-hardening.sh 2.113: temporary files of Odoo (PDF in the
 
 msgid "# /run/odoo-tmp est vidé à l'arrêt d'Odoo (rien n'y est gardé). Pour retirer : supprimer ce fichier, systemctl daemon-reload, redémarrer Odoo."
 msgstr "# /run/odoo-tmp is emptied when Odoo stops (nothing is kept in it). To remove: delete this file, systemctl daemon-reload, restart Odoo."
+
+msgid "  [INFO] report.url : "
+msgstr "  [INFO] report.url: "
+
+msgid " n'est pas une base d'Odoo lisible (pas de table ir_config_parameter, ou base absente) — ignorée."
+msgstr " is not a readable Odoo database (no table ir_config_parameter, or no such database) — skipped."
+
+msgid "Odoo : report.url non vérifié — aucune base d'Odoo trouvée (processus d'Odoo, db_name, liste des bases)."
+msgstr "Odoo: report.url not checked — no Odoo database found (processes of Odoo, db_name, list of the databases)."
