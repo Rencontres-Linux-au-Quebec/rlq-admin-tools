@@ -2922,6 +2922,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.40.20261118.160516 - Static files of every worker, check of TMPDIR, --profile with py-spy
+
+- Title: the warm-up now asks the static files straight to every Odoo worker, checks that the temporary files of Odoo are in memory, and profiles the Python of Odoo during the warm-up.
+- Reason: request of the administrator on 2026-11-18: after a restart of Odoo, the fonts /web/static/fonts/lato/*.woff still took about 10 s (three at once, 0 SQL, 100 % Python, from 127.0.0.1) and the registration that made a PDF took 13.8 s; and "add a profile to odoo-warmup.py, which always starts after Odoo".
+- Changes:
+  - New function warm_statics(): the fonts of STATIC_FILES (read by wkhtmltopdf for the PDF reports) are asked max(2 x workers, 2 x --repeat, 4) times IN PARALLEL, straight to the HTTP port of Odoo (never through nginx, whose cache serves them to the visitors, so the workers never saw them). The first static file that a worker serves makes it list the static folders of every module (many modules with ERPLibre); a worker busy with it leaves the next requests to the others, so every worker does it during the warm-up. New line "Static files of every worker: N requests, K slower than 2 s, slowest X s".
+  - New function odoo_workers() (--workers of the command line, else workers of the configuration).
+  - New functions odoo_pids(), mount_type(), check_tmpdir(): TMPDIR of the running Odoo processes on a tmpfs: [OK]; drop-in of nginx-hardening.sh written but Odoo not restarted since: [ATTN] with the command to run at a quiet hour; on a disk: [ATTN].
+  - New option --profile SECONDS and key PROFILE (default 60, 0: none): start_profile() and finish_profile() use apps/_pyprofile.py (py-spy installed if missing, apt then pip); py-spy samples the main process of the Odoo unit and its workers during the warm-up (--nonblocking); the summary is printed (journal of the warm-up unit) and kept in /var/log/odoo-warmup/profile-*.txt (the 20 latest).
+  - Keys: PROFILE in read_config(); doc/en and doc/fr odoo-warmup.conf.example; lang/odoo-warmup.fr.po.
+- Bugs fixed:
+  - Symptom: fonts at 10 s and a PDF registration at 13.8 s after a restart, although the warm-up had run. Diagnosis: the warm-up goes through nginx (HOST), which serves /web/static from its cache: no worker had served a static file; since report.url = http://127.0.0.1:10000 (nginx-hardening.sh 2.113), wkhtmltopdf reads the fonts straight from Odoo and paid that first-time cost. Fix: warm_statics().
+- Safeguards and edge cases:
+  - Odoo reached through nginx only: the HTTP port is read from the configuration of Odoo; unknown: the step is skipped.
+  - Not root: no profile, a clear line; environment of the processes unreadable: "unknown", nothing claimed.
+  - The profile never stops Odoo (--nonblocking); py-spy that does not finish is killed after its duration + 120 s.
+  - The warm-up unit runs as root: the profile works at every start without anything to do.
+- Checks performed: python3 -m py_compile; nginx-tools-tests/test_odoo_warmup.py (new tests test_140_fichiers_statiques_de_chaque_worker, test_140_tmpdir_en_memoire_ou_redemarrage, test_140_profil_resume_garde; the fake Odoo serves /web/static/).
+- Action required: none for the warm-up (the unit installed by --systemd-install runs the new version at the next start of Odoo). To check now: `sudo /opt/rlq-admin-tools/odoo-warmup.py`. Depends on apps/_pyprofile.py of app-log-live.py 1.197 (PR #304).
+
 ### 1.39.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
@@ -4207,6 +4227,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.115.20261118.160516 - TMPDIR of the running Odoo checked
+
+- Title: step 17b checks that the TMPDIR drop-in is really active in the running Odoo.
+- Reason: request of the administrator on 2026-11-18: "a program must check whether Odoo uses a ramdisk for its temporary files". On 104 and 105, the drop-in was written at 14:07, after the restart of Odoo at 14:01: step 17b said [OK] although Odoo still wrote in /tmp.
+- Changes: function odoo_rapports_et_tmp(): when 91-nginx-hardening-tmpdir.conf exists, TMPDIR is read in /proc/MAINPID/environ of the Odoo unit: /run/odoo-tmp: [OK] "active (process N)"; otherwise [ATTN] with the command to run at a quiet hour (odoo-update-module.sh --restart-only). New variables NGINX_HARDENING_PROC and NGINX_HARDENING_MAINPID (tests only). lang/nginx-hardening.en.po.
+- Bugs fixed: Symptom: [OK] for temporary files in memory although Odoo had not been restarted. Diagnosis: only the presence of the drop-in was checked. Fix: the environment of the running process is read.
+- Safeguards and edge cases: process unreadable (not root, unit stopped): the former [OK] plus an [INFO] line saying it is active only after a restart; Odoo is never restarted by this script.
+- Checks performed: bash -n; nginx-tools-tests/test_nginx_hardening.py RapportsEtTmp2113 (new test test_2115_tmpdir_actif_ou_redemarrage_a_faire).
+- Action required: restart Odoo in 104 and 105 at a quiet hour (`sudo /opt/rlq-admin-tools/odoo-update-module.sh --restart-only`), then `nginx-hardening.sh --check` should say "active".
 
 ### 2.114.20261118.114500 - report.url: the databases that Odoo really serves
 

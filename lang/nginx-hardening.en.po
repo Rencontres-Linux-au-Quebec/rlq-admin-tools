@@ -3085,3 +3085,18 @@ msgstr " is not a readable Odoo database (no table ir_config_parameter, or no su
 
 msgid "Odoo : report.url non vérifié — aucune base d'Odoo trouvée (processus d'Odoo, db_name, liste des bases)."
 msgstr "Odoo: report.url not checked — no Odoo database found (processes of Odoo, db_name, list of the databases)."
+
+msgid "Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire, actif (processus "
+msgstr "Odoo: temporary files (TMPDIR) in /run/odoo-tmp, in memory, active (process "
+
+msgid " écrit, mais Odoo (processus "
+msgstr " written, but Odoo (process "
+
+msgid ") n'a pas été redémarré depuis : ses fichiers temporaires restent dans "
+msgstr ") was not restarted since: its temporary files stay in "
+
+msgid " — redémarrer Odoo à une heure creuse (odoo-update-module.sh --restart-only)."
+msgstr " — restart Odoo when the site is quiet (odoo-update-module.sh --restart-only)."
+
+msgid "  [INFO] processus d'Odoo non lu : actif seulement si Odoo a redémarré après l'écriture du fichier."
+msgstr "  [INFO] Odoo process not read: active only if Odoo restarted after the file was written."

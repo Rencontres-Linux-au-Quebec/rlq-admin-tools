@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.114.20261118.114500"
+readonly SCRIPT_VERSION="2.115.20261118.160516"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -4120,7 +4120,20 @@ odoo_rapports_et_tmp() {
         dropin="$dir/91-nginx-hardening-tmpdir.conf"
         libre=$(df -Pm "${NGINX_HARDENING_RUN_DIR:-/run}" 2>/dev/null | awk 'NR == 2 {print $4}')
         if [[ -f "$dropin" ]]; then
-            pass "Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire ($dropin)."
+            # 2.115: the drop-in acts only after a restart of Odoo: TMPDIR of the RUNNING main process says whether it is active
+            local pid envtmp proc="${NGINX_HARDENING_PROC:-/proc}"
+            pid="${NGINX_HARDENING_MAINPID:-$(systemctl show -p MainPID --value "$unite" 2>/dev/null || true)}"
+            if [[ "$pid" =~ ^[1-9][0-9]*$ && -r "$proc/$pid/environ" ]]; then
+                envtmp=$(tr '\0' '\n' < "$proc/$pid/environ" | sed -n 's/^TMPDIR=//p' | tail -n 1)
+                if [[ "$envtmp" == "/run/odoo-tmp" ]]; then
+                    pass "Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire, actif (processus $pid) ($dropin)."
+                else
+                    warn "Odoo : $dropin écrit, mais Odoo (processus $pid) n'a pas été redémarré depuis : ses fichiers temporaires restent dans ${envtmp:-/tmp} — redémarrer Odoo à une heure creuse (odoo-update-module.sh --restart-only)."
+                fi
+            else
+                pass "Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire ($dropin)."
+                echo "  [INFO] processus d'Odoo non lu : actif seulement si Odoo a redémarré après l'écriture du fichier."
+            fi
         elif [[ ! "$libre" =~ ^[0-9]+$ ]] || (( libre < 1024 )); then
             echo "  [INFO] fichiers temporaires d'Odoo laissés sur le disque : /run n'a que ${libre:-?} Mo libres (1024 Mo au moins)."
         elif [[ "$CHECK_ONLY" == "1" ]]; then
