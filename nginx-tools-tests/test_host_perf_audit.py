@@ -972,5 +972,126 @@ class RecordsizePostgres(unittest.TestCase):
         self.assertIn("zfs set recordsize=16K data/zd0/subvol-105-disk-1", [c for _t, cmds in fd.commands for c in cmds])
 
 
+class PaquetsRequis(unittest.TestCase):
+    """1.25 : le programme installe lui-même ce qu'il lui faut : smartmontools, et avec --io-latency bpfcc-tools et les en-têtes du noyau
+    en marche (proxmox-headers-X d'abord) ; sans root : avertissement, la mesure continue."""
+
+    def setUp(self):
+        self.m = charger("hpa_paq", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        self.appels = []
+        m = self.m
+        self.addCleanup(setattr, os, "geteuid", os.geteuid)                       # the tests change os.geteuid: put it back
+        m.shutil = type("S", (), {"which": staticmethod(lambda n: "/usr/bin/apt-get" if n == "apt-get" else None)})
+        m.run = lambda cmd, timeout=20: (0, "") if cmd[:2] == ["apt-cache", "show"] and cmd[2].startswith("proxmox-headers-") else (100, "")
+        m.subprocess = type("P", (), {"call": staticmethod(lambda cmd, **k: self.appels.append(cmd) or 0),
+                                      "SubprocessError": Exception, "DEVNULL": -3})
+        m.IOLAT = type("I", (), {"Tracer": lambda *a, **k: type("T", (), {"find_slow_tool": lambda self: None})()})
+
+    def args(self, io):
+        return type("A", (), {"io_latency": io})()
+
+    def test_installation_avec_io_latency(self):
+        self.m.os.geteuid = lambda: 0
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.m.ensure_required(self.args(20.0))
+        self.assertEqual(len(self.appels), 2)
+        self.assertEqual(self.appels[0][-1], "smartmontools")
+        self.assertIn("bpfcc-tools", self.appels[1])
+        self.assertTrue(any(a.startswith("proxmox-headers-") for a in self.appels[1]))
+        self.assertIn("[OK] installed: bpfcc-tools", err.getvalue())
+
+    def test_sans_io_latency_ni_root(self):
+        self.m.os.geteuid = lambda: 1000
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.m.ensure_required(self.args(None))
+        self.assertEqual(self.appels, [])                                            # nothing run without root
+        self.assertIn("smartmontools missing and not installed (root required)", err.getvalue())
+        self.assertNotIn("bpfcc-tools", err.getvalue())                              # not needed without --io-latency
+
+
+class LatenceES126(unittest.TestCase):
+    """1.26 --io-latency : fichiers les plus lus et écrits (filetop), temps de réponse des disques (biolatency), tables et requêtes SQL de
+    PostgreSQL qui lisent le disque (différence entre deux instantanés), commandes pour activer track_io_timing et pg_stat_statements."""
+
+    def setUp(self):
+        import tempfile
+        import shutil
+        self.d = tempfile.mkdtemp(prefix="test-rlq-iolat126-")
+        self.addCleanup(shutil.rmtree, self.d)
+        self.m = charger("iol_126", "apps/_iolatency.py", {"NGINX_TOOLS_PROC_ROOT": self.d})
+        os.makedirs(os.path.join(self.d, "proc/777"))
+        with open(os.path.join(self.d, "proc/777/cgroup"), "w") as f:
+            f.write("0::/lxc/105/ns/system.slice/erplibre.service\n")
+
+    def test_filetop_et_biolatency(self):
+        t = self.m.Tracer(20, 5, which=lambda n: None)
+        t._read_filetop(io.StringIO("10:00:01 loadavg: 0.1 0.1 0.1 1/200 9\n\nTID     COMM             READS  WRITES R_Kb    W_Kb    T FILE\n"
+                                    "777     python3          4      0      2048    0       R fontawesome-webfont.woff2\n"
+                                    "777     python3          1      2      10      4096    R report.pdf\n"
+                                    "888     nginx            9      0      90      0       S TCP\n"
+                                    "777     python3          4      0      2048    0       R fontawesome-webfont.woff2\n"))
+        t.filetop_proc = object()
+        t._read_bio(io.StringIO("Tracing block device I/O... Hit Ctrl-C to end.\n\ndisk = sda\n     msecs               : count     distribution\n"
+                                "         0 -> 1          : 900      |****|\n        16 -> 31         : 90       |*   |\n"
+                                "       128 -> 255        : 10       |    |\n"))
+        t.bio_proc = object()
+        r = t.results()
+        self.assertEqual([(f["file"], f["rkb"], f["wkb"], f["guest"]) for f in r["filetop"]["files"]],
+                         [("report.pdf", 10, 4096, "lxc 105"), ("fontawesome-webfont.woff2", 4096, 0, "lxc 105")])       # sockets left out
+        self.assertEqual(r["biolatency"]["disks"]["sda"], [(0, 1, 900), (16, 31, 90), (128, 255, 10)])
+        total, p20, p100, worst = self.m.latency_summary(r["biolatency"]["disks"]["sda"])
+        self.assertEqual((total, round(p20), round(p100), worst), (1000, 10, 1, "128-255"))
+
+    def test_postgresql_difference_et_activation(self):
+        etat = {"n": 0}
+
+        def runner(cmd):
+            import base64
+            sql = base64.b64decode(cmd.split()[1]).decode()
+            if "pg_database WHERE" in sql:
+                return 0, "linux_meetup\n"
+            if "pg_statio_user_tables" in sql:
+                lu = 100 if etat["n"] == 0 else 1380
+                return 0, f"linux_meetup\x1fir_attachment\x1f{lu}\x1f5000\nlinux_meetup\x1fres_users\x1f7\x1f900\n"
+            if "pg_stat_statements" in sql:
+                return 0, f"linux_meetup\x1f42\x1f{10 + etat['n'] * 5}\x1f{50 + etat['n'] * 640}\x1f{1.5 + etat['n'] * 2500}\x1f{9 + etat['n'] * 4000}\x1fSELECT * FROM ir_attachment\n"
+            return 1, ""
+        avant = self.m.pg_snapshot(runner, 180007, True)
+        etat["n"] = 1
+        apres = self.m.pg_snapshot(runner, 180007, True)
+        tables, requetes = self.m.pg_difference(avant, apres)
+        self.assertEqual([(x["table"], x["read_blocks"]) for x in tables], [("ir_attachment", 1280)])          # res_users unchanged: left out
+        self.assertEqual((requetes[0]["calls"], requetes[0]["read_blocks"], round(requetes[0]["read_ms"])), (5, 640, 2500))
+        self.assertIn("shared_blk_read_time", self.m.pg_sql_statements(180007))
+        self.assertIn("s.blk_read_time", self.m.pg_sql_statements(160004))
+        cmds = self.m.pg_enable_commands("pg_cron", False, False, False)
+        self.assertEqual([c for c, _r in cmds], ["ALTER SYSTEM SET track_io_timing = on", "SELECT pg_reload_conf()",
+                                                 "ALTER SYSTEM SET shared_preload_libraries = 'pg_cron,pg_stat_statements'",
+                                                 "CREATE EXTENSION IF NOT EXISTS pg_stat_statements"])
+        self.assertEqual([r for _c, r in cmds], [False, False, True, False])                                   # the restart after the preload
+
+    def test_rapport_postgresql(self):
+        hpa = charger("hpa_iol126", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        r = {"delayacct": "on", "procs": [], "pools": {}, "slow": {"tool": "/usr/sbin/zfsslower-bpfcc", "count": 0, "files": [], "error": "", "threshold": 20.0},
+             "filetop": {"tool": True, "files": [{"guest": "lxc 105", "comm": "python3", "file": "report.pdf", "reads": 1, "writes": 2, "rkb": 10, "wkb": 4096}]},
+             "biolatency": {"tool": True, "disks": {"sda": [(0, 1, 900), (128, 255, 50)]}},
+             "postgres": {"105": {"settings": (180007, False, False, False, ""), "tables": [{"db": "linux_meetup", "table": "ir_attachment", "read_blocks": 1280, "hit_blocks": 10}],
+                                  "statements": []}}}
+        fd, out = hpa.Findings(), []
+        hpa.analyze_io_latency(r, {"105": ("lxc", "odoo18", "")}, fd, out)
+        texte = "\n".join(out)
+        self.assertIn("report.pdf", texte)
+        self.assertIn("sda", texte)
+        self.assertEqual(fd.verdicts["disks"][0], "warn")                                # 5 % at 128 ms or more
+        self.assertIn("PostgreSQL of 105 odoo18: tables the most read from the DISK", texte)
+        self.assertIn("10.0 MiB read", texte)
+        cmds = [c for _t, cs in fd.commands for c in cs]
+        self.assertTrue(cmds[0].startswith("pct exec 105 -- sh -c "))
+        self.assertTrue(any("systemctl restart postgresql" in c for c in cmds))
+        self.assertFalse(any(hpa.is_read_only(c) for c in cmds))                         # changes: confirmed one by one
+
+
 if __name__ == "__main__":
     unittest.main()

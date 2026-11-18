@@ -2977,3 +2977,33 @@ msgstr "non-zero exit code"
 
 msgid ") — voir : logrotate -v "
 msgstr ") — see: logrotate -v "
+
+msgid "nginx : journaux d'accès écrits par blocs (buffer=, flush=) ou rien à changer."
+msgstr "nginx: access logs written by blocks (buffer=, flush=) or nothing to change."
+
+msgid " access_log sans buffer= : une petite écriture sur le disque par requête — --update ajoute « buffer="
+msgstr " access_log without buffer=: one small write to the disk per request — --update adds « buffer="
+
+msgid " » (ACCESS_LOG_BUFFER, ACCESS_LOG_FLUSH)."
+msgstr " » (ACCESS_LOG_BUFFER, ACCESS_LOG_FLUSH)."
+
+msgid "nginx : nginx -t échoue déjà avant ce changement : buffer= et flush= non ajoutés aux "
+msgstr "nginx: nginx -t already fails before this change: buffer= and flush= not added to the "
+
+msgid " access_log (corriger d'abord l'erreur de nginx -t, voir l'étape 0a)."
+msgstr " access_log (fix the error of nginx -t first, see step 0a)."
+
+msgid " impossible — ses access_log ne sont pas modifiés."
+msgstr " impossible — its access_log are not changed."
+
+msgid " access_log écrits par blocs (buffer="
+msgstr " access_log written by blocks (buffer="
+
+msgid " : moins de petites écritures sur les disques ; les lignes arrivent dans les journaux au plus "
+msgstr ": fewer small writes on the disks; the lines reach the logs at most "
+
+msgid " plus tard (blocked-probes.log reste immédiat pour fail2ban) ; nginx -t réussi, nginx rechargé. Sauvegardes dans "
+msgstr " later (blocked-probes.log stays immediate for fail2ban); nginx -t passed, nginx reloaded. Backups in "
+
+msgid "nginx : buffer= et flush= sur les access_log refusés par nginx -t — anciennes versions restaurées, nginx NON rechargé."
+msgstr "nginx: buffer= and flush= on the access_log refused by nginx -t — previous versions restored, nginx NOT reloaded."

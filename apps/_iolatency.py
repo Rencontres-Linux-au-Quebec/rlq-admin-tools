@@ -12,7 +12,10 @@
 #   * per process (and per guest: LXC container or VM, from /proc/PID/cgroup): the time spent waiting for block I/O, from the kernel's delay
 #     accounting (/proc/PID/task/TID/stat, field 42); kernel.task_delayacct is switched on for the measurement and restored after it;
 #   * per file: every ZFS read, write, open or fsync slower than a threshold, with the process and the file name (zfsslower of bcc, when installed);
-#   * per pool: the ZFS waits of each interval of the measurement (zpool iostat -y -l -H -p), not the averages since the import of the pool.
+#   * per pool: the ZFS waits of each interval of the measurement (zpool iostat -y -l -H -p), not the averages since the import of the pool;
+#   * 1.1: the files the most read and written, per process (filetop of bcc, page cache included), the histogram of the response times of each disk
+#     (biolatency of bcc), and inside each PostgreSQL container the SQL queries and the tables that read the most from the disk (pg_stat_statements,
+#     pg_statio_user_tables: difference between the start and the end of the measurement).
 """t = Tracer(threshold_ms=20, interval=5); t.start(); ...; t.stop(); r = t.results()
 
 r = {"delayacct": "on" | "enabled" | "unavailable", "procs": [{"guest", "pid", "comm", "wait_s"}...] (largest first),
@@ -23,10 +26,11 @@ import glob
 import os
 import re
 import shutil
+import signal
 import subprocess
 import threading
 
-__version__ = "1.0.20261118.064500"
+__version__ = "1.1.20261118.100000"
 
 ROOT = os.environ.get("NGINX_TOOLS_PROC_ROOT", "")
 DELAYACCT = "/proc/sys/kernel/task_delayacct"
@@ -34,6 +38,13 @@ SLOWER_TOOLS = ("zfsslower-bpfcc", "/usr/share/bcc/tools/zfsslower", "/usr/sbin/
 # bcc zfsslower:  TIME     COMM           PID    T BYTES   OFF_KB   LAT(ms) FILENAME
 SLOW_RE = re.compile(r"^\d\d:\d\d:\d\d\s+(\S.{0,15}?)\s+(\d+)\s+([RWOS])\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$")
 OPS = {"R": "read", "W": "write", "O": "open", "S": "fsync"}
+FILETOP_TOOLS = ("filetop-bpfcc", "/usr/share/bcc/tools/filetop", "/usr/sbin/filetop-bpfcc", "filetop")
+BIOLAT_TOOLS = ("biolatency-bpfcc", "/usr/share/bcc/tools/biolatency", "/usr/sbin/biolatency-bpfcc", "biolatency")
+# filetop -C:  TID     COMM             READS  WRITES R_Kb    W_Kb    T FILE
+FILETOP_RE = re.compile(r"^\s*(\d+)\s+(\S.{0,15}?)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([RSO])\s+(.+)$")
+# biolatency -D -m:  disk = sda   /   "     2 -> 3          : 12       |***   |"
+BIO_DISK_RE = re.compile(r"^\s*disk\s*=\s*'?(\S+?)'?\s*$")
+BIO_ROW_RE = re.compile(r"^\s*(\d+)\s*->\s*(\d+)\s*:\s*(\d+)")
 CGROUP_LXC_RE = re.compile(r"/lxc(?:\.payload)?[./](\d+)(?:/|$)")
 CGROUP_VM_RE = re.compile(r"/qemu\.slice/(\d+)\.scope")
 
@@ -128,6 +139,10 @@ class Tracer:
         self.slow = {}               # (guest, comm, op, file) -> [count, total, max]
         self.slow_count = 0
         self.pool_proc = None
+        self.filetop_proc = None
+        self.files = {}              # 1.1 (guest, comm, file) -> [reads, writes, read KiB, written KiB]
+        self.bio_proc = None
+        self.bio_lines = []
         self.pool_data = {}
         self.threads = []
         self.lock = threading.Lock()
@@ -157,6 +172,13 @@ class Tracer:
             self.restore = None
 
     # ------------------------------------------------------------------ zfsslower
+    def find_tool(self, names):
+        for name in names:
+            path = self.which(name) if not name.startswith("/") else (name if os.path.isfile(name) and os.access(name, os.X_OK) else None)
+            if path:
+                return path
+        return None
+
     def find_slow_tool(self):
         for name in SLOWER_TOOLS:
             path = self.which(name) if not name.startswith("/") else (name if os.path.isfile(name) and os.access(name, os.X_OK) else None)
@@ -184,6 +206,32 @@ class Tracer:
                 e[1] += lat
                 e[2] = max(e[2], lat)
                 self.slow_count += 1
+
+    # ------------------------------------------------------------------ filetop, biolatency (1.1)
+    def _read_filetop(self, stream):
+        cache = {}
+        for line in stream:
+            m = FILETOP_RE.match(line.rstrip("\n"))
+            if not m:
+                continue
+            tid, comm, reads, writes, rkb, wkb, kind, name = m.groups()
+            if kind != "R":                      # regular files only (S socket, O other)
+                continue
+            guest = cache.get(tid)
+            if guest is None:
+                guest = cache[tid] = guest_of(tid) or "?"
+            key = (guest, comm.strip(), name.strip())
+            with self.lock:
+                e = self.files.setdefault(key, [0, 0, 0, 0])
+                e[0] += int(reads)
+                e[1] += int(writes)
+                e[2] += int(rkb)
+                e[3] += int(wkb)
+
+    def _read_bio(self, stream):
+        for line in stream:
+            with self.lock:
+                self.bio_lines.append(line.rstrip("\n"))
 
     # ------------------------------------------------------------------ zpool iostat
     def _read_pools(self, stream):
@@ -221,11 +269,23 @@ class Tracer:
         self.slow_tool = self.find_slow_tool()
         if self.slow_tool:
             self.slow_proc, self.slow_error = self._spawn([self.slow_tool, str(int(self.threshold) if self.threshold >= 1 else 1)], self._read_slow)
+        tool = self.find_tool(FILETOP_TOOLS)
+        if tool:
+            self.filetop_proc, _err = self._spawn([tool, "-C", "-r", "60", "-s", "all", str(self.interval)], self._read_filetop)
+        tool = self.find_tool(BIOLAT_TOOLS)
+        if tool:
+            self.bio_proc, _err = self._spawn([tool, "-D", "-m"], self._read_bio)       # prints its histograms on Ctrl-C (SIGINT)
         if self.pools and self.which("zpool"):
             self.pool_proc, _err = self._spawn(["zpool", "iostat", "-y", "-l", "-H", "-p"] + self.pools + [str(self.interval)], self._read_pools)
 
     def stop(self):
-        for proc in (self.slow_proc, self.pool_proc):
+        if self.bio_proc is not None:                 # 1.1: biolatency prints its histograms when it receives SIGINT
+            try:
+                self.bio_proc.send_signal(signal.SIGINT)
+                self.bio_proc.wait(timeout=15)
+            except Exception:
+                pass
+        for proc in (self.slow_proc, self.pool_proc, self.filetop_proc, self.bio_proc):
             if proc is None:
                 continue
             try:
@@ -242,7 +302,7 @@ class Tracer:
             self.after = blkio_ticks()
         self._delayacct_restore()
 
-    def results(self, top=12):
+    def results(self, top=12, top_n=15):
         procs = []
         for pid, (comm, ticks) in self.after.items():
             prev = self.before.get(pid)
@@ -258,6 +318,136 @@ class Tracer:
             pools = {k: dict(v) for k, v in self.pool_data.items()}
             count = self.slow_count
         files.sort(key=lambda f: -f["total_ms"])
+        with self.lock:
+            topf = [{"guest": g, "comm": c, "file": f, "reads": v[0], "writes": v[1], "rkb": v[2], "wkb": v[3]} for (g, c, f), v in self.files.items()]
+            bio_lines = list(self.bio_lines)
+        topf.sort(key=lambda f: -(f["rkb"] + f["wkb"]))
         return {"delayacct": self.state, "procs": procs[:top], "procs_all": len(procs),
                 "slow": {"tool": self.slow_tool, "count": count, "files": files[:top], "error": self.slow_error, "threshold": self.threshold},
-                "pools": pools}
+                "pools": pools,
+                "filetop": {"tool": self.filetop_proc is not None, "files": topf[:top_n]},
+                "biolatency": {"tool": self.bio_proc is not None, "disks": parse_biolatency(bio_lines)}}
+
+
+def parse_biolatency(lines):
+    """{disk: [(low ms, high ms, count)...]} from « biolatency -D -m » (one histogram per disk)."""
+    res, disk = {}, None
+    for line in lines:
+        m = BIO_DISK_RE.match(line)
+        if m:
+            disk = m.group(1)
+            res.setdefault(disk, [])
+            continue
+        m = BIO_ROW_RE.match(line)
+        if m and disk:
+            res[disk].append((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+    return res
+
+
+def latency_summary(rows):
+    """(operations, % at 20 ms or more, % at 100 ms or more, highest bucket « low-high ms ») of a histogram of biolatency -m."""
+    total = sum(c for _lo, _hi, c in rows)
+    if not total:
+        return 0, 0.0, 0.0, ""
+    over20 = sum(c for lo, _hi, c in rows if lo >= 16)        # buckets are powers of 2: 16-31 ms and above
+    over100 = sum(c for lo, _hi, c in rows if lo >= 128)
+    worst = max(((lo, hi) for lo, hi, c in rows if c), default=(0, 0))
+    return total, over20 * 100.0 / total, over100 * 100.0 / total, f"{worst[0]}-{worst[1]}"
+
+
+# ---------------------------------------------------------------------------------------------------------------- PostgreSQL (1.1)
+PG_SQL_DBS = "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY 1"
+PG_SQL_SETTINGS = ("SELECT current_setting('server_version_num'), current_setting('track_io_timing'), current_setting('shared_preload_libraries'), "
+                   "(SELECT count(*) FROM pg_extension WHERE extname = 'pg_stat_statements')")
+PG_SQL_TABLES = ("SELECT current_database(), relname, coalesce(heap_blks_read, 0) + coalesce(idx_blks_read, 0) + coalesce(toast_blks_read, 0), "
+                 "coalesce(heap_blks_hit, 0) + coalesce(idx_blks_hit, 0) + coalesce(toast_blks_hit, 0) FROM pg_statio_user_tables")
+
+
+def pg_sql_statements(version_num):
+    """Query of pg_stat_statements: blocks read from the disk and the time spent reading them (PostgreSQL 17 renamed blk_read_time)."""
+    rt = "shared_blk_read_time" if version_num >= 170000 else "blk_read_time"
+    return ("SELECT d.datname, s.queryid, s.calls, s.shared_blks_read, s." + rt + ", s.total_exec_time, "
+            "regexp_replace(left(s.query, 160), '\\s+', ' ', 'g') FROM pg_stat_statements s JOIN pg_database d ON d.oid = s.dbid "
+            "WHERE s.shared_blks_read > 0")
+
+
+def pg_command(sql, db="postgres"):
+    """The shell command (run inside the guest) that sends one query to PostgreSQL as user postgres: the query goes through base64 on standard
+    input (no quoting problem), output unaligned with the fields separated by \\x1f."""
+    import base64
+    b64 = base64.b64encode(sql.encode("utf-8")).decode("ascii")
+    return (f"echo {b64} | base64 -d | su postgres -s /bin/sh -c "
+            f"'psql -X -A -t -q -v ON_ERROR_STOP=1 -F \"$(printf \"\\037\")\" -d {db}'")
+
+
+def pg_rows(code_out):
+    code, out = code_out
+    if code not in (0, None):
+        return None
+    return [line.split("\x1f") for line in (out or "").splitlines() if "\x1f" in line or line.strip()]
+
+
+def pg_snapshot(runner, version_num, with_statements):
+    """{"tables": {(db, table): (read, hit)}, "statements": {(db, queryid): (calls, read, read_ms, exec_ms, text)}} through runner(command)."""
+    snap = {"tables": {}, "statements": {}}
+    for row in pg_rows(runner(pg_command(PG_SQL_DBS))) or []:
+        db = row[0].strip()
+        if not re.match(r"^[A-Za-z0-9_.-]+$", db):
+            continue
+        for t in pg_rows(runner(pg_command(PG_SQL_TABLES, db))) or []:
+            if len(t) >= 4 and t[2].isdigit() and t[3].isdigit():
+                snap["tables"][(t[0], t[1])] = (int(t[2]), int(t[3]))
+    if with_statements:
+        for r in pg_rows(runner(pg_command(pg_sql_statements(version_num)))) or []:
+            if len(r) >= 7:
+                try:
+                    snap["statements"][(r[0], r[1])] = (int(r[2]), int(r[3]), float(r[4] or 0), float(r[5] or 0), r[6])
+                except ValueError:
+                    continue
+    return snap
+
+
+def pg_settings(runner):
+    """(version_num, track_io_timing on?, pg_stat_statements loaded?, extension created?, shared_preload_libraries) or None if unreachable."""
+    rows = pg_rows(runner(pg_command(PG_SQL_SETTINGS)))
+    if not rows or len(rows[0]) < 4:
+        return None
+    v, tio, spl, ext = rows[0][:4]
+    try:
+        v = int(v)
+    except ValueError:
+        return None
+    return v, tio.strip() == "on", "pg_stat_statements" in spl, ext.strip() not in ("", "0"), spl.strip()
+
+
+def pg_difference(before, after, top=10):
+    """The tables and the queries that read the most from the disk BETWEEN the two snapshots (8 KiB blocks)."""
+    tables = []
+    for key, (read, hit) in after["tables"].items():
+        r0, h0 = before["tables"].get(key, (0, 0))
+        dr, dh = read - r0, hit - h0
+        if dr > 0:
+            tables.append({"db": key[0], "table": key[1], "read_blocks": dr, "hit_blocks": max(0, dh)})
+    tables.sort(key=lambda t: -t["read_blocks"])
+    statements = []
+    for key, (calls, read, read_ms, exec_ms, text) in after["statements"].items():
+        c0, r0, rm0, em0, _t = before["statements"].get(key, (0, 0, 0.0, 0.0, ""))
+        if read - r0 > 0:
+            statements.append({"db": key[0], "calls": calls - c0, "read_blocks": read - r0, "read_ms": read_ms - rm0, "exec_ms": exec_ms - em0, "query": text})
+    statements.sort(key=lambda q: (-q["read_ms"], -q["read_blocks"]))
+    return tables[:top], statements[:top]
+
+
+def pg_enable_commands(spl, has_tio, has_pss, has_ext):
+    """The SQL to switch on what is missing: track_io_timing (reload), pg_stat_statements in shared_preload_libraries (RESTART of PostgreSQL),
+    then CREATE EXTENSION. The existing shared_preload_libraries are kept."""
+    out = []
+    if not has_tio:
+        out.append(("ALTER SYSTEM SET track_io_timing = on", False))
+        out.append(("SELECT pg_reload_conf()", False))
+    if not has_pss:
+        libs = [x.strip() for x in spl.split(",") if x.strip()] + ["pg_stat_statements"]
+        out.append(("ALTER SYSTEM SET shared_preload_libraries = '" + ",".join(libs) + "'", True))
+    if not has_ext:
+        out.append(("CREATE EXTENSION IF NOT EXISTS pg_stat_statements", False))
+    return out

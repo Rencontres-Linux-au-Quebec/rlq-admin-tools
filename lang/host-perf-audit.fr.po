@@ -1812,3 +1812,114 @@ msgstr ") avec recordsize="
 
 msgid " — 16K suits its 8 KiB pages (fewer bytes read and rewritten per page); only the files written AFTER the change get it: the existing tables keep their blocks until they are rewritten (pg_dump and restore, or VACUUM FULL)"
 msgstr " — 16K convient à ses pages de 8 Kio (moins d'octets lus et réécrits par page) ; seuls les fichiers écrits APRÈS le changement en profitent : les tables existantes gardent leurs blocs jusqu'à leur réécriture (pg_dump puis restauration, ou VACUUM FULL)"
+
+msgid "Installing the required packages ("
+msgstr "Installation des paquets nécessaires ("
+
+msgid "health of the disks (smartctl)"
+msgstr "santé des disques (smartctl)"
+
+msgid "--io-latency: ZFS operations file by file (zfsslower)"
+msgstr "--io-latency : opérations ZFS fichier par fichier (zfsslower)"
+
+msgid " missing and not installed (root required)."
+msgstr " absent et non installé (root nécessaire)."
+
+msgid " missing and not installed (apt-get not found)."
+msgstr " absent et non installé (apt-get introuvable)."
+
+msgid "  [OK] installed: "
+msgstr "  [OK] installé : "
+
+msgid "): the program goes on without it."
+msgstr ") : le programme continue sans lui."
+
+msgid "--io-latency: filetop counts the reads and writes of each file."
+msgstr "--io-latency : filetop compte les lectures et les écritures de chaque fichier."
+
+msgid "--io-latency: biolatency measures the response time of each disk."
+msgstr "--io-latency : biolatency mesure le temps de réponse de chaque disque."
+
+msgid "--io-latency: PostgreSQL of guest "
+msgstr "--io-latency : PostgreSQL de l'invité "
+
+msgid " and SQL queries"
+msgstr " et requêtes SQL"
+
+msgid " measured."
+msgstr " mesurées."
+
+msgid "  Files the most read and written (filetop, page cache included: what the programs ask, not only what reaches the disks):"
+msgstr "  Fichiers les plus lus et écrits (filetop, cache de pages compris : ce que les programmes demandent, pas seulement ce qui atteint les disques) :"
+
+msgid "        read     written   reads  writes  guest                  process         file"
+msgstr "          lu       écrit  lectures écrit.  invité                 processus       fichier"
+
+msgid "  Files the most read and written (filetop): no file read or written during the measurement"
+msgstr "  Fichiers les plus lus et écrits (filetop) : aucun fichier lu ni écrit pendant la mesure"
+
+msgid "  Response time of each disk (biolatency, every operation of the measurement):"
+msgstr "  Temps de réponse de chaque disque (biolatency, toutes les opérations de la mesure) :"
+
+msgid " operations · "
+msgstr " opérations · "
+
+msgid " % at 16 ms or more · "
+msgstr " % à 16 ms ou plus · "
+
+msgid " % at 128 ms or more · slowest between "
+msgstr " % à 128 ms ou plus · les plus lentes entre "
+
+msgid " % of the operations took 128 ms or more (--io-latency, biolatency)"
+msgstr " % des opérations ont pris 128 ms ou plus (--io-latency, biolatency)"
+
+msgid "  PostgreSQL of "
+msgstr "  PostgreSQL de "
+
+msgid ": unreachable (pct exec, user postgres, psql)"
+msgstr " : injoignable (pct exec, utilisateur postgres, psql)"
+
+msgid ": tables the most read from the DISK during the measurement (8 KiB blocks not found in the memory of PostgreSQL):"
+msgstr " : tables les plus lues sur le DISQUE pendant la mesure (blocs de 8 Kio absents de la mémoire de PostgreSQL) :"
+
+msgid " MiB read  ("
+msgstr " Mio lus  ("
+
+msgid " MiB from memory)  "
+msgstr " Mio en mémoire)  "
+
+msgid ": no table read from the disk during the measurement (everything from the memory of PostgreSQL)"
+msgstr " : aucune table lue sur le disque pendant la mesure (tout venait de la mémoire de PostgreSQL)"
+
+msgid ": SQL queries that read the most from the disk:"
+msgstr " : requêtes SQL qui ont le plus lu sur le disque :"
+
+msgid " s reading"
+msgstr " s de lecture"
+
+msgid " calls  "
+msgstr " appels  "
+
+msgid " s in all  "
+msgstr " s en tout  "
+
+msgid ": no SQL query read from the disk during the measurement"
+msgstr " : aucune requête SQL n'a lu sur le disque pendant la mesure"
+
+msgid ": not measured yet: "
+msgstr " : pas encore mesuré : "
+
+msgid "track_io_timing (time spent reading)"
+msgstr "track_io_timing (temps passé à lire)"
+
+msgid "pg_stat_statements (SQL queries)"
+msgstr "pg_stat_statements (requêtes SQL)"
+
+msgid " — switched on by the [change] commands below"
+msgstr " — activé par les commandes [change] ci-dessous"
+
+msgid "--io-latency: PostgreSQL of "
+msgstr "--io-latency : PostgreSQL de "
+
+msgid ": switch on "
+msgstr " : activer "
