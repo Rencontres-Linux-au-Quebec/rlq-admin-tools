@@ -40,6 +40,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -47,7 +48,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.25.20261118.091000"
+__version__ = "1.26.20261118.101500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1222,7 +1223,7 @@ def ensure_required(args):
         install_packages(["bpfcc-tools", headers_package()], "--io-latency: ZFS operations file by file (zfsslower)")
 
 
-def start_io_latency(threshold, interval, zfs):
+def start_io_latency(threshold, interval, zfs, names=None, guests=None):
     """1.23: the tracer of apps/_iolatency.py started (None if the module is missing). Root needed for the delay accounting and zfsslower."""
     if IOLAT is None:
         eprint("WARNING: component apps/_iolatency.py missing: --io-latency ignored (copy the whole folder, apps/ included).")
@@ -1231,11 +1232,64 @@ def start_io_latency(threshold, interval, zfs):
         eprint("WARNING: --io-latency without root: the kernel delay accounting and zfsslower are unreadable; only the ZFS waits are measured.")
     tracer = IOLAT.Tracer(threshold, interval, pools=list((zfs or {}).get("pools", {})))
     tracer.start()
+    tracer.pg = pg_start(zfs, names or {}, guests or {})       # 1.26: PostgreSQL of each container, snapshot at the start
     if tracer.state == "enabled":
         eprint("--io-latency: kernel.task_delayacct switched on for the measurement (it is switched off again at the end).")
     if tracer.slow_tool:
         eprint(f"--io-latency: {tracer.slow_tool} traces the ZFS operations slower than {threshold:g} ms.")
+    if tracer.filetop_proc is not None:
+        eprint("--io-latency: filetop counts the reads and writes of each file.")
+    if tracer.bio_proc is not None:
+        eprint("--io-latency: biolatency measures the response time of each disk.")
+    for vmid, p in sorted(tracer.pg.items()):
+        if p.get("before") is not None:
+            eprint(f"--io-latency: PostgreSQL of guest {vmid}: tables" + (" and SQL queries" if p["settings"][2] and p["settings"][3] else "") + " measured.")
     return tracer
+
+
+def pg_runner(vmid):
+    """1.26: runs a command inside container VMID (pct exec), 60 s at most."""
+    return lambda cmd: guest_exec(vmid, "lxc", cmd, 60)
+
+
+def pg_start(zfs, names, guests):
+    """1.26: {vmid: {"settings", "before"}} for each RUNNING container that holds PostgreSQL (postgres_datasets): what it read from the disk is
+    counted from here (pg_statio_user_tables, pg_stat_statements when it is loaded)."""
+    res = {}
+    if IOLAT is None or not hasattr(IOLAT, "pg_settings") or os.geteuid() != 0:
+        return res
+    for vmid, _gname, _ds, _mp, _rs in postgres_datasets(zfs, names):
+        if vmid not in guests:
+            continue
+        settings = IOLAT.pg_settings(pg_runner(vmid))
+        if settings is None:
+            res[vmid] = {"settings": None, "before": None}
+            continue
+        res[vmid] = {"settings": settings, "before": IOLAT.pg_snapshot(pg_runner(vmid), settings[0], settings[2] and settings[3])}
+    return res
+
+
+def pg_finish(tracer):
+    """1.26: the second snapshot of each PostgreSQL and the difference: {vmid: {"settings", "tables", "statements"}}."""
+    res = {}
+    for vmid, p in sorted((getattr(tracer, "pg", None) or {}).items()):
+        if p.get("before") is None:
+            res[vmid] = {"settings": None, "tables": [], "statements": []}
+            continue
+        s = p["settings"]
+        after = IOLAT.pg_snapshot(pg_runner(vmid), s[0], s[2] and s[3])
+        tables, statements = IOLAT.pg_difference(p["before"], after)
+        res[vmid] = {"settings": s, "tables": tables, "statements": statements}
+    return res
+
+
+def io_results(tracer):
+    """1.26: the results of the tracer and of PostgreSQL, or None without --io-latency."""
+    if tracer is None:
+        return None
+    res = tracer.results()
+    res["postgres"] = pg_finish(tracer)
+    return res
 
 
 def guest_label(guest, names):
@@ -1289,6 +1343,53 @@ def analyze_io_latency(io, names, fd, out):
         out.append("       count     total     peak  op     guest                  process         file")
         for f in slow["files"]:
             out.append(f"      {f['count']:>6} {f['total_ms'] / 1000:>7.1f} s {f['max_ms']:>6.0f} ms  {f['op']:<6} {guest_label(f['guest'], names)[:22]:<22} {f['comm'][:15]:<15} {f['file'][:60]}")
+    top = (io.get("filetop") or {})
+    if top.get("tool") and top.get("files"):
+        out.append("  Files the most read and written (filetop, page cache included: what the programs ask, not only what reaches the disks):")
+        out.append("        read     written   reads  writes  guest                  process         file")
+        for f in top["files"]:
+            out.append(f"      {f['rkb'] / 1024:>6.1f} MiB {f['wkb'] / 1024:>6.1f} MiB {f['reads']:>7} {f['writes']:>7}  {guest_label(f['guest'], names)[:22]:<22} {f['comm'][:15]:<15} {f['file'][:60]}")
+    elif top.get("tool"):
+        out.append("  Files the most read and written (filetop): no file read or written during the measurement")
+    bio = (io.get("biolatency") or {})
+    if bio.get("tool") and bio.get("disks"):
+        out.append("  Response time of each disk (biolatency, every operation of the measurement):")
+        for disk, rows in sorted(bio["disks"].items()):
+            total, p20, p100, worst = IOLAT.latency_summary(rows)
+            if total:
+                out.append(f"      {disk:<8} {total:>9} operations · {p20:5.1f} % at 16 ms or more · {p100:5.1f} % at 128 ms or more · slowest between {worst} ms")
+                if p100 >= 1.0:
+                    fd.verdict("disks", "warn", f"disk {disk}: {p100:.1f} % of the operations took 128 ms or more (--io-latency, biolatency)")
+    for vmid, p in sorted((io.get("postgres") or {}).items()):
+        label = guest_label("lxc " + vmid, names)
+        st = p.get("settings")
+        if st is None:
+            out.append(f"  PostgreSQL of {label}: unreachable (pct exec, user postgres, psql)")
+            continue
+        _v, tio, pss, ext, spl = st
+        if p["tables"]:
+            out.append(f"  PostgreSQL of {label}: tables the most read from the DISK during the measurement (8 KiB blocks not found in the memory of PostgreSQL):")
+            for t in p["tables"]:
+                out.append(f"      {t['read_blocks'] * 8 / 1024:>7.1f} MiB read  ({t['hit_blocks'] * 8 / 1024:>8.1f} MiB from memory)  {t['db']}.{t['table']}")
+        else:
+            out.append(f"  PostgreSQL of {label}: no table read from the disk during the measurement (everything from the memory of PostgreSQL)")
+        if pss and ext and p["statements"]:
+            out.append(f"  PostgreSQL of {label}: SQL queries that read the most from the disk:")
+            for q in p["statements"]:
+                rt = f"{q['read_ms'] / 1000:>6.1f} s reading" if tio else "      -"
+                out.append(f"      {rt}  {q['read_blocks'] * 8 / 1024:>7.1f} MiB  {q['calls']:>6} calls  {q['exec_ms'] / 1000:>7.1f} s in all  {q['db']}: {q['query'][:110]}")
+        elif pss and ext:
+            out.append(f"  PostgreSQL of {label}: no SQL query read from the disk during the measurement")
+        missing = IOLAT.pg_enable_commands(spl, tio, pss, ext)
+        if missing:
+            parts = (["track_io_timing (time spent reading)"] if not tio else []) + (["pg_stat_statements (SQL queries)"] if not (pss and ext) else [])
+            out.append(f"  PostgreSQL of {label}: not measured yet: {', '.join(parts)} — switched on by the [change] commands below")
+            cmds = []
+            for sql, restart in missing:
+                cmds.append(f"pct exec {vmid} -- sh -c {shlex.quote(IOLAT.pg_command(sql))}")
+                if restart:
+                    cmds.append(f"pct exec {vmid} -- systemctl restart postgresql   # restarts PostgreSQL: Odoo is cut for a few seconds, at a quiet hour")
+            fd.ask(f"--io-latency: PostgreSQL of {label}: switch on {', '.join(parts)}", cmds)
     out.append("  (compare these hours with the slow requests of the sites: app-log-live.py in the guest; a slow request with no slow ZFS operation at that time was not slowed by the disks)")
 
 
@@ -2922,7 +3023,7 @@ def main():
     host_tasks = io_tasks()
     tracer = None
     if args.io_latency is not None:                       # 1.23: who waits for the disks, on which files
-        tracer = start_io_latency(args.io_latency, interval, zfs)
+        tracer = start_io_latency(args.io_latency, interval, zfs, names, guests)
     try:
         samples = sample_loop(duration, interval, guests, args.csv)
     finally:
@@ -2936,7 +3037,7 @@ def main():
     t1 = os.times()
     cost = (t1.user + t1.system + t1.children_user + t1.children_system) - (t0.user + t0.system + t0.children_user + t0.children_system)
     fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost, host_tasks, inside, config,
-                io=tracer.results() if tracer is not None else None)
+                io=io_results(tracer))
     if args.csv and samples:
         print(f"\nSamples written to {args.csv}.")
     if tee is not None:

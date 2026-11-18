@@ -2245,6 +2245,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.26.20261118.101500 - --io-latency: top files, response time of the disks, PostgreSQL
+
+- Title: --io-latency also gives the files the most read and written, the histogram of the response times of each disk, and in each PostgreSQL container the tables and SQL queries that read the most from the disk.
+- Reason: request of the administrator on 2026-11-18: see the names of the programs and files behind the waits (like iotop), and what PostgreSQL reads from the SATA disks.
+- Changes:
+  - apps/_iolatency.py 1.1: filetop (-C -r 60 -s all) and biolatency (-D -m, stopped by SIGINT so that it prints its histograms) run in the background; functions parse_biolatency, latency_summary, pg_command, pg_rows, pg_settings, pg_snapshot, pg_sql_statements, pg_difference, pg_enable_commands.
+  - host-perf-audit.py: functions pg_runner, pg_start, pg_finish, io_results; start_io_latency receives the guests; analyze_io_latency prints the files, the disks and PostgreSQL; a disk with 1 % of its operations at 128 ms or more gives the verdict [WARN].
+  - lang/host-perf-audit.fr.po: the French texts (also those of 1.25).
+- Bugs fixed: none (new functions).
+- Safeguards and edge cases: PostgreSQL is read through pct exec as user postgres, the query passed in base64 on standard input (no quoting problem), only the containers that hold /var/lib/postgresql and run; the counters of PostgreSQL are never reset: the report gives the difference between two snapshots (start and end of the measurement); without track_io_timing the read time is not shown (blocks only); without pg_stat_statements the SQL queries are not shown and the [change] commands switch it on (ALTER SYSTEM SET track_io_timing = on and pg_reload_conf, shared_preload_libraries completed WITHOUT removing the libraries already there, restart of PostgreSQL marked as cutting Odoo for a few seconds, CREATE EXTENSION), each one run only after "y"; filetop counts what the programs read, page cache included (said in the report); sockets and other non-regular files are left out.
+- Checks performed: test_host_perf_audit (35 tests pass), class LatenceES126: parsing of filetop and biolatency, difference of two PostgreSQL snapshots, columns of PostgreSQL 16 and 18, order of the activation commands, report and commands not read-only.
+- Action required: on proxmox1, host-perf-audit.py --duration 14h --io-latency --export-ai; answer "y" to the PostgreSQL commands of container 105 at a quiet hour (the restart cuts Odoo for a few seconds), then measure again to see the SQL queries.
+
 ### 1.25.20261118.091000 - The required packages are installed by the program itself
 
 - Title: smartmontools, and with --io-latency bpfcc-tools and the headers of the running kernel, are installed automatically when missing.
@@ -7516,6 +7529,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: none.
 
 ## apps/_iolatency.py
+
+### 1.1.20261118.100000 - filetop, biolatency, PostgreSQL
+
+- Title: top files, response time of the disks and PostgreSQL for host-perf-audit.py --io-latency.
+- Reason: see host-perf-audit.py 1.26.20261118.101500.
+- Changes: filetop and biolatency in the background (Tracer.start, Tracer.stop with SIGINT for biolatency, Tracer.results "filetop" and "biolatency"); PostgreSQL functions pg_*; parse_biolatency, latency_summary.
+- Bugs fixed: none.
+- Safeguards and edge cases: see host-perf-audit.py 1.26.
+- Checks performed: test_host_perf_audit.LatenceES126.
+- Action required: none.
 
 ### 1.0.20261118.064500 - New module: who waits for the disks
 
