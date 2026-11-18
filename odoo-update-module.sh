@@ -100,7 +100,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.32.20261117.183619"
+readonly SCRIPT_VERSION="1.33.20261118.143000"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -561,15 +561,25 @@ sauvegarder() {
     if ctrl_c_child bash "$prog" --db "$DB"; then ok "sauvegarde de $DB terminée"; else ko "sauvegarde de $DB en échec — rien n'a été arrêté"; return 1; fi
 }
 
+# 1.33: duration of each phase of the restart, and the time the site was unavailable (from the stop to the first HTTP answer of Odoo)
+T_ARRET=""; T_MAJ=""; T_DEMARRAGE=""; T_REPONSE=""; T_PRECHAUFFAGE=""; T_DEBUT_COUPURE=""; T_COUPURE=""
+duree_lisible() {   # duree_lisible SECONDS: « 42 s », « 1 min 05 s »
+    local s="${1:-0}"
+    if (( s >= 60 )); then printf '%d min %02d s' $((s / 60)) $((s % 60)); else printf '%d s' "$s"; fi
+}
+
 arreter() {
+    local debut=$SECONDS
     etape "Arrêt du service"
     if (( DO_DRY_RUN )); then sim "systemctl stop $SERVICE"; return 0; fi
+    T_DEBUT_COUPURE=$SECONDS; T_COUPURE=""; T_REPONSE=""
     sc stop "$SERVICE" || true
+    T_ARRET=$((SECONDS - debut))
     if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]]; then
         ko "le service $SERVICE est toujours actif après « systemctl stop »"
         return 1
     fi
-    ok "service $SERVICE arrêté"
+    ok "service $SERVICE arrêté (en $(duree_lisible "$T_ARRET"))"
 }
 
 preparer_journal() {
@@ -648,7 +658,9 @@ demarrer() {
     if ! sc start "$SERVICE"; then ko "« systemctl start $SERVICE » a échoué (journalctl -u $SERVICE -n 50)"; return 1; fi
     while (( SECONDS - debut <= WAIT )); do
         if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]] && port_ecoute "$port"; then
-            ok "service $SERVICE actif, port $port à l'écoute (après $((SECONDS - debut)) s)"
+            T_DEMARRAGE=$((SECONDS - debut))
+            ok "service $SERVICE actif, port $port à l'écoute (après $(duree_lisible "$T_DEMARRAGE"))"
+            premiere_reponse "$port" "$debut"
             return 0
         fi
         sleep 2
@@ -656,6 +668,39 @@ demarrer() {
     if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" != "active" ]]; then ko "le service $SERVICE n'est pas actif après ${WAIT} s (journalctl -u $SERVICE -n 50)"
     else ko "le service $SERVICE est actif mais rien n'écoute sur le port $port après ${WAIT} s"; fi
     return 1
+}
+
+# premiere_reponse PORT START (1.33): the port listens before Odoo answers (registry loaded at the first request): waits for the first HTTP answer
+# of /web/login (any code below 500), WAIT seconds at most from START; T_REPONSE and T_COUPURE (unavailability since the stop) are set.
+premiere_reponse() {
+    local port="$1" debut="$2" code coupure=""
+    command -v curl >/dev/null 2>&1 || { detail "curl absent : première réponse d'Odoo non mesurée"; return 0; }
+    while (( SECONDS - debut <= WAIT )); do
+        code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "http://127.0.0.1:$port/web/login" 2>/dev/null || true)
+        if [[ "$code" =~ ^[1-4][0-9][0-9]$ ]]; then
+            T_REPONSE=$((SECONDS - debut))
+            if [[ -n "$T_DEBUT_COUPURE" ]]; then T_COUPURE=$((SECONDS - T_DEBUT_COUPURE)); coupure=" ; site indisponible $(duree_lisible "$T_COUPURE") en tout, depuis l'arrêt"; fi
+            ok "Odoo répond (HTTP $code sur /web/login) $(duree_lisible "$T_REPONSE") après le démarrage$coupure"
+            return 0
+        fi
+        sleep 1
+    done
+    attn "Odoo écoute sur le port $port mais n'a pas répondu à /web/login en ${WAIT} s"
+}
+
+# resume_durees (1.33): one line with the duration of each phase, at the end of the update (also after a failure).
+resume_durees() {
+    local parties=() texte
+    [[ -n "$T_ARRET" ]] && parties+=("arrêt $(duree_lisible "$T_ARRET")")
+    [[ -n "$T_MAJ" ]] && parties+=("mise à jour des modules $(duree_lisible "$T_MAJ")")
+    [[ -n "$T_DEMARRAGE" ]] && parties+=("démarrage $(duree_lisible "$T_DEMARRAGE")")
+    [[ -n "$T_REPONSE" ]] && parties+=("première réponse $(duree_lisible "$T_REPONSE") après le démarrage")
+    [[ -n "$T_PRECHAUFFAGE" ]] && parties+=("préchauffage $(duree_lisible "$T_PRECHAUFFAGE")")
+    (( ${#parties[@]} )) || return 0
+    texte=$(printf '%s · ' "${parties[@]}"); texte="${texte% · }"
+    champ "Durées :" "$texte"
+    if [[ -n "$T_COUPURE" ]]; then champ "Site coupé :" "${C_BOLD}$(duree_lisible "$T_COUPURE")${C_RESET} ${C_DIM}(de l'arrêt d'Odoo à sa première réponse)${C_RESET}"; fi
+    return 0
 }
 
 # Cache warm-up (odoo-warmup.py) after the restart: public pages, latest events and polls, administration screens. Never a failure of the update:
@@ -1359,7 +1404,7 @@ rollback() {
     mettre_a_jour || { demarrer || true; ko "la mise à jour avec les modules d'avant a échoué aussi : voir $JOURNAL"; return 1; }
     demarrer || return 1
     DEMARRAGE_EPOCH=$(date +%s)
-    if (( DO_WARMUP )); then prechauffer; fi
+    if (( DO_WARMUP )); then T_PRECH_DEBUT=$SECONDS; prechauffer; (( DO_DRY_RUN )) || T_PRECHAUFFAGE=$((SECONDS - T_PRECH_DEBUT)); fi
     check_after_start || { ko "erreurs aussi après le retour arrière"; return 1; }
     ok "${C_BOLD}retour arrière réussi${C_RESET} : modules d'avant en service"
     return 0
@@ -1430,12 +1475,14 @@ if (( ZIP_ECHEC )); then
     if (( ETAIT_ACTIF )); then sc start "$SERVICE" >/dev/null 2>&1 || true; fi
     exit 1
 fi
+T_MAJ_DEBUT=$SECONDS
 mettre_a_jour || echecs=$((echecs + 1))
+(( DO_DRY_RUN )) || T_MAJ=$((SECONDS - T_MAJ_DEBUT))
 if (( DO_DRY_RUN )); then sim "versions des modules installés avant / après la mise à jour (PostgreSQL, lecture seule)"; else afficher_versions; fi
 (( DO_DRY_RUN )) || purger_journaux
 if demarrer; then
     DEMARRAGE_EPOCH=$(date +%s)
-    if (( DO_WARMUP )); then prechauffer; fi
+    if (( DO_WARMUP )); then T_PRECH_DEBUT=$SECONDS; prechauffer; (( DO_DRY_RUN )) || T_PRECHAUFFAGE=$((SECONDS - T_PRECH_DEBUT)); fi
     check_after_start || echecs=$((echecs + 1))
 else
     echecs=$((echecs + 1))
@@ -1443,6 +1490,7 @@ fi
 if (( echecs > 0 )); then
     echo
     ko "mise à jour terminée avec ${echecs} échecs"
+    resume_durees
     if rollback; then
         echo
         ko "mise à jour ANNULÉE : les modules d'avant sont en service (journal de l'échec : $JOURNAL)"
@@ -1451,4 +1499,4 @@ if (( echecs > 0 )); then
 fi
 if (( DO_DRY_RUN )); then rollback || true; fi
 echo
-if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; else echo "${C_GREEN}✔ ${C_BOLD}mise à jour terminée${C_RESET} : ${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; fi
+if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; else echo "${C_GREEN}✔ ${C_BOLD}mise à jour terminée${C_RESET} : ${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; resume_durees; fi

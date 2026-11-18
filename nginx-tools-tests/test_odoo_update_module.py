@@ -52,6 +52,7 @@ class OdooUpdateModule(EnvTest):
         self.mock("systemctl", FAUX_SYSTEMCTL)
         self.mock("pgrep", 'cat "$D/pgrep" 2>/dev/null; exit 0')
         self.mock("ss", 'echo "LISTEN 0 128 *:10000 *:*"')
+        self.mock("curl", 'echo "curl $*" >> "$D/appels.log"; printf 200')       # 1.33: first HTTP answer of Odoo after the start
         self.mock("sleep", "exit 0") if False else None
         self.mock("journalctl", 'echo "journalctl $*" >> "$D/appels.log"; cat "$D/journal_service" 2>/dev/null; exit 0')
         self.write("nginx/exemple-access.log", "")                         # 1.15: a readable nginx log without requests: the site is calm
@@ -257,6 +258,13 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(os.path.realpath(a[i_odoo + 2]), os.path.realpath(self.odoo))
         self.assertIn("mise à jour terminée", out)
         self.assertTrue(os.listdir(os.path.join(self.d, "journaux")))
+        # 1.33: duration of each phase and time the site was unavailable
+        self.assertRegex(out, r"service erplibre_erplibre.service arrêté \(en \d+ s\)")
+        self.assertIn("Odoo répond (HTTP 200 sur /web/login)", out)
+        self.assertIn("site indisponible", out)
+        self.assertRegex(out, r"Durées :.*arrêt \d+ s · mise à jour des modules \d+ s · démarrage \d+ s · première réponse")
+        self.assertIn("Site coupé :", out)
+        self.assertTrue(any(l.startswith("curl ") and "127.0.0.1:10000/web/login" in l for l in self.appels()))
 
     def test_echec_d_odoo_redemarre_quand_meme(self):
         self.write("odoo_code", "3\n")

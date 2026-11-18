@@ -3877,6 +3877,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.33.20261118.143000 - Duration of the restart of Odoo and time the site was down
+
+- Title: the stop, the update of the modules, the start, the first HTTP answer of Odoo and the warm-up are timed; a line "Durées" and a line "Site coupé" close the update.
+- Reason: request of the administrator on 2026-11-18: show the number of seconds taken by the restart of Odoo.
+- Changes: odoo-update-module.sh: new functions duree_lisible, premiere_reponse, resume_durees; arreter gives its duration ("arrêté (en N s)"); demarrer waits, after the port listens, for the first answer of /web/login (any HTTP code below 500, WAIT seconds at most), because the port listens before Odoo can answer; resume_durees after a success and after a failure (also after a rollback, which is timed the same way). lang/odoo-update-module.en.po. Test: test_odoo_update_module.test_succes_arret_mise_a_jour_puis_demarrage (curl simulated).
+- Bugs fixed: none.
+- Safeguards and edge cases: without curl, the first answer is not measured (said); an Odoo that listens but does not answer within WAIT seconds gives a warning, never a failure of the update; durations of the simulation (--dry-run) are not shown; the time "Site coupé" goes from the "systemctl stop" to the first answer (the warm-up comes after: the site already answers).
+- Checks performed: test_odoo_update_module (48 tests pass).
+- Action required: none.
+
 ### 1.32.20261117.183619 - Restart sooner: finished saves, forms being edited, logged-in users of the administration
 
 - Title: a finished save of the Odoo administration no longer blocks the update; a form being edited does; light writes are a note only.

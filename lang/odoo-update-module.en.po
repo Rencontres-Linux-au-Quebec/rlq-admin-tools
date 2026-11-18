@@ -900,3 +900,54 @@ msgstr " (no recent request: does not delay the update)"
 
 msgid "inchangé depuis le contrôle précédent"
 msgstr "unchanged since the previous check"
+
+msgid " arrêté (en "
+msgstr " stopped (in "
+
+msgid "curl absent : première réponse d'Odoo non mesurée"
+msgstr "curl missing: first answer of Odoo not measured"
+
+msgid " en tout, depuis l'arrêt"
+msgstr " in all, since the stop"
+
+msgid "Odoo répond (HTTP "
+msgstr "Odoo answers (HTTP "
+
+msgid " sur /web/login) "
+msgstr " on /web/login) "
+
+msgid " après le démarrage"
+msgstr " after the start"
+
+msgid "Odoo écoute sur le port "
+msgstr "Odoo listens on port "
+
+msgid " mais n'a pas répondu à /web/login en "
+msgstr " but did not answer /web/login within "
+
+msgid "arrêt "
+msgstr "stop "
+
+msgid "mise à jour des modules "
+msgstr "update of the modules "
+
+msgid "démarrage "
+msgstr "start "
+
+msgid "première réponse "
+msgstr "first answer "
+
+msgid "préchauffage "
+msgstr "warm-up "
+
+msgid "Durées :"
+msgstr "Durations:"
+
+msgid "Site coupé :"
+msgstr "Site down:"
+
+msgid "(de l'arrêt d'Odoo à sa première réponse)"
+msgstr "(from the stop of Odoo to its first answer)"
+
+msgid " ; site indisponible "
+msgstr "; site unavailable "
