@@ -7,6 +7,10 @@
 # booléens : yes / no (true / false, 1 / 0) - valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
 # --- Options (ordre alphabétique / alphabetical order) ---
+# étape 4 (avec --update) : les access_log des sites écrits par blocs (buffer=, flush=) : moins de petites écritures sur les disques SATA ;
+# les lignes arrivent dans les journaux au plus ACCESS_LOG_FLUSH plus tard (blocked-probes.log reste immédiat pour fail2ban) ; off = jamais modifié
+#ACCESS_LOG_BUFFER=64k
+#ACCESS_LOG_FLUSH=10s
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
 # (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
 #ANONYMIZE=no

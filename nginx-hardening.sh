@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.108.20261117.143528"
+readonly SCRIPT_VERSION="2.109.20261118.071500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -170,6 +170,8 @@ JOURNAL_PERSISTENT=1      # 2.83: 1 = journal systemd kept on disk (Storage=pers
 PG_LOGGING=1              # 2.83: 1 = slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (step 17); no = step skipped
 PG_SLOW_MS="2000"         # 2.83: log_min_duration_statement written by step 17 (milliseconds)
 PG_TUNING=1               # 2.91: step 17, memory and checkpoints of PostgreSQL raised for the memory of the server (less disk); 0 = never changed
+ACCESS_LOG_BUFFER="64k"   # 2.109: buffer= and flush= added by --update to the access_log of the sites (fewer small writes on SATA disks); off = never changed
+ACCESS_LOG_FLUSH="10s"
 WORKER_CONNECTIONS="2048" # 2.89: worker_connections of nginx set by --update on an Odoo server (step 4; each websocket of the live chat takes 2 connections); 0 = never changed
 ODOO_CRON_OVERRIDE=""     # 2.82: --cron-threads N (MAX_CRON_THREADS): cron threads of Odoo for step 6 (default: max_cron_threads of odoo.conf or run.sh, otherwise 2)
 # Initialized here: set by steps specific to Odoo (4 and 9), but read by the final summary - same
@@ -208,6 +210,8 @@ if declare -F config_lire >/dev/null; then
     config_defaut PG_LOGGING PG_LOGGING PG_LOGGING booleen
     config_defaut PG_SLOW_MS PG_SLOW_MS PG_SLOW_MS nombre
     config_defaut WORKER_CONNECTIONS WORKER_CONNECTIONS WORKER_CONNECTIONS nombre
+    config_defaut ACCESS_LOG_BUFFER ACCESS_LOG_BUFFER ACCESS_LOG_BUFFER texte
+    config_defaut ACCESS_LOG_FLUSH ACCESS_LOG_FLUSH ACCESS_LOG_FLUSH texte
     config_defaut PG_TUNING PG_TUNING PG_TUNING booleen
 fi
 
@@ -2199,6 +2203,55 @@ nginx_moins_de_disque() {
     return 0
 }
 
+# nginx_journaux_tampon (2.109, --update): every access_log of the configuration in effect (files of NGINX_HARDENING_NGINX_DIR, flattened) gets
+# « buffer=ACCESS_LOG_BUFFER flush=ACCESS_LOG_FLUSH »: nginx writes the lines by blocks (64 KiB, at least every 10 s) instead of one small write per
+# request. Left out: access_log off, syslog:, a line that already has buffer=, blocked-probes.log (the jail nginx-blocked-probes must see the
+# attacks at once) and the files outside the nginx folder. Each file is copied first; nginx -t refuses: every copy is put back, nginx not reloaded.
+nginx_journaux_tampon() {
+    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" ligne lieu texte fic num sauv copie fichiers="" n=0 f
+    case "${ACCESS_LOG_BUFFER:-off},${ACCESS_LOG_FLUSH:-off}" in off,*|0,*|*,off|*,0) return 0 ;; esac
+    local -A copies=()
+    local -a a_faire=()
+    while IFS=$'\t' read -r lieu texte; do
+        texte="${texte%%#*}"
+        [[ "$texte" =~ ^[[:space:]]*access_log[[:space:]]+([^[:space:]\;]+) ]] || continue
+        case "${BASH_REMATCH[1]}" in off|syslog:*|*blocked-probes.log) continue ;; esac
+        [[ "$texte" == *buffer=* ]] && continue
+        fic="${lieu%:*}"; num="${lieu##*:}"
+        [[ "$fic" == "$dir"/* && -f "$fic" && "$num" =~ ^[0-9]+$ ]] || continue
+        a_faire+=("$fic:$num")
+    done < <(ws_config_aplatie 2>/dev/null || true)
+    if (( ${#a_faire[@]} == 0 )); then
+        pass "nginx : journaux d'accès écrits par blocs (buffer=, flush=) ou rien à changer."
+        return 0
+    fi
+    if [[ "${CHECK_ONLY:-0}" == "1" ]]; then
+        warn "nginx : ${#a_faire[@]} access_log sans buffer= : une petite écriture sur le disque par requête — --update ajoute « buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH} » (ACCESS_LOG_BUFFER, ACCESS_LOG_FLUSH)."
+        return 0
+    fi
+    sauv="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}"
+    mkdir -p "$sauv" 2>/dev/null || true
+    for lieu in "${a_faire[@]}"; do
+        fic="${lieu%:*}"; num="${lieu##*:}"
+        if [[ -z "${copies[$fic]:-}" ]]; then
+            copie="$sauv/$(basename "$fic").$(date +%Y%m%d-%H%M%S).bak"
+            cp -p "$fic" "$copie" 2>/dev/null || { fail "nginx : copie de sauvegarde de $fic impossible — ses access_log ne sont pas modifiés."; continue; }
+            copies[$fic]="$copie"
+            fichiers+="${fichiers:+, }$fic"
+        fi
+        sed -i -E "${num}s/^([[:space:]]*access_log[[:space:]][^;#]*[^;#[:space:]])[[:space:]]*;/\1 buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH};/" "$fic" && n=$((n + 1))
+    done
+    (( ${#copies[@]} > 0 )) || return 0
+    if run nginx -t >/dev/null 2>&1; then
+        nginx_appliquer || true
+        pass "nginx : ${n} access_log écrits par blocs (buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH}) dans ${fichiers} : moins de petites écritures sur les disques ; les lignes arrivent dans les journaux au plus ${ACCESS_LOG_FLUSH} plus tard (blocked-probes.log reste immédiat pour fail2ban) ; nginx -t réussi, nginx rechargé. Sauvegardes dans $sauv"
+    else
+        for f in "${!copies[@]}"; do cp -p "${copies[$f]}" "$f" 2>/dev/null || true; done
+        fail "nginx : buffer= et flush= sur les access_log refusés par nginx -t — anciennes versions restaurées, nginx NON rechargé."
+    fi
+    return 0
+}
+
 # nginx_worker_connections CURRENT (2.89, --update, Odoo server only: step 4 is an Odoo step): worker_connections of the events block of
 # nginx.conf set to WORKER_CONNECTIONS (absent: nginx's default 512, the line is added), and worker_rlimit_nofile (4 x that, at least 8192) added
 # when absent: above the open-file limit of the nginx processes (1024 by default) nginx -t warns and the connections beyond fail. Copy first,
@@ -2327,6 +2380,7 @@ ${ws_ind}proxy_read_timeout ${WS_DELAI_REGLE}s;" "$ws_reel"
     fi
     # 2.91: less disk for nginx (SATA disks): buffers of the responses, temporary files and cache in memory, cache of the images of Odoo
     nginx_moins_de_disque
+    nginx_journaux_tampon
     if (( ws_n == 0 && ws_http == 0 && ws_inconnu == 0 )); then
         if (( amonts_n > 0 )); then
             fail "nginx : aucun location vers le port gevent d'Odoo ($ODOO_GEVENT_PORT) — le websocket (discussions en temps réel) ne peut pas fonctionner."
