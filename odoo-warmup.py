@@ -62,7 +62,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.41.20261118.172706"
+__version__ = "1.42.20261118.181307"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -424,15 +424,30 @@ def load_page(client, path, tally, assets, languages=(), loaded=None):
 def warm_every_worker(client, pages, workers):
     """1.41: each page asked `workers` times IN PARALLEL: Odoo compiles the QWeb templates of a page in each worker the first time this worker
     shows it (a cache per process); asked once, a page was ready in one worker only, and the visitors paid the compilation in the others.
-    A busy worker does not take a new request: the parallel requests spread over the workers. Returns (requests, failures, slowest)."""
+    A busy worker does not take a new request: the parallel requests spread over the workers. Returns (requests, failures, slowest).
+    1.42: `workers` lanes in parallel, each with ITS OWN session (its own client, its own cookies), each asking the pages one after the other,
+    starting at a different page: with one shared session, the same page asked at the same time by several workers updated the same website
+    visitor concurrently (« bad query: WITH visitor AS (INSERT INTO website_visitor ... » in the log of Odoo, then retried by Odoo). Here, at
+    most `workers` visitors per warm-up, and never two requests of the same session at the same time."""
     if workers < 2 or not pages:
         return 0, 0, 0.0
-    jobs = [(page, (lambda page=page: client.request_(page))) for page in pages[:WORKER_PAGES_MAX]]
+    pages = pages[:WORKER_PAGES_MAX]
+
+    def lane(k):
+        own = Client(client.database, client.timeout)
+        return [own.request_(pages[(k + i) % len(pages)]) for i in range(len(pages))]
     n, failures, slowest = 0, 0, 0.0
-    for _name, (code, duration, _text) in in_parallel(jobs, workers):
-        n += 1
-        slowest = max(slowest, duration)
-        failures += code >= 500 or code == 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(lane, k) for k in range(workers)]
+        for future in futures:
+            try:
+                results = future.result()
+            except Exception as e:  # noqa: BLE001 - a failure does not stop the warm-up
+                results = [(0, 0.0, f"{type(e).__name__}: {e}")]
+            for code, duration, _text in results:
+                n += 1
+                slowest = max(slowest, duration)
+                failures += code >= 500 or code == 0
     return n, failures, slowest
 
 

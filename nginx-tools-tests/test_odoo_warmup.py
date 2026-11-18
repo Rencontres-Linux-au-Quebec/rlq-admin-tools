@@ -37,8 +37,22 @@ class FauxOdoo(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(donnees)
 
+    sessions = []
+
     def do_GET(self):
         FauxOdoo.appels.append(("GET", self.path))
+        if self.path == "/contactus":                                     # 1.42: a session per client, like Odoo (cookie session_id)
+            cookie = self.headers.get("Cookie") or ""
+            if "session_id=" not in cookie:
+                cookie = "session_id=s%d" % (len(FauxOdoo.sessions) + 1)
+                FauxOdoo.sessions.append(cookie)
+                self.send_response(200)
+                self.send_header("Set-Cookie", cookie + "; Path=/")
+                self.send_header("Content-Length", "1")
+                self.end_headers()
+                self.wfile.write(b"x")
+                return
+            FauxOdoo.sessions.append(cookie)
         if self.path == "/event":
             self._repondre(200, PAGE_EVENTS.replace("<html>", "<html>" + ALTERNATES, 1))
         elif self.path == "/survey" and not FauxOdoo.survey_ok:
@@ -344,8 +358,10 @@ class OdooWarmup(EnvTest):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         client = module.Client(self.url)
+        FauxOdoo.sessions = []
         module.warm_public(client, ["/contactus", "/absente"], 1, module.Tally(), 0, (), 3)
         self.assertEqual(FauxOdoo.appels.count(("GET", "/contactus")), 1 + 3)
+        self.assertEqual(len(set(FauxOdoo.sessions)), 4)                                 # 1.42: a session per worker lane, never the shared one
         self.assertEqual(FauxOdoo.appels.count(("GET", "/absente")), 1)                   # 404: not asked again
         FauxOdoo.appels = []
         module.warm_public(client, ["/contactus"], 1, module.Tally(), 0, (), 1)
