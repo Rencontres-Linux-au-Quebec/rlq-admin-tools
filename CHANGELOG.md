@@ -4151,6 +4151,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.111.20261118.082500 - access_log by blocks: refused by nginx -t (Odoo), command not found (BBB)
+
+- Title: the buffer=64k flush=10s of the access_log now passes nginx -t, and the step runs on BigBlueButton.
+- Reason: report of the administrator on 2026-11-18 (report-proxmox1-20261118-080223.md, --guest-run of nginx-hardening.sh 2.110 in 101, 104, 105, 430, 433).
+- Changes: nginx-hardening.sh: nginx_journaux_tampon rewritten; ws_lire_fichier, ws_config_aplatie and nginx_journaux_tampon moved to the top level of the script (after nginx_appliquer). Test: test_nginx_hardening.JournauxTampon2109 (cases added).
+- Bugs fixed:
+  - Symptom: in 104 and 105, "buffer= et flush= sur les access_log refusés par nginx -t". Diagnosis: nginx reads the 2nd word of access_log as the name of the format; on a directive without a format (« access_log /var/log/nginx/access.log; », as in the nginx.conf of Debian), 2.109 wrote « access_log FILE buffer=64k flush=10s; » and nginx looked for a format named "buffer=64k". Fix: « combined » (the default format of nginx) is inserted before buffer= when there is no format. Also left out now: a file name with a variable (nginx refuses buffered logs with variables), a directive with gzip or flush=, and every directive of a log file that already has buffer= somewhere (nginx refuses the same file with conflicting parameters).
+  - Symptom: in 430 and 433 (BBB), "nginx_journaux_tampon: command not found", script stopped with code 127. Diagnosis: the function (and ws_lire_fichier, ws_config_aplatie that it uses) was defined inside the block of the Odoo steps, never read on BBB. Fix: the three functions are defined at the top level.
+  - Symptom: in 101, the failure did not say why. Diagnosis: the message of nginx -t was not shown, and nginx -t was already failing before the change (missing certificate of odoo-lab). Fix: nginx -t is tested before any change (already failing: [ATTN], nothing changed); on a refusal the first lines of nginx -t are shown.
+- Safeguards and edge cases: a line is rewritten through awk with the value in the environment (no escaping problem with $ or /); the file keeps its owner and rights (written in place).
+- Checks performed: JournauxTampon2109: format added, variable, gzip/flush, file already buffered elsewhere, refusal with the message of nginx -t, nginx -t already failing, --check, BBB with an included file, second run without change.
+- Action required: copy the suite again and run --update in the guests (host-perf-audit.py --guest-sync --guest-run --guests 101,104,105,430,433). In 101, fix first the missing certificate /etc/letsencrypt/live/odoo-lab.rencontres-linux.quebec (nginx -t fails before this script).
+
 ### 2.110.20261118.073500 - access_log written by blocks on BigBlueButton too
 
 - Title: the buffer=64k flush=10s of 2.109 is also added on the BigBlueButton servers (VM bbb30 and bbb3).
