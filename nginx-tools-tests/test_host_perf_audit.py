@@ -849,5 +849,92 @@ print(json.dumps({{"exitcode": p.returncode, "exited": 1, "out-data": p.stdout.d
         self.assertIn("DES DISQUES SSD SONT-ILS JUSTIFIÉS ?", texte)
 
 
+class LatenceES(unittest.TestCase):
+    """1.23 --io-latency (apps/_iolatency.py) : attente des processus (comptabilité des délais), opérations ZFS lentes fichier par fichier
+    (sortie de zfsslower simulée), attentes du pool pendant la mesure (zpool iostat -y -l -H -p simulé)."""
+
+    def setUp(self):
+        import tempfile
+        import shutil
+        self.d = tempfile.mkdtemp(prefix="test-rlq-iolat-")
+        self.addCleanup(shutil.rmtree, self.d)
+        self.m = charger("iol_t", "apps/_iolatency.py", {"NGINX_TOOLS_PROC_ROOT": self.d})
+
+    def ecrire(self, rel, texte):
+        p = os.path.join(self.d, rel.lstrip("/"))
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as f:
+            f.write(texte)
+
+    def stat(self, pid, tid, comm, ticks):
+        champs = ["S"] + ["0"] * 38 + [str(ticks)] + ["0"] * 10          # field 3 = state ... field 42 = ticks
+        self.ecrire(f"/proc/{pid}/task/{tid}/stat", f"{tid} ({comm}) " + " ".join(champs) + "\n")
+
+    def test_attente_par_processus_et_invite(self):
+        self.ecrire("/proc/sys/kernel/task_delayacct", "0\n")
+        self.ecrire("/proc/200/cgroup", "0::/lxc/105/ns/system.slice/postgresql.service\n")
+        self.ecrire("/proc/300/cgroup", "0::/qemu.slice/430.scope\n")
+        self.stat(200, 200, "postgres", 100)
+        self.stat(300, 300, "kvm", 0)
+        self.stat(300, 301, "iothread", 50)
+        t = self.m.Tracer(20, 5, pools=(), which=lambda n: None)
+        t.ticks_per_s = 100
+        t.start()
+        self.assertEqual(t.state, "enabled")
+        with open(os.path.join(self.d, "proc/sys/kernel/task_delayacct")) as f:
+            self.assertEqual(f.read().strip(), "1")
+        self.stat(200, 200, "postgres", 400)                            # +3 s
+        self.stat(300, 301, "iothread", 150)                            # +1 s, thread counted in its process
+        t.stop()
+        with open(os.path.join(self.d, "proc/sys/kernel/task_delayacct")) as f:
+            self.assertEqual(f.read().strip(), "0")                     # restored
+        r = t.results()
+        self.assertEqual([(p["guest"], p["comm"], round(p["wait_s"], 1)) for p in r["procs"]], [("lxc 105", "postgres", 3.0), ("vm 430", "kvm", 1.0)])
+        self.assertIsNone(r["slow"]["tool"])
+
+    def test_operations_zfs_lentes_et_pool(self):
+        self.ecrire("/proc/sys/kernel/task_delayacct", "1\n")
+        self.ecrire("/proc/4242/cgroup", "0::/lxc/105/ns/system.slice/erplibre.service\n")
+        t = self.m.Tracer(20, 5, which=lambda n: None)
+        t.state, t.slow_tool = "on", "/usr/sbin/zfsslower-bpfcc"         # as after start() on a host with bpfcc-tools
+        sortie = io.StringIO("Tracing ZFS operations slower than 20 ms\nTIME     COMM           PID    T BYTES   OFF_KB   LAT(ms) FILENAME\n"
+                             "06:17:01 python3        4242   R 16384   0          35.50 fontawesome-webfont.woff2\n"
+                             "06:17:02 python3        4242   R 16384   0          24.50 fontawesome-webfont.woff2\n"
+                             "06:17:03 postgres       999    S 0       0         120.00 000000010000000000000042\n")
+        t._read_slow(sortie)
+        t._read_pools(io.StringIO("data\t1\t2\t30\t10\t1\t1\t12000000\t3000000\t9000000\t2000000\t1000000\t500\t-\t-\t-\t-\n"
+                                  "data\t1\t2\t0\t5\t0\t1\t-\t4000000\t-\t1000000\t-\t500\t-\t-\t-\t-\n"))
+        r = t.results()
+        self.assertEqual(r["slow"]["count"], 3)
+        premier = r["slow"]["files"][0]
+        self.assertEqual((premier["guest"], premier["file"], premier["op"]), ("?", "000000010000000000000042", "fsync"))   # pid gone: « ? »
+        woff = [f for f in r["slow"]["files"] if f["file"] == "fontawesome-webfont.woff2"][0]
+        self.assertEqual((woff["guest"], woff["count"], woff["total_ms"], woff["max_ms"]), ("lxc 105", 2, 60.0, 35.5))
+        self.assertEqual(r["pools"]["data"]["read_ms"], [12.0])                 # interval without reads left out
+        self.assertEqual(r["pools"]["data"]["write_ms"], [3.0, 4.0])
+        hpa = charger("hpa_iol", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        fd, out = hpa.Findings(), []
+        hpa.analyze_io_latency(r, {"105": ("lxc", "odoo18", "")}, fd, out)
+        texte = "\n".join(out)
+        self.assertIn("ZFS pool data during the measurement (2 intervals): read wait average 12.0 ms", texte)
+        self.assertIn("ZFS operations slower than 20 ms: 3", texte)
+        self.assertIn("105 odoo18", texte)
+        self.assertIn("Waits per process: no process waited", texte)
+
+    def test_zfsslower_absent_propose_installation(self):
+        hpa = charger("hpa_iol2", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        r = {"delayacct": "unavailable", "procs": [], "pools": {}, "slow": {"tool": None, "count": 0, "files": [], "error": "", "threshold": 20.0}}
+        fd, out = hpa.Findings(), []
+        hpa.analyze_io_latency(r, {}, fd, out)
+        self.assertIn("zfsslower (bpfcc-tools) is not installed", "\n".join(out))
+        self.assertIn(hpa.BCC_INSTALL, [c for _t, cmds in fd.commands for c in cmds])
+        self.assertFalse(hpa.is_read_only(hpa.BCC_INSTALL))                     # a change: confirmed before it runs
+
+    def test_traduction_francaise(self):
+        hpa = charger("hpa_iol3", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "fr", "NGINX_TOOLS_LANG": "fr"})
+        self.assertEqual(hpa.T("  Waits per process: no process waited for the disks during the measurement"),
+                         "  Attentes par processus : aucun processus n'a attendu les disques pendant la mesure")
+
+
 if __name__ == "__main__":
     unittest.main()

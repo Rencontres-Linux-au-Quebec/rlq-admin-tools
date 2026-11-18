@@ -1710,3 +1710,90 @@ msgstr "avec"
 
 msgid "without"
 msgstr "sans"
+
+msgid "Also trace WHO waits for the disks: the processes and guests (kernel delay accounting), the ZFS operations slower than MS milliseconds file by file (zfsslower of bpfcc-tools) and the ZFS waits of each interval (default: 20 ms; root)"
+msgstr "Tracer aussi QUI attend les disques : les processus et les invités (comptabilité des délais du noyau), les opérations ZFS plus lentes que MS millisecondes, fichier par fichier (zfsslower de bpfcc-tools), et les attentes de ZFS de chaque intervalle (défaut : 20 ms ; root)"
+
+msgid "WARNING: component apps/_iolatency.py missing: --io-latency ignored (copy the whole folder, apps/ included)."
+msgstr "AVERTISSEMENT : composant apps/_iolatency.py absent : --io-latency ignoré (copier tout le dossier, apps/ compris)."
+
+msgid "WARNING: --io-latency without root: the kernel delay accounting and zfsslower are unreadable; only the ZFS waits are measured."
+msgstr "AVERTISSEMENT : --io-latency sans root : la comptabilité des délais du noyau et zfsslower sont illisibles ; seules les attentes de ZFS sont mesurées."
+
+msgid "--io-latency: kernel.task_delayacct switched on for the measurement (it is switched off again at the end)."
+msgstr "--io-latency : kernel.task_delayacct activé pour la mesure (il est désactivé de nouveau à la fin)."
+
+msgid " traces the ZFS operations slower than "
+msgstr " trace les opérations ZFS plus lentes que "
+
+msgid "WHO WAITS FOR THE DISKS (--io-latency, threshold "
+msgstr "QUI ATTEND LES DISQUES (--io-latency, seuil de "
+
+msgid "  ZFS pool "
+msgstr "  Pool ZFS "
+
+msgid " during the measurement ("
+msgstr " pendant la mesure ("
+
+msgid " intervals): "
+msgstr " intervalles) : "
+
+msgid "read wait average "
+msgstr "attente en lecture : moyenne "
+
+msgid " ms, 95 % under "
+msgstr " ms, 95 % sous "
+
+msgid " ms, peak "
+msgstr " ms, pointe "
+
+msgid " (of which the disk itself: average "
+msgstr " (dont le disque lui-même : moyenne "
+
+msgid "no read reached the disks (all served by the ARC)"
+msgstr "aucune lecture n'a atteint les disques (toutes servies par l'ARC)"
+
+msgid " · write wait average "
+msgstr " · attente en écriture : moyenne "
+
+msgid ": reads waited "
+msgstr " : les lectures ont attendu "
+
+msgid " ms or more in 5 % of the intervals (--io-latency)"
+msgstr " ms ou plus dans 5 % des intervalles (--io-latency)"
+
+msgid "  Waits per process: unavailable (kernel.task_delayacct unreadable: root needed, or a kernel without delay accounting)"
+msgstr "  Attentes par processus : indisponibles (kernel.task_delayacct illisible : root nécessaire, ou noyau sans comptabilité des délais)"
+
+msgid "  Waits per process: no process waited for the disks during the measurement"
+msgstr "  Attentes par processus : aucun processus n'a attendu les disques pendant la mesure"
+
+msgid "  Processes that waited the most for the disks (kernel delay accounting, during the measurement):"
+msgstr "  Processus qui ont le plus attendu les disques (comptabilité des délais du noyau, pendant la mesure) :"
+
+msgid "          wait  guest                    process          pid"
+msgstr "       attente  invité                   processus        pid"
+
+msgid "  File names: zfsslower (bpfcc-tools) is not installed: the slow ZFS operations are not traced file by file"
+msgstr "  Noms des fichiers : zfsslower (bpfcc-tools) n'est pas installé : les opérations ZFS lentes ne sont pas tracées fichier par fichier"
+
+msgid "--io-latency: install bpfcc-tools (zfsslower: the ZFS operations slower than a threshold, with the process and the file)"
+msgstr "--io-latency : installer bpfcc-tools (zfsslower : les opérations ZFS plus lentes qu'un seuil, avec le processus et le fichier)"
+
+msgid "  File names: zfsslower failed: "
+msgstr "  Noms des fichiers : échec de zfsslower : "
+
+msgid "  ZFS operations slower than "
+msgstr "  Opérations ZFS plus lentes que "
+
+msgid " ms: none — no read, write, open or fsync of a file waited that long: the disks did not slow the applications down during the measurement"
+msgstr " ms : aucune — aucune lecture, écriture, ouverture ni synchronisation (fsync) d'un fichier n'a attendu aussi longtemps : les disques n'ont pas ralenti les applications pendant la mesure"
+
+msgid " — the files that cost the most:"
+msgstr " — les fichiers qui ont coûté le plus :"
+
+msgid "       count     total     peak  op     guest                  process         file"
+msgstr "      nombre     total   pointe  op.    invité                 processus       fichier"
+
+msgid "  (compare these hours with the slow requests of the sites: app-log-live.py in the guest; a slow request with no slow ZFS operation at that time was not slowed by the disks)"
+msgstr "  (comparer ces heures avec les requêtes lentes des sites : app-log-live.py dans l'invité ; une requête lente sans opération ZFS lente au même moment n'a pas été ralentie par les disques)"

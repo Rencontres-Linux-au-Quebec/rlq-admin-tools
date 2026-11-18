@@ -26,6 +26,8 @@
 #INSIDE=no
 # --interval : secondes entre deux échantillons (vide : 5 jusqu'à 2 minutes de mesure, 15 jusqu'à 30 minutes, 60 au-delà)
 #INTERVAL=
+# --io-latency : also trace who waits for the disks (processes and guests, ZFS operations slower than this many ms, file by file); empty: off, 20 with the option alone
+#IO_LATENCY=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG).
 #LANGUAGE=auto
 # --no-guests : ne pas mesurer chaque conteneur / VM (cgroups)
