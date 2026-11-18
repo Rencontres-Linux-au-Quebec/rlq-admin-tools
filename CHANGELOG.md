@@ -2245,6 +2245,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.24.20261118.073000 - recordsize=16K offered for the dataset of PostgreSQL
+
+- Title: the dataset that holds /var/lib/postgresql of each LXC container is found, and recordsize=16K is offered (--apply, or a [change] command confirmed with "y").
+- Reason: request of the administrator on 2026-11-18: set recordsize=16K on the dataset /var of container 105 (PostgreSQL of Odoo 18), as advised after the analysis of the exports of proxmox1.
+- Changes: host-perf-audit.py: new function postgres_datasets(zfs, names) and constants PG_RECORDSIZE, PG_FOLDER; analyze_zfs prints [OK] when the dataset already has 16K, otherwise adds a MEDIUM suggestion (applied by --apply with zfs set recordsize=16K) and the same command in the [change] list; the general note on recordsize is kept only when no PostgreSQL dataset is found; help of --apply mentions recordsize. lang/host-perf-audit.fr.po: the French texts. Test: nginx-tools-tests/test_host_perf_audit.py, class RecordsizePostgres.
+- Bugs fixed: none (new function).
+- Safeguards and edge cases: the mount point that holds /var/lib/postgresql is the longest one among rootfs and mpN (mp=/var, mp=/var/lib/postgresql...); the folder must exist on the host under the mount point of the dataset, so a container without PostgreSQL gets nothing; VMs are left out (their disks are volumes, volblocksize cannot change). The change is reversible (zfs set recordsize=128K) and applies only to the files written after it: the report says that the existing tables keep their blocks until pg_dump and restore or VACUUM FULL.
+- Checks performed: test_host_perf_audit.RecordsizePostgres (dataset found through mp=/var and through rootfs, container without PostgreSQL left out, [OK] at 16K, suggestion and [change] command otherwise).
+- Action required: on proxmox1, run host-perf-audit.py and answer "y" to "zfs set recordsize=16K data/zd0/subvol-105-disk-1" (or host-perf-audit.py --apply).
+
+### 1.23.20261118.064500 - Who waits for the disks, file by file (--io-latency)
+
+- Title: new option --io-latency [MS] (key IO_LATENCY): during the measurement, the processes and guests that waited for the disks, the ZFS operations slower than MS milliseconds with the process and the file name, and the ZFS waits of each interval.
+- Reason: request of the administrator on 2026-11-18: slow requests on static files of Odoo (icons, fonts, 10 s with no SQL) were blamed on the SATA disks, but nothing showed WHICH accesses (files or database) cause the latency. The pool averages of zpool iostat are counted since the import of the pool (backups included) and do not say what happened at the time of a slow request.
+- Changes:
+  - New shared module apps/_iolatency.py (class Tracer, functions blkio_ticks, guest_of, pool_line): block I/O delay of every thread from /proc/PID/task/TID/stat (field 42), summed per process, guest found from /proc/PID/cgroup (lxc/ID, qemu.slice/ID.scope); zfsslower of bcc (zfsslower-bpfcc) run in the background with the threshold, its lines grouped by guest, process, operation and file; zpool iostat -y -l -H -p POOL INTERVAL run in the background (waits of each interval, in ns).
+  - host-perf-audit.py: option --io-latency (default 20 ms when given alone), functions start_io_latency, analyze_io_latency, guest_label, constant BCC_INSTALL; new section "WHO WAITS FOR THE DISKS" of the report after the disks; report() takes io=; the tracer is stopped in a finally block (Ctrl-C included).
+  - lang/host-perf-audit.fr.po: the French texts; doc/en and doc/fr host-perf-audit.conf.example: key #IO_LATENCY=.
+- Bugs fixed: none (new function).
+- Safeguards and edge cases: kernel.task_delayacct is switched on only when it was off, and switched off again at the end; processes started during the measurement are left out of the waits (their earlier delay is unknown); without root, only the ZFS waits are measured (message); zfsslower missing: the report says so and offers "apt-get install -y bpfcc-tools proxmox-headers-$(uname -r)" as a [change] command, run only after "y"; a pid gone before its line is read shows the guest "?"; intervals without reads are left out of the read waits.
+- Checks performed: nginx-tools-tests/test_host_perf_audit.py, class LatenceES (4 tests: waits per process and guest with delayacct restored, parsing of zfsslower and zpool iostat, installation offered when zfsslower is missing, French translation); test_i18n and test_conventions pass for host-perf-audit.py.
+- Action required: on the Proxmox host, run host-perf-audit.py --duration 1h --io-latency during the busy hours (answer "y" to install bpfcc-tools the first time), then send the export (--export-ai).
+
 ### 1.22.20261117.113000 - Irreversible deletions need the word DELETE
 
 - Title: a command that deletes data (backup files, Proxmox snapshots, ZFS datasets) no longer runs on a simple "y".
@@ -7437,6 +7460,18 @@ Earlier history was archived outside this repository when this file was created.
 - Bugs fixed: symptom: Odoo did not start after "limit_memory_soft_gevent = 2147483648 # (2048 Mo" was added; diagnosis: Odoo reads its file with configparser.RawConfigParser without inline comments, so the comment stays in the value and the integer cast refuses it; our own readers (apps/_odoo_conf.py) cut at "#" and said nothing; fix: the new check reports a comment after a value as an error, with the line to write.
 - Safeguards and edge cases: reads only; the parsing by Odoo runs with "python -I" from /, 120 s at most; without root the processes of the odoo account cannot be read: the check by Odoo itself is then skipped and said so.
 - Checks performed: test_odoo_conf_check (real case of 2026-11-09, key twice, type, units, memory, fake Odoo package for the parsing and the unknown keys, finding of the analysis, step 8) [OK].
+- Action required: none.
+
+## apps/_iolatency.py
+
+### 1.0.20261118.064500 - New module: who waits for the disks
+
+- Title: new shared module for host-perf-audit.py --io-latency.
+- Reason: see host-perf-audit.py 1.23.20261118.064500.
+- Changes: class Tracer (start, stop, results), functions blkio_ticks, guest_of, pool_line.
+- Bugs fixed: none.
+- Safeguards and edge cases: NGINX_TOOLS_PROC_ROOT prefixes /proc (tests); the background commands are terminated, then killed after 5 s.
+- Checks performed: nginx-tools-tests/test_host_perf_audit.py, class LatenceES.
 - Action required: none.
 
 ## apps/_i18n.py

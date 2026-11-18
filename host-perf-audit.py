@@ -16,9 +16,9 @@
 #   * Per guest (LXC containers and VMs): processor, memory, disk throughput and disk waiting time, from their cgroup (cgroup v2), named from
 #     /etc/pve (hostname / name).
 #   * Ctrl-C during the measurement: the report is still produced with the samples already taken.
-#   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
+#   * --apply: the SAFE and reversible settings (ZFS atime, compression and recordsize of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
-# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE,
+# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, IO_LATENCY, LANGUAGE,
 # NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 #
@@ -27,6 +27,7 @@
 #   host-perf-audit.py --duration 4h           four hours (sample every 60 s): the daily peaks are included
 #   host-perf-audit.py --duration 30m --csv /root/perf.csv   samples also written to a CSV file (spreadsheet)
 #   host-perf-audit.py --apply                 report, then the safe settings offered one by one
+#   host-perf-audit.py --duration 1h --io-latency   the processes that waited for the disks and the ZFS operations slower than 20 ms, file by file
 #   host-perf-audit.py --export-ai             report, then the report and the raw state of the host in a Markdown file to send for verification
 #   host-perf-audit.py --health --inside       quick check without measurement: disks (SMART counters), pools, backups, and the inside of each guest
 #   host-perf-audit.py --install-timer         that check every hour, with an alert by e-mail when something is new
@@ -46,7 +47,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.22.20261117.113000"
+__version__ = "1.24.20261118.073000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -100,8 +101,9 @@ def load_module(name):
 
 
 SYSPERF = load_module("_sysperf")
+IOLAT = load_module("_iolatency")          # 1.23: --io-latency (who waits for the disks, on which files)
 SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "GUEST_COMMAND": ("guest_command", str), "GUESTS": ("guests", str), "SYNC_GIT": ("sync_git", str), "SYNC_SOURCE": ("sync_source", str),
-                 "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
+                 "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "IO_LATENCY": ("io_latency", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
                  "VERBOSE": ("verbose", bool)}
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
 
@@ -1147,7 +1149,130 @@ def analyze_zfs(zfs, facts, worst, io_avg, fd, out, names=None):
         fd.suggest(2, "HDD pool without « special » device: two small mirrored SSD as special vdev hold the metadata and the small blocks (zfs set special_small_blocks=16K): "
                       "most of the random reads of PostgreSQL then hit SSD — an intermediate step before replacing all the disks")
     zfs_space(zfs, names or {}, fd, out)
-    out.append("  (PostgreSQL / Odoo container: recordsize=16K on its dataset suits the 8 KiB pages of PostgreSQL; only for new files: set it before a restore)")
+    found = postgres_datasets(zfs, names or {})            # 1.24: the dataset of each container that holds PostgreSQL
+    for vmid, gname, ds, mp, rs in found:
+        if rs == str(PG_RECORDSIZE):
+            out.append(f"  {tag('ok')} container {vmid} ({gname}): PostgreSQL on dataset {ds} (mounted at {mp}) with recordsize=16K")
+            continue
+        cmd = f"zfs set recordsize=16K {ds}"
+        text = (f"container {vmid} ({gname}): PostgreSQL on dataset {ds} (mounted at {mp}) with recordsize={str(int(rs) // 1024) + 'K' if rs.isdigit() else rs or '?'} — "
+                "16K suits its 8 KiB pages (fewer bytes read and rewritten per page); only the files written AFTER the change get it: the existing tables keep "
+                "their blocks until they are rewritten (pg_dump and restore, or VACUUM FULL)")
+        fd.suggest(2, text, lambda d=ds: run_set(["zfs", "set", "recordsize=16K", d]), cmd)
+        fd.ask(text, [cmd])
+    if not found:
+        out.append("  (PostgreSQL / Odoo container: recordsize=16K on its dataset suits the 8 KiB pages of PostgreSQL; only for new files: set it before a restore)")
+
+
+# ---------------------------------------------------------------------------------------------------------------- --io-latency (1.23)
+BCC_INSTALL = "apt-get install -y bpfcc-tools proxmox-headers-$(uname -r)"
+
+
+def start_io_latency(threshold, interval, zfs):
+    """1.23: the tracer of apps/_iolatency.py started (None if the module is missing). Root needed for the delay accounting and zfsslower."""
+    if IOLAT is None:
+        eprint("WARNING: component apps/_iolatency.py missing: --io-latency ignored (copy the whole folder, apps/ included).")
+        return None
+    if os.geteuid() != 0:
+        eprint("WARNING: --io-latency without root: the kernel delay accounting and zfsslower are unreadable; only the ZFS waits are measured.")
+    tracer = IOLAT.Tracer(threshold, interval, pools=list((zfs or {}).get("pools", {})))
+    tracer.start()
+    if tracer.state == "enabled":
+        eprint("--io-latency: kernel.task_delayacct switched on for the measurement (it is switched off again at the end).")
+    if tracer.slow_tool:
+        eprint(f"--io-latency: {tracer.slow_tool} traces the ZFS operations slower than {threshold:g} ms.")
+    return tracer
+
+
+def guest_label(guest, names):
+    """« lxc 105 » -> « 105 odoo18 »; « host » -> « host »."""
+    if not guest or " " not in guest:
+        return guest or "?"
+    vmid = guest.split(" ", 1)[1]
+    name = (names or {}).get(vmid, ("", "", ""))[1]
+    return f"{vmid} {name}".strip()
+
+
+def analyze_io_latency(io, names, fd, out):
+    """1.23: the processes that waited for the disks, the ZFS operations slower than the threshold (file by file) and the ZFS waits of the measurement."""
+    threshold = io["slow"]["threshold"]
+    out.append(f"WHO WAITS FOR THE DISKS (--io-latency, threshold {threshold:g} ms)")
+    for pool, d in sorted(io.get("pools", {}).items()):
+        r, w = d.get("read_ms") or [], d.get("write_ms") or []
+        if not d.get("intervals"):
+            continue
+        line = f"  ZFS pool {pool} during the measurement ({d['intervals']} intervals): "
+        if r:
+            line += f"read wait average {avg(r):.1f} ms, 95 % under {pct(r, 95):.1f} ms, peak {max(r):.1f} ms"
+            if d.get("disk_read_ms"):
+                line += f" (of which the disk itself: average {avg(d['disk_read_ms']):.1f} ms)"
+        else:
+            line += "no read reached the disks (all served by the ARC)"
+        if w:
+            line += f" · write wait average {avg(w):.1f} ms, peak {max(w):.1f} ms"
+        out.append(line)
+        if r and pct(r, 95) >= AWAIT_HDD_BAD:
+            fd.verdict("disks", "warn", f"pool {pool}: reads waited {pct(r, 95):.0f} ms or more in 5 % of the intervals (--io-latency)")
+    if io["delayacct"] == "unavailable":
+        out.append("  Waits per process: unavailable (kernel.task_delayacct unreadable: root needed, or a kernel without delay accounting)")
+    elif not io["procs"]:
+        out.append("  Waits per process: no process waited for the disks during the measurement")
+    else:
+        out.append("  Processes that waited the most for the disks (kernel delay accounting, during the measurement):")
+        out.append("          wait  guest                    process          pid")
+        for p in io["procs"]:
+            out.append(f"      {p['wait_s']:>6.1f} s  {guest_label(p['guest'], names)[:24]:<24} {p['comm'][:16]:<16} {p['pid']}")
+    slow = io["slow"]
+    if not slow["tool"]:
+        out.append("  File names: zfsslower (bpfcc-tools) is not installed: the slow ZFS operations are not traced file by file")
+        fd.ask("--io-latency: install bpfcc-tools (zfsslower: the ZFS operations slower than a threshold, with the process and the file)", [BCC_INSTALL])
+    elif slow["error"] and not slow["count"]:
+        out.append(f"  File names: zfsslower failed: {slow['error']}")
+    elif not slow["count"]:
+        out.append(f"  ZFS operations slower than {threshold:g} ms: none — no read, write, open or fsync of a file waited that long: the disks did not slow the applications down during the measurement")
+    else:
+        out.append(f"  ZFS operations slower than {threshold:g} ms: {slow['count']} — the files that cost the most:")
+        out.append("       count     total     peak  op     guest                  process         file")
+        for f in slow["files"]:
+            out.append(f"      {f['count']:>6} {f['total_ms'] / 1000:>7.1f} s {f['max_ms']:>6.0f} ms  {f['op']:<6} {guest_label(f['guest'], names)[:22]:<22} {f['comm'][:15]:<15} {f['file'][:60]}")
+    out.append("  (compare these hours with the slow requests of the sites: app-log-live.py in the guest; a slow request with no slow ZFS operation at that time was not slowed by the disks)")
+
+
+PG_RECORDSIZE = 16384
+PG_FOLDER = "/var/lib/postgresql"
+
+
+def postgres_datasets(zfs, names):
+    """1.24: [(vmid, guest name, dataset, mount point in the guest, recordsize in bytes)] for each LXC container whose PostgreSQL folder
+    (/var/lib/postgresql) is on a ZFS dataset: the mount point (rootfs, mpN) that holds that folder, its dataset, and the folder seen from the host."""
+    res = []
+    datasets = (zfs or {}).get("datasets", {})
+    for vmid, (kind, gname, conf) in sorted(names.items()):
+        if kind != "lxc":
+            continue
+        mounts = {}
+        for m in re.finditer(r"^(rootfs|mp\d+):\s*([^,\s]+)(.*)$", conf, re.M):
+            volume = m.group(2).split(":", 1)[-1]
+            if m.group(1) == "rootfs":
+                mounts["/"] = volume
+            else:
+                mp = re.search(r"(?:^|,)mp=([^,\s]+)", m.group(3))
+                if mp:
+                    mounts[mp.group(1).rstrip("/") or "/"] = volume
+        holders = [p for p in mounts if p == "/" or PG_FOLDER == p or PG_FOLDER.startswith(p + "/")]
+        if not holders:
+            continue
+        mp = max(holders, key=len)
+        ds = next((d for d in datasets if d == mounts[mp] or d.endswith("/" + mounts[mp])), None)
+        if not ds:
+            continue
+        host_mp = datasets[ds].get("mountpoint", "")
+        inside = PG_FOLDER if mp == "/" else PG_FOLDER[len(mp):]
+        path = host_mp.rstrip("/") + inside
+        if not host_mp.startswith("/") or not os.path.isdir(SYSPERF._p(path) if SYSPERF else path):
+            continue
+        res.append((vmid, gname, ds, mp, datasets[ds].get("recordsize", "")))
+    return res
 
 
 def analyze_network(samples, out):
@@ -1550,7 +1675,7 @@ def offer_apply(fd, yes):
 
 
 # ---------------------------------------------------------------------------------------------------------------- report
-def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_tasks=(), inside=None, config=None):
+def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_tasks=(), inside=None, config=None, io=None):
     fd, out = Findings(), []
     if not samples:
         print("No sample taken: nothing to analyze (interrupted too early).")
@@ -1567,6 +1692,9 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
     out.append("")
     worst, io_avg, io_full = analyze_disks(samples, facts, smart, fd, out)
     out.append("")
+    if io is not None:                                    # 1.23 --io-latency
+        analyze_io_latency(io, names, fd, out)
+        out.append("")
     analyze_zfs(zfs, facts, worst, io_avg, fd, out, names)
     if zfs:
         out.append("")
@@ -2608,7 +2736,7 @@ def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="What limits the performance of a Proxmox host (or any Linux server): processor, memory, disks, network, ZFS, guests — measured "
                     "over a chosen duration, with a verdict, the answer to « are SSD disks justified? » and the settings to change.")
-    parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
+    parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime / recordsize of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
                         help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE)")
@@ -2636,6 +2764,9 @@ def main():
     parser.add_argument("--install-timer", action="store_true", help="Install a systemd timer that runs --health --inside --notify every hour (root), then exit")
     parser.add_argument("--interval", type=float, default=None, metavar="SECONDS",
                         help="Seconds between two samples (default: 5 up to 2 minutes of measurement, 15 up to 30 minutes, 60 beyond)")
+    parser.add_argument("--io-latency", nargs="?", type=float, const=20.0, default=None, metavar="MS",
+                        help="Also trace WHO waits for the disks: the processes and guests (kernel delay accounting), the ZFS operations slower than MS "
+                             "milliseconds file by file (zfsslower of bpfcc-tools) and the ZFS waits of each interval (default: 20 ms; root)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["en"], metavar="LANG", help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--no-collect", action="store_true",
@@ -2733,7 +2864,14 @@ def main():
     print(f"Measuring for {human_duration(duration)}, one sample every {interval:g} s ({len(facts['disks'])} disks, {len(guests)} running guests"
           + (f", ZFS pools: {', '.join(zfs['pools'])}" if zfs else "") + ") — Ctrl-C stops early and still gives the report.")
     host_tasks = io_tasks()
-    samples = sample_loop(duration, interval, guests, args.csv)
+    tracer = None
+    if args.io_latency is not None:                       # 1.23: who waits for the disks, on which files
+        tracer = start_io_latency(args.io_latency, interval, zfs)
+    try:
+        samples = sample_loop(duration, interval, guests, args.csv)
+    finally:
+        if tracer is not None:
+            tracer.stop()
     host_tasks |= io_tasks()
     inside = None
     if args.inside and guests:
@@ -2741,7 +2879,8 @@ def main():
         check_inside(inside, names, guests)
     t1 = os.times()
     cost = (t1.user + t1.system + t1.children_user + t1.children_system) - (t0.user + t0.system + t0.children_user + t0.children_system)
-    fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost, host_tasks, inside, config)
+    fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost, host_tasks, inside, config,
+                io=tracer.results() if tracer is not None else None)
     if args.csv and samples:
         print(f"\nSamples written to {args.csv}.")
     if tee is not None:
