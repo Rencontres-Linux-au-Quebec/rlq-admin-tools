@@ -2939,6 +2939,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.42.20261118.181307 - A session per worker lane: no more « bad query » website_visitor
+
+- Title: the pages asked to every worker go through one session per lane, never through the shared session.
+- Reason: run of the administrator on 2026-11-18 18:06 in 104 (`odoo-update-module.sh --restart-only`): 4 lines ERROR « odoo.sql_db: bad query: WITH visitor AS (INSERT INTO website_visitor ... » during the warm-up, so the check of the log after the start said [FAIL].
+- Changes: warm_every_worker(): `workers` lanes in parallel, each with its own Client (its own cookies, so its own Odoo session), each asking every page one after the other, starting at a different page.
+- Bugs fixed:
+  - Symptom: « bad query » on website_visitor at every warm-up of 1.41. Diagnosis: Odoo identifies an anonymous visitor by its session; the parallel requests of 1.41 shared the session of the warm-up, so several workers upserted the same website_visitor row at the same time and PostgreSQL refused all but one (Odoo logs the refused query, then retries it). Fix: a session per lane; two requests of the same session are never at the same time.
+- Safeguards and edge cases: at most `workers` anonymous visitors created per warm-up (one per lane); a lane that fails is counted as one failure, the others go on.
+- Checks performed: nginx-tools-tests/test_odoo_warmup.py test_141_pages_dans_chaque_worker (the fake Odoo gives a session cookie: 4 different sessions for 1 + 3 requests).
+- Action required: none. The profile of the same warm-up (profile-odoo-dev-odoo-warmup-20261118-180626) confirms the cause of the slow static files: 55.5 % of the busy time in Application.statics (list of the static folders of every module), 6 to 8.5 s per worker, now paid by the warm-up.
+
 ### 1.41.20261118.172706 - Pages in every worker, profiles in /var/lib/python-profile
 
 - Title: every public page loaded by the warm-up is asked again to every worker, in parallel; the profiles go to /var/lib/python-profile.
