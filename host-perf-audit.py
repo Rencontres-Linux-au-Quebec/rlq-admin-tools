@@ -16,7 +16,7 @@
 #   * Per guest (LXC containers and VMs): processor, memory, disk throughput and disk waiting time, from their cgroup (cgroup v2), named from
 #     /etc/pve (hostname / name).
 #   * Ctrl-C during the measurement: the report is still produced with the samples already taken.
-#   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
+#   * --apply: the SAFE and reversible settings (ZFS atime, compression and recordsize of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
 # Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, IO_LATENCY, LANGUAGE,
 # NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
@@ -47,7 +47,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.23.20261118.064500"
+__version__ = "1.24.20261118.073000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1149,7 +1149,19 @@ def analyze_zfs(zfs, facts, worst, io_avg, fd, out, names=None):
         fd.suggest(2, "HDD pool without « special » device: two small mirrored SSD as special vdev hold the metadata and the small blocks (zfs set special_small_blocks=16K): "
                       "most of the random reads of PostgreSQL then hit SSD — an intermediate step before replacing all the disks")
     zfs_space(zfs, names or {}, fd, out)
-    out.append("  (PostgreSQL / Odoo container: recordsize=16K on its dataset suits the 8 KiB pages of PostgreSQL; only for new files: set it before a restore)")
+    found = postgres_datasets(zfs, names or {})            # 1.24: the dataset of each container that holds PostgreSQL
+    for vmid, gname, ds, mp, rs in found:
+        if rs == str(PG_RECORDSIZE):
+            out.append(f"  {tag('ok')} container {vmid} ({gname}): PostgreSQL on dataset {ds} (mounted at {mp}) with recordsize=16K")
+            continue
+        cmd = f"zfs set recordsize=16K {ds}"
+        text = (f"container {vmid} ({gname}): PostgreSQL on dataset {ds} (mounted at {mp}) with recordsize={str(int(rs) // 1024) + 'K' if rs.isdigit() else rs or '?'} — "
+                "16K suits its 8 KiB pages (fewer bytes read and rewritten per page); only the files written AFTER the change get it: the existing tables keep "
+                "their blocks until they are rewritten (pg_dump and restore, or VACUUM FULL)")
+        fd.suggest(2, text, lambda d=ds: run_set(["zfs", "set", "recordsize=16K", d]), cmd)
+        fd.ask(text, [cmd])
+    if not found:
+        out.append("  (PostgreSQL / Odoo container: recordsize=16K on its dataset suits the 8 KiB pages of PostgreSQL; only for new files: set it before a restore)")
 
 
 # ---------------------------------------------------------------------------------------------------------------- --io-latency (1.23)
@@ -1224,6 +1236,43 @@ def analyze_io_latency(io, names, fd, out):
         for f in slow["files"]:
             out.append(f"      {f['count']:>6} {f['total_ms'] / 1000:>7.1f} s {f['max_ms']:>6.0f} ms  {f['op']:<6} {guest_label(f['guest'], names)[:22]:<22} {f['comm'][:15]:<15} {f['file'][:60]}")
     out.append("  (compare these hours with the slow requests of the sites: app-log-live.py in the guest; a slow request with no slow ZFS operation at that time was not slowed by the disks)")
+
+
+PG_RECORDSIZE = 16384
+PG_FOLDER = "/var/lib/postgresql"
+
+
+def postgres_datasets(zfs, names):
+    """1.24: [(vmid, guest name, dataset, mount point in the guest, recordsize in bytes)] for each LXC container whose PostgreSQL folder
+    (/var/lib/postgresql) is on a ZFS dataset: the mount point (rootfs, mpN) that holds that folder, its dataset, and the folder seen from the host."""
+    res = []
+    datasets = (zfs or {}).get("datasets", {})
+    for vmid, (kind, gname, conf) in sorted(names.items()):
+        if kind != "lxc":
+            continue
+        mounts = {}
+        for m in re.finditer(r"^(rootfs|mp\d+):\s*([^,\s]+)(.*)$", conf, re.M):
+            volume = m.group(2).split(":", 1)[-1]
+            if m.group(1) == "rootfs":
+                mounts["/"] = volume
+            else:
+                mp = re.search(r"(?:^|,)mp=([^,\s]+)", m.group(3))
+                if mp:
+                    mounts[mp.group(1).rstrip("/") or "/"] = volume
+        holders = [p for p in mounts if p == "/" or PG_FOLDER == p or PG_FOLDER.startswith(p + "/")]
+        if not holders:
+            continue
+        mp = max(holders, key=len)
+        ds = next((d for d in datasets if d == mounts[mp] or d.endswith("/" + mounts[mp])), None)
+        if not ds:
+            continue
+        host_mp = datasets[ds].get("mountpoint", "")
+        inside = PG_FOLDER if mp == "/" else PG_FOLDER[len(mp):]
+        path = host_mp.rstrip("/") + inside
+        if not host_mp.startswith("/") or not os.path.isdir(SYSPERF._p(path) if SYSPERF else path):
+            continue
+        res.append((vmid, gname, ds, mp, datasets[ds].get("recordsize", "")))
+    return res
 
 
 def analyze_network(samples, out):
@@ -2687,7 +2736,7 @@ def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="What limits the performance of a Proxmox host (or any Linux server): processor, memory, disks, network, ZFS, guests — measured "
                     "over a chosen duration, with a verdict, the answer to « are SSD disks justified? » and the settings to change.")
-    parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
+    parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime / recordsize of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
                         help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE)")

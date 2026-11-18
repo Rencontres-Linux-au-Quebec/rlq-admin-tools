@@ -2245,6 +2245,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.24.20261118.073000 - recordsize=16K offered for the dataset of PostgreSQL
+
+- Title: the dataset that holds /var/lib/postgresql of each LXC container is found, and recordsize=16K is offered (--apply, or a [change] command confirmed with "y").
+- Reason: request of the administrator on 2026-11-18: set recordsize=16K on the dataset /var of container 105 (PostgreSQL of Odoo 18), as advised after the analysis of the exports of proxmox1.
+- Changes: host-perf-audit.py: new function postgres_datasets(zfs, names) and constants PG_RECORDSIZE, PG_FOLDER; analyze_zfs prints [OK] when the dataset already has 16K, otherwise adds a MEDIUM suggestion (applied by --apply with zfs set recordsize=16K) and the same command in the [change] list; the general note on recordsize is kept only when no PostgreSQL dataset is found; help of --apply mentions recordsize. lang/host-perf-audit.fr.po: the French texts. Test: nginx-tools-tests/test_host_perf_audit.py, class RecordsizePostgres.
+- Bugs fixed: none (new function).
+- Safeguards and edge cases: the mount point that holds /var/lib/postgresql is the longest one among rootfs and mpN (mp=/var, mp=/var/lib/postgresql...); the folder must exist on the host under the mount point of the dataset, so a container without PostgreSQL gets nothing; VMs are left out (their disks are volumes, volblocksize cannot change). The change is reversible (zfs set recordsize=128K) and applies only to the files written after it: the report says that the existing tables keep their blocks until pg_dump and restore or VACUUM FULL.
+- Checks performed: test_host_perf_audit.RecordsizePostgres (dataset found through mp=/var and through rootfs, container without PostgreSQL left out, [OK] at 16K, suggestion and [change] command otherwise).
+- Action required: on proxmox1, run host-perf-audit.py and answer "y" to "zfs set recordsize=16K data/zd0/subvol-105-disk-1" (or host-perf-audit.py --apply).
+
 ### 1.23.20261118.064500 - Who waits for the disks, file by file (--io-latency)
 
 - Title: new option --io-latency [MS] (key IO_LATENCY): during the measurement, the processes and guests that waited for the disks, the ZFS operations slower than MS milliseconds with the process and the file name, and the ZFS waits of each interval.

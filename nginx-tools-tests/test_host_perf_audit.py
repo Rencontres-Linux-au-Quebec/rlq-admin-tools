@@ -936,5 +936,41 @@ class LatenceES(unittest.TestCase):
                          "  Attentes par processus : aucun processus n'a attendu les disques pendant la mesure")
 
 
+class RecordsizePostgres(unittest.TestCase):
+    """1.24 : le dataset qui porte /var/lib/postgresql d'un conteneur (rootfs ou point de montage mpN) est trouvé ; recordsize=16K proposé
+    (--apply et commande [change] confirmée), rien quand il y est déjà."""
+
+    def test_dataset_de_postgresql_trouve_et_recordsize_propose(self):
+        import tempfile
+        import shutil
+        d = tempfile.mkdtemp(prefix="test-rlq-pgrs-")
+        self.addCleanup(shutil.rmtree, d)
+        os.makedirs(os.path.join(d, "var/lib/vz/subvol-105-disk-1/lib/postgresql/18"))
+        os.makedirs(os.path.join(d, "var/lib/vz/subvol-101-disk-0/var/lib/postgresql"))
+        m = charger("hpa_pgrs", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en", "NGINX_TOOLS_PROC_ROOT": d})
+        names = {"105": ("lxc", "odoo18", "rootfs: local-zfs:subvol-105-disk-0,size=10G\nmp0: local-zfs:subvol-105-disk-1,mp=/var,backup=1,size=30G\n"
+                                          "mp1: local-zfs:subvol-105-disk-2,mp=/opt,backup=1,size=55G\n"),
+                 "101": ("lxc", "odoo", "rootfs: local-zfs:subvol-101-disk-0,mountoptions=noatime,size=50G\n"),
+                 "102": ("lxc", "yuno", "rootfs: local-zfs:subvol-102-disk-0,size=200G\n"),
+                 "430": ("vm", "bbb", "scsi0: local-zfs:vm-430-disk-0,size=60G\n")}
+        ds = {f"data/zd0/subvol-{n}": {"mountpoint": f"/var/lib/vz/subvol-{n}", "recordsize": "131072"} for n in ("105-disk-0", "105-disk-1", "105-disk-2", "102-disk-0")}
+        ds["data/zd0/subvol-101-disk-0"] = {"mountpoint": "/var/lib/vz/subvol-101-disk-0", "recordsize": "16384"}
+        trouves = m.postgres_datasets({"datasets": ds}, names)
+        self.assertEqual(trouves, [("101", "odoo", "data/zd0/subvol-101-disk-0", "/", "16384"),
+                                   ("105", "odoo18", "data/zd0/subvol-105-disk-1", "/var", "131072")])   # 102: no PostgreSQL folder
+        fd = m.Findings()
+        out = []
+        zfs = {"datasets": ds, "sources": {}, "pools": {}, "snapshots": []}
+        m.zfs_space = lambda *a, **k: None
+        m.inherited_groups = lambda *a, **k: []
+        facts = {"disks": {"sda": {"kind": "HDD"}}, "arc_max_param": "0", "mem": {"MemTotal": 32 * 1048576}}
+        m.analyze_zfs(zfs, facts, 0, 0, fd, out, names)
+        self.assertIn("container 101 (odoo): PostgreSQL on dataset data/zd0/subvol-101-disk-0 (mounted at /) with recordsize=16K", "\n".join(out))
+        textes = [t for _p, t, _a, label in fd.suggestions if "recordsize" in label]
+        self.assertEqual(len(textes), 1)
+        self.assertIn("container 105 (odoo18): PostgreSQL on dataset data/zd0/subvol-105-disk-1 (mounted at /var) with recordsize=128", textes[0])
+        self.assertIn("zfs set recordsize=16K data/zd0/subvol-105-disk-1", [c for _t, cmds in fd.commands for c in cmds])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -145,8 +145,8 @@ msgstr "  aucun : rien à changer d'après ces mesures."
 msgid "What limits the performance of a Proxmox host (or any Linux server): processor, memory, disks, network, ZFS, guests — measured over a chosen duration, with a verdict, the answer to « are SSD disks justified? » and the settings to change."
 msgstr "Ce qui limite les performances d'un hôte Proxmox (ou de tout serveur Linux) : processeur, mémoire, disques, réseau, ZFS, invités — mesuré sur une durée choisie, avec un verdict, la réponse à « des disques SSD sont-ils justifiés ? » et les réglages à changer."
 
-msgid "After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions"
-msgstr "Après le rapport, appliquer les réglages SANS RISQUE un par un avec confirmation (compression / atime d'un dataset ZFS, maximum de l'ARC, vm.swappiness) ; --yes : sans question"
+msgid "After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime / recordsize of a dataset, ARC maximum, vm.swappiness); --yes: without questions"
+msgstr "Après le rapport, appliquer les réglages SANS RISQUE un par un avec confirmation (compression / atime / recordsize d'un dataset ZFS, maximum de l'ARC, vm.swappiness) ; --yes : sans question"
 
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
@@ -1797,3 +1797,18 @@ msgstr "      nombre     total   pointe  op.    invité                 processu
 
 msgid "  (compare these hours with the slow requests of the sites: app-log-live.py in the guest; a slow request with no slow ZFS operation at that time was not slowed by the disks)"
 msgstr "  (comparer ces heures avec les requêtes lentes des sites : app-log-live.py dans l'invité ; une requête lente sans opération ZFS lente au même moment n'a pas été ralentie par les disques)"
+
+msgid "): PostgreSQL on dataset "
+msgstr ") : PostgreSQL sur le dataset "
+
+msgid " (mounted at "
+msgstr " (monté sur "
+
+msgid ") with recordsize=16K"
+msgstr ") avec recordsize=16K"
+
+msgid ") with recordsize="
+msgstr ") avec recordsize="
+
+msgid " — 16K suits its 8 KiB pages (fewer bytes read and rewritten per page); only the files written AFTER the change get it: the existing tables keep their blocks until they are rewritten (pg_dump and restore, or VACUUM FULL)"
+msgstr " — 16K convient à ses pages de 8 Kio (moins d'octets lus et réécrits par page) ; seuls les fichiers écrits APRÈS le changement en profitent : les tables existantes gardent leurs blocs jusqu'à leur réécriture (pg_dump puis restauration, ou VACUUM FULL)"
