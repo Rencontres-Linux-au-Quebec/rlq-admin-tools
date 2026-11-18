@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.112.20261118.091500"
+readonly SCRIPT_VERSION="2.113.20261118.101500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -169,6 +169,8 @@ ODOO_WORKERS_OVERRIDE=""
 JOURNAL_PERSISTENT=1      # 2.83: 1 = journal systemd kept on disk (Storage=persistent) by --update; 0 (JOURNAL_PERSISTENT=no) = left as it is
 PG_LOGGING=1              # 2.83: 1 = slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (step 17); no = step skipped
 PG_SLOW_MS="2000"         # 2.83: log_min_duration_statement written by step 17 (milliseconds)
+ODOO_REPORT_URL=1         # 2.113: step 17b, system parameter report.url = http://127.0.0.1:HTTP_PORT (PDF reports without going out through nginx); 0 = never changed
+ODOO_TMPDIR_RAM=1         # 2.113: step 17b, temporary files of Odoo (TMPDIR) in /run/odoo-tmp, in memory (systemd drop-in); 0 = never changed
 PG_TUNING=1               # 2.91: step 17, memory and checkpoints of PostgreSQL raised for the memory of the server (less disk); 0 = never changed
 ACCESS_LOG_BUFFER="64k"   # 2.109: buffer= and flush= added by --update to the access_log of the sites (fewer small writes on SATA disks); off = never changed
 ACCESS_LOG_FLUSH="10s"
@@ -213,6 +215,8 @@ if declare -F config_lire >/dev/null; then
     config_defaut ACCESS_LOG_BUFFER ACCESS_LOG_BUFFER ACCESS_LOG_BUFFER texte
     config_defaut ACCESS_LOG_FLUSH ACCESS_LOG_FLUSH ACCESS_LOG_FLUSH texte
     config_defaut PG_TUNING PG_TUNING PG_TUNING booleen
+    config_defaut ODOO_REPORT_URL ODOO_REPORT_URL ODOO_REPORT_URL booleen
+    config_defaut ODOO_TMPDIR_RAM ODOO_TMPDIR_RAM ODOO_TMPDIR_RAM booleen
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -4042,6 +4046,87 @@ if [[ "$APP_NAME" == "odoo" && ( "$PG_LOGGING" == "1" || "$PG_TUNING" == "1" ) ]
                 pg_moins_de_disque "$(dirname "${pg_conf:-/etc/postgresql/x/main/postgresql.conf}")/conf.d/91-nginx-hardening-memory.conf" "$pg_conf"
             fi
         fi
+    fi
+    echo
+fi
+
+# 2.113: step 17b (Odoo, --update).
+#   report.url: wkhtmltopdf (the PDF reports) fetches the styles of Odoo at web.base.url, the public address: out through nginx, the CDN and the
+#   firewall, sometimes seconds per report. With report.url = http://127.0.0.1:HTTP_PORT it reads them from Odoo directly. Set only when absent,
+#   never when dbfilter depends on the name (%h, %d: 127.0.0.1 would select no database), never over a value set by hand. The caches of the
+#   parameters are invalidated (base_cache_signaling, not the assets): the running Odoo takes the value without a restart.
+#   TMPDIR: the temporary files of Odoo (tempfile: PDF in the making, exports, imports) in /run/odoo-tmp (tmpfs, in memory, emptied when Odoo
+#   stops: nothing in it is kept). systemd drop-in of the Odoo unit (RuntimeDirectory, Environment=TMPDIR); applied at the next restart of Odoo,
+#   never restarted by this script. Not done when /run has less than 1 GiB free.
+odoo_rapports_et_tmp() {
+    local db dbs filtre actuel voulu unite dropin dir libre
+    voulu="http://127.0.0.1:${ODOO_HTTP_PORT:-8069}"
+    if [[ "${ODOO_REPORT_URL:-1}" == "1" ]]; then
+        filtre=$(odoo_conf_valeur "$ODOO_CONF" dbfilter 2>/dev/null || true)
+        pgq() { if [[ -n "${NGINX_HARDENING_PSQL:-}" ]]; then $NGINX_HARDENING_PSQL -d "$1" -XAtqc "$2"; else runuser -u postgres -- psql -d "$1" -XAtqc "$2"; fi; }
+        if [[ "$filtre" == *%h* || "$filtre" == *%d* ]]; then
+            echo "  [INFO] report.url non réglé : dbfilter = « $filtre » dépend du nom du site (127.0.0.1 ne choisirait aucune base)."
+        elif [[ -z "${NGINX_HARDENING_PSQL:-}" ]] && { ! command -v psql >/dev/null 2>&1 || [[ "$EUID" -ne 0 ]]; }; then
+            echo "  [INFO] report.url non vérifié : psql absent ou pas root."
+        else
+            dbs=$(odoo_conf_valeur "$ODOO_CONF" db_name 2>/dev/null | tr ',' ' ' || true)
+            [[ -n "${dbs// /}" ]] || dbs=$(pgq postgres "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate AND datname <> 'postgres' ORDER BY 1" 2>/dev/null || true)
+            for db in $dbs; do
+                [[ "$db" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+                [[ "$(pgq "$db" "SELECT to_regclass('ir_config_parameter') IS NOT NULL" 2>/dev/null)" == "t" ]] || continue
+                actuel=$(pgq "$db" "SELECT value FROM ir_config_parameter WHERE key = 'report.url'" 2>/dev/null || true)
+                if [[ "$actuel" == "$voulu" ]]; then
+                    pass "Odoo ($db) : report.url = $voulu — les rapports PDF lisent les styles directement chez Odoo."
+                elif [[ -n "$actuel" ]]; then
+                    warn "Odoo ($db) : report.url = « $actuel » (réglé à la main, gardé) ; $voulu évite à wkhtmltopdf de ressortir par nginx pour chaque rapport PDF."
+                elif [[ "$CHECK_ONLY" == "1" ]]; then
+                    warn "Odoo ($db) : report.url absent — wkhtmltopdf lit les styles par l'adresse publique (nginx, CDN) ; --update le règle à $voulu."
+                elif pgq "$db" "INSERT INTO ir_config_parameter (key, value, create_uid, write_uid, create_date, write_date) VALUES ('report.url', '$voulu', 1, 1, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC') ON CONFLICT (key) DO NOTHING" >/dev/null 2>&1; then
+                    pgq "$db" "SELECT nextval(c.oid::regclass) FROM pg_class c WHERE c.relkind = 'S' AND c.relname IN ('base_cache_signaling', 'base_cache_signaling_default')" >/dev/null 2>&1 || true
+                    pass "Odoo ($db) : report.url = $voulu ajouté (Paramètres > Technique > Paramètres système) : les rapports PDF ne ressortent plus par nginx ; pris en compte sans redémarrage."
+                else
+                    warn "Odoo ($db) : report.url non ajouté (PostgreSQL a refusé) — à régler à la main : Paramètres > Technique > Paramètres système, report.url = $voulu."
+                fi
+            done
+        fi
+    fi
+    if [[ "${ODOO_TMPDIR_RAM:-1}" == "1" ]]; then
+        unite="${odoo_service:-}"
+        if [[ -z "$unite" ]]; then
+            echo "  [INFO] fichiers temporaires d'Odoo : service d'Odoo introuvable — non vérifié."
+            return 0
+        fi
+        dir="${NGINX_HARDENING_SYSTEMD_DIR:-/etc/systemd/system}/${unite}.d"
+        dropin="$dir/91-nginx-hardening-tmpdir.conf"
+        libre=$(df -Pm "${NGINX_HARDENING_RUN_DIR:-/run}" 2>/dev/null | awk 'NR == 2 {print $4}')
+        if [[ -f "$dropin" ]]; then
+            pass "Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire ($dropin)."
+        elif [[ ! "$libre" =~ ^[0-9]+$ ]] || (( libre < 1024 )); then
+            echo "  [INFO] fichiers temporaires d'Odoo laissés sur le disque : /run n'a que ${libre:-?} Mo libres (1024 Mo au moins)."
+        elif [[ "$CHECK_ONLY" == "1" ]]; then
+            warn "Odoo : fichiers temporaires (PDF en préparation, exports) sur le disque — --update les met dans /run/odoo-tmp (mémoire, $libre Mo libres)."
+        else
+            mkdir -p "$dir"
+            {
+                echo "# Ajouté par nginx-hardening.sh 2.113 : fichiers temporaires d'Odoo (PDF en préparation, exports, imports) en mémoire."
+                echo "# /run/odoo-tmp est vidé à l'arrêt d'Odoo (rien n'y est gardé). Pour retirer : supprimer ce fichier, systemctl daemon-reload, redémarrer Odoo."
+                echo "[Service]"
+                echo "RuntimeDirectory=odoo-tmp"
+                echo "RuntimeDirectoryMode=0700"
+                echo "Environment=TMPDIR=/run/odoo-tmp"
+            } > "$dropin"
+            run systemctl daemon-reload >/dev/null 2>&1 || true
+            pass "Odoo : $dropin écrit (TMPDIR=/run/odoo-tmp, en mémoire, $libre Mo libres) — pris en compte au prochain redémarrage d'Odoo (non redémarré par ce script)."
+        fi
+    fi
+    return 0
+}
+if [[ "$APP_NAME" == "odoo" && ( "${ODOO_REPORT_URL:-1}" == "1" || "${ODOO_TMPDIR_RAM:-1}" == "1" ) ]]; then
+    echo "--- 17b) Odoo : rapports PDF (report.url) et fichiers temporaires en mémoire (TMPDIR) ---"
+    if [[ -n "${NGINX_TOOLS_TESTS:-}" && -z "${NGINX_HARDENING_PSQL:-}" ]]; then
+        echo "  [INFO] tests : étape ignorée (NGINX_HARDENING_PSQL absent)."
+    else
+        odoo_rapports_et_tmp
     fi
     echo
 fi

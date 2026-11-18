@@ -1289,6 +1289,63 @@ class JournauxTampon2109(unittest.TestCase):
         self.assertIn("WARN nginx : 3 access_log sans buffer=", out)
 
 
+class RapportsEtTmp2113(unittest.TestCase):
+    """2.113 : étape 17b, report.url = http://127.0.0.1:PORT ajouté s'il manque (jamais par-dessus une valeur à la main, jamais avec un dbfilter
+    qui dépend du nom), et TMPDIR d'Odoo dans /run/odoo-tmp par un fichier .d de l'unité (jamais de redémarrage)."""
+
+    def lancer(self, report_url="", dbfilter="", run_libre=4096, check=0):
+        d = tempfile.mkdtemp(prefix="test-rlq-rapports-")
+        self.addCleanup(shutil.rmtree, d, True)
+        psql = os.path.join(d, "psql")
+        with open(psql, "w") as f:
+            f.write("#!/bin/bash\nq=\"${@: -1}\"; echo \"$q\" >> " + d + "/requetes\n"
+                    "case \"$q\" in\n  *pg_database*) echo linux_meetup ;;\n  *to_regclass*) echo t ;;\n"
+                    "  *\"SELECT value FROM ir_config_parameter\"*) echo '" + report_url + "' ;;\nesac\nexit 0\n")
+        os.chmod(psql, 0o755)
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        debut = src.index("odoo_rapports_et_tmp() {")
+        fonction = src[debut:src.index("\n}\n", debut) + 3]
+        script = (f"NGINX_HARDENING_PSQL={psql}\nNGINX_HARDENING_SYSTEMD_DIR={d}/systemd\nODOO_HTTP_PORT=10000\nODOO_CONF=/x\nodoo_service=erplibre.service\n"
+                  f"CHECK_ONLY={check}\nEUID=0\nodoo_conf_valeur() {{ [[ \"$2\" == dbfilter ]] && echo '{dbfilter}'; return 0; }}\n"
+                  f"df() {{ echo 'Filesystem 1M-blocks Used Available'; echo 'tmpfs 9999 1 {run_libre} 1% /run'; }}\n"
+                  "pass() { echo \"PASS $*\"; }\nwarn() { echo \"WARN $*\"; }\nfail() { echo \"FAIL $*\"; }\nrun() { echo \"$*\" >> " + d + "/appels; }\n"
+                  f"{fonction}\nodoo_rapports_et_tmp\n")
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
+        def lire(chemin):
+            if not os.path.exists(chemin):
+                return None
+            with open(chemin, encoding="utf-8") as f:
+                return f.read()
+        self.appels = lire(os.path.join(d, "appels")) or ""
+        return out, lire(os.path.join(d, "requetes")) or "", lire(os.path.join(d, "systemd/erplibre.service.d/91-nginx-hardening-tmpdir.conf"))
+
+    def test_2113_ajout_et_tmpdir(self):
+        out, requetes, dropin = self.lancer()
+        self.assertIn("INSERT INTO ir_config_parameter", requetes)
+        self.assertIn("'report.url', 'http://127.0.0.1:10000'", requetes)
+        self.assertIn("base_cache_signaling_default", requetes)                       # taken without a restart of Odoo
+        self.assertIn("PASS Odoo (linux_meetup) : report.url = http://127.0.0.1:10000 ajouté", out)
+        self.assertIn("Environment=TMPDIR=/run/odoo-tmp", dropin)
+        self.assertIn("RuntimeDirectory=odoo-tmp", dropin)
+        self.assertIn("systemctl daemon-reload", self.appels)
+        self.assertNotIn("restart", self.appels)                                       # never restarted by the script
+
+    def test_2113_valeur_a_la_main_dbfilter_et_peu_de_memoire(self):
+        out, requetes, dropin = self.lancer(report_url="https://rapports.exemple.org", run_libre=200)
+        self.assertNotIn("INSERT", requetes)
+        self.assertIn("WARN Odoo (linux_meetup) : report.url = « https://rapports.exemple.org » (réglé à la main, gardé)", out)
+        self.assertIsNone(dropin)
+        self.assertIn("/run n'a que 200 Mo libres", out)
+        out, requetes, _d = self.lancer(dbfilter="^%d$")
+        self.assertNotIn("INSERT", requetes)
+        self.assertIn("dbfilter", out)
+        out, requetes, dropin = self.lancer(check=1)
+        self.assertNotIn("INSERT", requetes)
+        self.assertIsNone(dropin)
+        self.assertIn("WARN Odoo (linux_meetup) : report.url absent", out)
+
+
 class MoinsDeDisque291(unittest.TestCase):
     """2.91 : étape 4, ce que nginx écrit sur le disque : tampons des réponses, fichiers temporaires et cache en mémoire, cache des images d'Odoo."""
 
