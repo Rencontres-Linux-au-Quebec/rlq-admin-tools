@@ -3877,6 +3877,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.34.20261118.150000 - --restart-only and --restart-postgresql
+
+- Title: new options --restart-only (restart Odoo without updating modules) and --restart-postgresql (the same, PostgreSQL restarted between the stop and the start of Odoo); new key PG_SERVICE.
+- Reason: request of the administrator on 2026-11-18: restart Odoo, and the database, with the guards of an update but without the modules (change of odoo.conf or run.sh, TMPDIR, shared_preload_libraries of PostgreSQL).
+- Changes: odoo-update-module.sh: functions redemarrer_seulement and redemarrer_postgresql; RESTART_ONLY, RESTART_PG, PG_SERVICE (key, default postgresql); the archive, the modules and the command of the update are not looked for; title, "Modules : aucun (redémarrage seulement)", line "PostgreSQL"; resume_durees shows the duration of PostgreSQL; two entries in --menu; help and doc/en, doc/fr odoo-update-module.conf.example (#PG_SERVICE=postgresql); lang/odoo-update-module.en.po. Tests: test_134_redemarrage_seulement, test_134_redemarrage_avec_postgresql_dans_l_ordre.
+- Bugs fixed: none.
+- Safeguards and edge cases: the same wait for a quiet site, timings, warm-up and check of the journal of Odoo as an update; no copy of the modules and no rollback (nothing is changed); order: Odoo stopped, PostgreSQL restarted, wait until it accepts connections (pg_isready, else a query as postgres; WAIT seconds at most), then Odoo started; PostgreSQL failing: Odoo is started anyway (the site never stays stopped) and the exit code is 1; --dry-run shows the steps; --backup still works before.
+- Checks performed: test_odoo_update_module (50 tests pass): order stop / restart postgresql / start, no update command, durations with PostgreSQL, PostgreSQL never ready.
+- Action required: none; at a quiet hour: odoo-update-module.sh --restart-only (applies TMPDIR=/run/odoo-tmp and measures the first answer of Odoo).
+
 ### 1.33.20261118.143000 - Duration of the restart of Odoo and time the site was down
 
 - Title: the stop, the update of the modules, the start, the first HTTP answer of Odoo and the warm-up are timed; a line "Durées" and a line "Site coupé" close the update.

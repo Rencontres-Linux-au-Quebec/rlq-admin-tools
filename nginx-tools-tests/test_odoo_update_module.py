@@ -266,6 +266,40 @@ class OdooUpdateModule(EnvTest):
         self.assertIn("Site coupé :", out)
         self.assertTrue(any(l.startswith("curl ") and "127.0.0.1:10000/web/login" in l for l in self.appels()))
 
+    def test_134_redemarrage_seulement(self):
+        """1.34 --restart-only : arrêt puis démarrage, aucune mise à jour de module, aucune copie des modules, durées affichées."""
+        rc, out, err = self.lancer("--restart-only")
+        self.assertEqual(rc, 0, out + err)
+        a = self.appels()
+        self.assertFalse([l for l in a if l.startswith("odoo ")])                             # no update of the modules
+        self.assertLess(a.index("systemctl stop erplibre_erplibre.service"), a.index("systemctl start erplibre_erplibre.service"))
+        self.assertNotIn("systemctl restart postgresql", a)
+        self.assertIn("redémarrage terminé", out)
+        self.assertIn("aucun (redémarrage seulement)", out)
+        self.assertIn("Site coupé :", out)
+        self.assertFalse(os.path.isdir(os.path.join(self.d, "copies")) and os.listdir(os.path.join(self.d, "copies")))     # no copy of the modules
+
+    def test_134_redemarrage_avec_postgresql_dans_l_ordre(self):
+        """1.34 --restart-postgresql : Odoo arrêté, PostgreSQL redémarré et prêt, puis Odoo démarré ; échec de PostgreSQL : Odoo redémarré quand même."""
+        self.mock("pg_isready", "exit 0")
+        rc, out, err = self.lancer("--restart-postgresql")
+        self.assertEqual(rc, 0, out + err)
+        a = self.appels()
+        i_stop, i_pg, i_start = (a.index("systemctl stop erplibre_erplibre.service"), a.index("systemctl restart postgresql"),
+                                 a.index("systemctl start erplibre_erplibre.service"))
+        self.assertLess(i_stop, i_pg)
+        self.assertLess(i_pg, i_start)
+        self.assertIn("PostgreSQL redémarré et prêt", out)
+        self.assertRegex(out, r"Durées :.*PostgreSQL \d+ s")
+        self.assertIn("redémarrage terminé (PostgreSQL et Odoo)", out)
+        os.remove(self.log)
+        self.mock("pg_isready", "exit 2")
+        self.write("etc/odoo-update-module.conf", "WAIT=3\n")                                # PostgreSQL never ready: 3 s of waiting, not 90
+        rc, out, err = self.lancer("--restart-postgresql", ODOO_UPDATE_MODULE_PG_AS=self.write("pg-ko.sh", "#!/bin/bash\ncase \"$*\" in *\"SELECT 1\"*) exit 2 ;; esac\necho 0\n", 0o755))
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("PostgreSQL n'accepte pas les connexions", out)
+        self.assertIn("systemctl start erplibre_erplibre.service", self.appels())             # the site never stays stopped
+
     def test_echec_d_odoo_redemarre_quand_meme(self):
         self.write("odoo_code", "3\n")
         rc, out, err = self.lancer()
