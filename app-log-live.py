@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.196.20261117.143528"
+__version__ = "1.197.20261118.143832"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -317,6 +317,11 @@ JOURNAL_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{
 TIME_UTC = False
 # Odoo message: 2026-10-02 14:07:18,326 502389 INFO base werkzeug: text
 ODOO_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \d+ (DEBUG|INFO|WARNING|ERROR|CRITICAL) (\S+) (\S+): (.*)$")
+ODOO_PID_RE = re.compile(r"^\S+ \S+ (\d+) ")                                    # 1.197: process (worker) that wrote an Odoo line
+# 1.197: life of the prefork workers of Odoo: a new worker (after a start of Odoo or a recycling), and why a worker was replaced
+WORKER_ALIVE_RE = re.compile(r"\bWorker (?:WorkerHTTP|WorkerCron|Worker\w*) \((\d+)\) alive\b")
+WORKER_RECYCLE_RE = (("memory", re.compile(r"\bWorker \((\d+)\) virtual memory limit")), ("requests", re.compile(r"\bWorker \((\d+)\) max request")),
+                     ("cpu", re.compile(r"\bWorker \((\d+)\) CPU time limit")), ("timeout", re.compile(r"\bWorker\w* \((\d+)\) timeout after")))
 WERKZEUG_DATE_RE = re.compile(r"^(.*? - - )\[\d{2}/\w{3}/\d{4} \d{2}:\d{2}:\d{2}\] (\".*)$")
 # Websocket requests ("longpolling"): the date is in ISO format "[2026-10-08 13:11:22]" in UTC; removed ONLY if it is the same instant as the time of the line
 DATE_ISO_RE = re.compile(r"^(.*? - - )\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\] (\".*)$")
@@ -501,6 +506,7 @@ def merge_step(item, held):
             del held[index]
             m = WERKZEUG_RE.search(L.text)
             held_item[0].odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
+            held_item[0].odoo_pid = L.odoo_pid                                    # 1.197
             if L.ts_txt:                          # 1.131: the merged line shows the time of the Odoo line (hundredths), nginx has only seconds
                 held_item[0].ts_txt = L.ts_txt
             ready.append(held_item)
@@ -515,6 +521,7 @@ def merge_step(item, held):
             del held[index]                       # 1.135: the Odoo line came first: it is absorbed into this nginx line
             m = WERKZEUG_RE.search(held_item[0].text)
             L.odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
+            L.odoo_pid = held_item[0].odoo_pid                                    # 1.197
             if held_item[0].ts_txt:
                 L.ts_txt = held_item[0].ts_txt
             ready.append(item)
@@ -1029,6 +1036,7 @@ class Line:
         self.ts_txt = self.instant = self.host_name = self.program_name = self.level = self.database = self.logger = None
         self.text = raw_line
         self.odoo_times = None                                                     # 1.123 --log-merge: (SQL queries, SQL time, Python time) of the Odoo line of the same request
+        self.odoo_pid = None                                                       # 1.197: worker of Odoo that wrote the line (merged line: the one of its Odoo line)
         self._analyze(raw_line)
         self.nginx_fields()
         block = BASE64_BLOCK_RE.match((self.text or "").strip())
@@ -1054,6 +1062,8 @@ class Line:
         o = ODOO_RE.match(message)
         if o:
             self.level, self.database, self.logger, self.text = o.groups()
+            p = ODOO_PID_RE.match(message)
+            self.odoo_pid = p.group(1) if p else None
             if self.logger == "werkzeug":
                 w = WERKZEUG_DATE_RE.match(self.text)
                 if w:
@@ -2211,6 +2221,7 @@ def url_template(url):
 
 
 NO_PROBE_RE = re.compile(r"/registration/success$|/my_tickets$")        # 1.171: pages that Odoo 18 serves only with their parameters (registration_ids, tickets_hash)
+WORKER_REASONS = {"memory": "memory limit", "requests": "number of requests", "cpu": "CPU time limit", "timeout": "too long, stopped by Odoo"}     # 1.197
 COLD_RE = re.compile(r"/web/assets/|/web/bundle/|/get_views\b|/web/webclient/(?:load_menus|translations)")      # work that Odoo redoes once after a restart or a module update
 
 
@@ -3012,6 +3023,59 @@ def nginx_config_versions(limit=5):
     lines.append("  Last reload of nginx: " + (color_code("36", reloaded) if reloaded else "unknown (no worker process visible)")
                  + (color_code(ORANGE, f" — ⚠ older than a deployed file ({newest}): nginx -t && systemctl reload nginx") if reloaded and newest and newest > reloaded else ""))
     return lines
+
+
+def service_main_pid(service):
+    """MainPID of a systemd unit (the master process of Odoo), or None."""
+    if not service:
+        return None
+    out = lancer(["systemctl", "show", "-p", "MainPID", "--value", service], 10)[1].strip()
+    return int(out) if out.isdigit() and int(out) > 0 else None
+
+
+PYSPY_MESSAGES = ("Installing py-spy (apt-get install py-spy)...", "Installing pip (apt-get install python3-pip)...", "Installing py-spy (pip install py-spy)...",
+                  "py-spy missing and not installed (root required).")      # 1.197: said by apps/_pyprofile.py, translated by show_profile() (catalogue)
+
+
+def show_profile(service, seconds, write_line=print, color=True):
+    """1.197 --profile: py-spy samples the master process of the service and its workers for SECONDS, then the summary: where the processor
+    time goes (last function of each sample) and the functions of the application that hold the time. Returns the exit code."""
+    prof = load_module("_pyprofile")
+    if prof is None:
+        eprint("ERROR: apps/_pyprofile.py is missing.")
+        return 2
+    pid = service_main_pid(service)
+    if pid is None:
+        eprint(TR("ERROR: no running application process found (service {service}); specify --service NAME.").format(service=service or "?"))
+        return 2
+    seconds = max(5, int(seconds or 60))
+    pyspy = prof.find_pyspy() or prof.install_pyspy(say=lambda t: write_line(TR(t)))
+    if not pyspy:
+        eprint(TR("ERROR: py-spy is not available; --profile needs it."))
+        return 2
+    raw = os.path.join(tempfile.mkdtemp(prefix="app-log-live-profile-"), "profile.txt")
+    write_line(color_code(STYLES["title"], TR("Python profile of {service} (process {pid} and its workers) for {seconds} s; the site keeps running").format(service=service, pid=pid, seconds=seconds)))
+    vcmd(prof.record_command(pyspy, pid, seconds, raw))
+    try:                                                                  # py-spy writes its errors on stderr: kept for the message
+        r = subprocess.run(prof.record_command(pyspy, pid, seconds, raw), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                           timeout=seconds + 120, universal_newlines=True, errors="replace")
+        code, output = r.returncode, r.stdout or ""
+    except (OSError, subprocess.SubprocessError) as e:
+        code, output = 127, str(e)
+    summary = prof.summarize(raw)
+    if not summary["samples"]:
+        last = output.strip().splitlines()[-1] if output.strip() else str(code)
+        eprint(TR("ERROR: py-spy collected no sample: {reason}").format(reason=last))
+        return 1
+    write_line(TR("{samples} samples, {processes} processes").format(samples=summary["samples"], processes=summary["processes"] or 1))
+    write_line(color_code(STYLES["title"], TR("Where the processor time goes (last function of each sample):")))
+    for share, fn, path in summary["leaf"]:
+        write_line(f"  {color_code(ORANGE if share >= 0.1 else '', f'{share * 100:5.1f} %')}  {fn}  ({path})")
+    write_line(color_code(STYLES["title"], TR("Functions that hold the time (with what they call):")))
+    for share, fn, path in summary["held"]:
+        write_line(f"  {color_code(ORANGE if share >= 0.25 else '', f'{share * 100:5.1f} %')}  {fn}  ({path})")
+    write_line(TR("A worker waiting for a request shows as select/poll/accept: idle, not slow. Raw samples: {path}").format(path=raw))
+    return 0
 
 
 def show_diagnostic(profile, service, write_line=print, color=True, extra_hosts=()):
@@ -4962,7 +5026,7 @@ IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counte
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -5005,6 +5069,10 @@ class Stats:
         self.http_errors = []                             # (instant, code, url, address) of each 4xx / 5xx response, in order of arrival
         self.slow_requests, self.banned = [], {}
         self.slow_info = []                              # same order as `slow_requests`: (SQL queries, SQL time, Python time, size, instant)
+        self.slow_first = []                             # 1.197: same order: True when the request was the FIRST one of a newly started Odoo worker
+        self.workers_alive, self.workers_served = {}, set()  # 1.197: worker -> instant of its start ("Worker ... alive"); workers that served a request
+        self.worker_starts, self.worker_recycles = 0, Counter()     # 1.197: workers started; workers replaced, by reason (memory, requests, cpu, timeout)
+        self.first_requests = []                         # 1.197: (duration, url) of the first request of each new worker
         self.pages, self.pages_per_ip, self.visits = Counter(), Counter(), Counter()   # pages viewed (path), pages viewed per address, visits (resumed after VISIT_PAUSE) per address
         self.last_seen_at, self.pays = {}, {}                                         # address -> instant of its last page view; address -> country (shared by the copies)
         self.is_banned = None                                                      # function(address) -> ban source or None (fail2ban, firewall, CrowdSec): checks the addresses never seen in the journal
@@ -5162,6 +5230,14 @@ class Stats:
 
     def ajouter(self, L, renderings, ban_source, benign=False):
         self.lines += 1
+        if L.logger and "server" in L.logger and "Worker" in (L.text or ""):     # 1.197: start and replacement of the workers of Odoo
+            w = WORKER_ALIVE_RE.search(L.text)
+            if w:
+                self.workers_alive[w.group(1)] = L.instant or time.time()
+                self.worker_starts += 1
+            for reason, rx in WORKER_RECYCLE_RE:
+                if rx.search(L.text):
+                    self.worker_recycles[reason] += 1
         if L.instant and (self.first_any is None or L.instant < self.first_any):
             self.first_any = L.instant
         if benign == "push-duplicate" or (L.level == "WARNING" and PUSH_DUPLICATE_WARNING_RE.search(L.text or "")):
@@ -5258,7 +5334,17 @@ class Stats:
             # 1.178: a websocket kept open for hours is not a request answered in that time: counted in the latency, its Python time made
             # the means of 20 s (median 0.02 s) and "time spent in PostgreSQL 0 %, in Python 100 %" while the slow pages were 99 % SQL
             LATENCY.request(L.instant, detail)
+        first = False
+        pid = getattr(L, "odoo_pid", None)
+        if pid and pid in self.workers_alive and pid not in self.workers_served:  # 1.197: the first request of a worker seen starting
+            first = True
+            if total is not None:
+                self.first_requests.append((total, url))
+                del self.first_requests[:-2000]
+        if pid:
+            self.workers_served.add(pid)
         if self.slowest and total is not None and total >= self.slowest:
+            self.slow_first.append(first)
             self.slow_requests.append((total, url, ip))
             d = detail or (None, 0, 0.0, total)
             self.slow_info.append((d[1], d[2], d[3], d[0], L.instant or time.time()))
@@ -5279,6 +5365,7 @@ class Stats:
             setattr(c, name, Counter(getattr(self, name)))
         c.errors = {k: Counter(v) for k, v in self.errors.items()}
         c.slow_requests, c.slow_info, c.banned, c.end = list(self.slow_requests), list(self.slow_info), dict(self.banned), time.time()
+        c.slow_first, c.first_requests = list(self.slow_first), list(self.first_requests)
         c.watched, c.watch_it = list(self.watched), list(self.watch_it)
         c.http_errors, c.odoo_errors_time = list(self.http_errors), {k: list(v) for k, v in self.odoo_errors_time.items()}
         c.nginx_errors_time = {k: list(v) for k, v in self.nginx_errors_time.items()}
@@ -5297,6 +5384,8 @@ class Stats:
         d.push_duplicates, d.push_duplicate_warnings = self.push_duplicates - old.push_duplicates, self.push_duplicate_warnings - old.push_duplicate_warnings
         d.final_failures = self.final_failures - old.final_failures
         d.slow_requests, d.slow_info = self.slow_requests[len(old.slow_requests):], self.slow_info[len(old.slow_info):]
+        d.slow_first, d.first_requests = self.slow_first[len(old.slow_first):], self.first_requests[len(old.first_requests):]
+        d.worker_starts = self.worker_starts - old.worker_starts
         d.watched = self.watched[len(old.watched):]
         d.http_errors = [e for e in self.http_errors if e[0] > old.end]
         d.banned = {ip: src for ip, src in self.banned.items() if ip not in old.banned}
@@ -5408,6 +5497,7 @@ class Stats:
         cold = sum(1 for _t, u, _ip in self.slow_requests if COLD_RE.search(u))
         if cold >= 2 and 2 * cold >= len(self.slow_requests):
             lines.append(TR("{cold} of the {total} slow requests are assets or views (cold Odoo cache): Odoo has probably just restarted or been updated; they should no longer be slow on the second pass").format(cold=cold, total=len(self.slow_requests)))
+        lines.extend(self.analyze_workers())                         # 1.197
         latest = max((info[4] for info in self.slow_info if info[4]), default=0)
         if all_items > 0 and t_py >= 0.8 * all_items and time.time() - latest <= 300:
             # 1.169: the state of the server NOW explains a slow request only if it is recent (before: shown hours later, "disk too slow" at 08:30
@@ -5420,16 +5510,36 @@ class Stats:
         if advisor is not None and hasattr(advisor, "ended_together"):
             k, when = advisor.ended_together([(info[4], info[1], info[2]) for info in self.slow_info if info[4]])
             if k:
-                lines.append(color_code(ORANGE, f"{k}") + " " + TR("slow requests ended in the same 2 seconds ({when}) with almost no SQL: waiting for the disk (images, files of the filestore or of the modules) or for the sending of the response, not Odoo computing; host-perf-audit.py measures the read wait of the disks").format(when=clock_of(when)))
+                lines.append(color_code(ORANGE, f"{k}") + " " + TR("slow requests ended in the same 2 seconds ({when}) with almost no SQL: not Odoo computing; new workers (see above), a wait for the disk or the sending of the response; host-perf-audit.py --io-latency measures the waits of the disks").format(when=clock_of(when)))
         # 1.188: static files and images slow without SQL: Odoo read a file (the disk), it had nothing to compute
         if advisor is not None and hasattr(advisor, "FILE_RE"):
             files = sum(1 for (total, url, _ip), info in zip(self.slow_requests, self.slow_info)
                         if advisor.FILE_RE.search(url or "") and info[1] < 0.1 * max(0.01, total) and info[2] >= 2)
             if files >= 2:
-                lines.append(color_code(ORANGE, f"{files}") + " " + TR("slow requests are static files or images with almost no SQL: Odoo read a file (the disk), it had nothing to compute; the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"))
+                lines.append(color_code(ORANGE, f"{files}") + " " + TR("slow requests are static files or images with almost no SQL: nothing to compute for Odoo: a new worker (see above) or a wait for the disk (host-perf-audit.py --io-latency tells which); the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"))
         cluster = max(minutes.values())
         if cluster >= 3:
             lines.append(color_code(ORANGE, f"{cluster}") + " slow requests in the same minute: overloaded server or database lock (see “Program” and app-health-check.py)")
+        return lines
+
+    def analyze_workers(self):
+        """1.197: are the slow requests the FIRST request of a newly started worker of Odoo? A new worker (after a start of Odoo, or when a worker is
+        replaced: memory, number of requests, CPU, timeout) builds at its first request what Odoo then keeps in memory for the whole life of the
+        process; that cost is paid by one visitor per worker. Empty when the journal has no start of worker (lines of nginx only)."""
+        if not self.worker_starts and not self.worker_recycles:
+            return []
+        lines = []
+        firsts = [f for f in self.slow_first if f]
+        n_slow = len(self.slow_requests)
+        if firsts and len(self.slow_first) == n_slow:
+            durations = [d for d, _u in self.first_requests]
+            median = sorted(durations)[len(durations) // 2] if durations else 0.0
+            lines.append(color_code(ORANGE, f"{len(firsts)}") + " " + TR("of the {total} slow requests were the FIRST request of a new Odoo worker (median of the first requests: {median:.1f} s): the cost of a worker that starts, paid by one visitor; fewer restarts and fewer replaced workers make them rarer").format(total=n_slow, median=median))
+        recycled = sum(self.worker_recycles.values())
+        if self.worker_starts or recycled:
+            reasons = ", ".join(f"{TR(WORKER_REASONS.get(k, k))} {v}" for k, v in self.worker_recycles.most_common())
+            lines.append(TR("Workers of Odoo started: {starts}").format(starts=self.worker_starts)
+                         + (" · " + TR("replaced: {n} ({reasons})").format(n=recycled, reasons=reasons) if recycled else ""))
         return lines
 
     # --- health --------------------------------------------------------------------------------------------------------------------------
@@ -9364,6 +9474,8 @@ def main():
                              f"pages and requests per person; %% key: at once; 0 = never (default {VISITOR_REPORT_DEFAULT:g}); VISITOR_REPORT")
     parser.add_argument("--only", action="append", default=None, metavar="TEXT",
                         help="Only the lines that contain TEXT (name, address, URL, module…, case-insensitive); repeatable: one OR the other")
+    parser.add_argument("--profile", type=float, nargs="?", const=60.0, default=None, metavar="SECONDS",
+                        help="Sample the Python of the application (all the Odoo workers) for SECONDS (default 60) with py-spy, installed if missing, without stopping it; then shows where the processor time goes and which functions hold it, and quits")
     parser.add_argument("--show-ip", dest="hide_ip", action="store_false",
                         help="Show the IP address in brackets after the name (default: hidden; HIDE_IP=no in the configuration file)")
     parser.add_argument("--slow", type=float, default=5.0, metavar="SECONDS",
@@ -9590,6 +9702,8 @@ def main():
         for text_line in limits_module.lignes(limits_module.analyser(args.rate_limit)):
             print(text_line)
         return 0
+    if args.profile is not None:                                      # 1.197
+        return show_profile(service or (detect_service(profile)[0] if profile.get("APP_LOG_KIND") != "file" else None), args.profile)
     if args.diagnose:
         return show_diagnostic(profile, service or (detect_service(profile)[0] if profile.get("APP_LOG_KIND") != "file" else None), print, sys.stdout.isatty(), args.diagnose_host)
     odoo_file = odoo_journal_file(profile)
