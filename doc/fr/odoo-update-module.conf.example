@@ -42,6 +42,8 @@
 #ODOO_CONF=
 # dossier d'Odoo ; vide : WorkingDirectory= du service (défaut : WorkingDirectory= du service)
 #ODOO_DIR=
+# --restart-postgresql : service systemd de PostgreSQL redémarré entre l'arrêt et le démarrage d'Odoo
+#PG_SERVICE=postgresql
 # requêtes POST en lecture seule en plus de celles connues (connexion, vérifications de droits, sondes ; expression régulière des
 # adresses, sans le « / » du début, ex. : my_module/status|other/list) : ignorées, elles ne retardent ni n'annulent la mise à jour
 #READ_REQUESTS=

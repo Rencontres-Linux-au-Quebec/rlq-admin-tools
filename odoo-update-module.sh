@@ -50,6 +50,10 @@
 #   --odoo-conf FILE             configuration d'Odoo (défaut : ODOO_CONF, sinon config.conf du dossier du service, sinon emplacements connus)
 #   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
 #                                échecs, avertissements) ; désactive couleurs et questions interactives
+#   --restart-only               redémarrer Odoo SANS mettre à jour de modules : attente d'un site calme, arrêt, démarrage, première réponse,
+#                                préchauffage, contrôle du journal, durées (changement de odoo.conf ou de run.sh, TMPDIR...)
+#   --restart-postgresql         comme --restart-only, et redémarre aussi PostgreSQL entre l'arrêt et le démarrage d'Odoo (réglage qui l'exige,
+#                                p. ex. shared_preload_libraries) ; attend qu'il accepte les connexions avant de relancer Odoo
 #   --service NAME               service systemd d'Odoo (défaut : SERVICE, sinon détection automatique : erplibre* ou odoo*)
 #   --timeout SECONDS            durée maximale de la mise à jour (défaut : TIMEOUT, soit 1800)
 #   --user NAME                  compte sous lequel la mise à jour s'exécute (défaut : User= du service)
@@ -80,6 +84,7 @@
 #   WARMUP=oui                    préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py) ; non = comme --no-warmup
 #   TIMEOUT=1800                  durée maximale de la mise à jour, en secondes
 #   WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes
+#   PG_SERVICE=postgresql         service systemd de PostgreSQL redémarré par --restart-postgresql
 #   WAIT_QUIET=                   délai fixe, en minutes (vide : délais selon le profil ci-dessous ; 0 = un seul contrôle)
 #   WAIT_CONNECTED=60             attente maximale, en minutes, si un utilisateur connecté est actif
 #   WAIT_CONNECTED_LOW=3          idem si l'activité est faible (moins de LOW_REQUESTS requêtes)
@@ -100,7 +105,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.32.20261117.183619"
+readonly SCRIPT_VERSION="1.34.20261118.150000"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -138,7 +143,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-LIGHT_WRITES=""; LIGHT_WRITES_WAIT=0; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+LIGHT_WRITES=""; LIGHT_WRITES_WAIT=0; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0; RESTART_ONLY=0; RESTART_PG=0; PG_SERVICE="postgresql"                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -180,6 +185,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut SERVICE SERVICE --service texte
     config_defaut TIMEOUT TIMEOUT --timeout nombre
     config_defaut WAIT WAIT WAIT nombre
+    config_defaut PG_SERVICE PG_SERVICE PG_SERVICE texte
     config_defaut DO_WARMUP WARMUP --no-warmup booleen
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ZIP_ARG ZIP --zip texte
@@ -193,6 +199,8 @@ fi
 MENU_ENTREES=(
     "--dry-run|Montrer la mise à jour sans la faire|Show the update without doing it|0"
     "--check-activity|État du site maintenant|Site activity now|0"
+    "--restart-only|Redémarrer Odoo sans mettre à jour de modules|Restart Odoo without updating modules|1"
+    "--restart-postgresql|Redémarrer PostgreSQL et Odoo|Restart PostgreSQL and Odoo|1"
     "|Mettre à jour le ou les modules (configuration)|Update the modules (configuration)|1"
 )
 declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
@@ -233,6 +241,8 @@ while [[ $# -gt 0 ]]; do
         --no-rollback) DO_ROLLBACK=0; shift ;;
         --no-warmup) DO_WARMUP=0; shift ;;
         --odoo-conf) ODOO_CONF_OPT="${2:-}"; shift 2 ;;
+        --restart-only) RESTART_ONLY=1; shift ;;
+        --restart-postgresql) RESTART_ONLY=1; RESTART_PG=1; shift ;;
         --report-err) shift ;;                 # handled before (apps/_rapport.sh); accepted here with --help, --version...
         --service) SERVICE="${2:-}"; shift 2 ;;
         --timeout) TIMEOUT="${2:-}"; shift 2 ;;
@@ -561,15 +571,25 @@ sauvegarder() {
     if ctrl_c_child bash "$prog" --db "$DB"; then ok "sauvegarde de $DB terminée"; else ko "sauvegarde de $DB en échec — rien n'a été arrêté"; return 1; fi
 }
 
+# 1.33: duration of each phase of the restart, and the time the site was unavailable (from the stop to the first HTTP answer of Odoo)
+T_ARRET=""; T_MAJ=""; T_DEMARRAGE=""; T_REPONSE=""; T_PRECHAUFFAGE=""; T_DEBUT_COUPURE=""; T_COUPURE=""
+duree_lisible() {   # duree_lisible SECONDS: « 42 s », « 1 min 05 s »
+    local s="${1:-0}"
+    if (( s >= 60 )); then printf '%d min %02d s' $((s / 60)) $((s % 60)); else printf '%d s' "$s"; fi
+}
+
 arreter() {
+    local debut=$SECONDS
     etape "Arrêt du service"
     if (( DO_DRY_RUN )); then sim "systemctl stop $SERVICE"; return 0; fi
+    T_DEBUT_COUPURE=$SECONDS; T_COUPURE=""; T_REPONSE=""
     sc stop "$SERVICE" || true
+    T_ARRET=$((SECONDS - debut))
     if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]]; then
         ko "le service $SERVICE est toujours actif après « systemctl stop »"
         return 1
     fi
-    ok "service $SERVICE arrêté"
+    ok "service $SERVICE arrêté (en $(duree_lisible "$T_ARRET"))"
 }
 
 preparer_journal() {
@@ -648,7 +668,9 @@ demarrer() {
     if ! sc start "$SERVICE"; then ko "« systemctl start $SERVICE » a échoué (journalctl -u $SERVICE -n 50)"; return 1; fi
     while (( SECONDS - debut <= WAIT )); do
         if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]] && port_ecoute "$port"; then
-            ok "service $SERVICE actif, port $port à l'écoute (après $((SECONDS - debut)) s)"
+            T_DEMARRAGE=$((SECONDS - debut))
+            ok "service $SERVICE actif, port $port à l'écoute (après $(duree_lisible "$T_DEMARRAGE"))"
+            premiere_reponse "$port" "$debut"
             return 0
         fi
         sleep 2
@@ -656,6 +678,40 @@ demarrer() {
     if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" != "active" ]]; then ko "le service $SERVICE n'est pas actif après ${WAIT} s (journalctl -u $SERVICE -n 50)"
     else ko "le service $SERVICE est actif mais rien n'écoute sur le port $port après ${WAIT} s"; fi
     return 1
+}
+
+# premiere_reponse PORT START (1.33): the port listens before Odoo answers (registry loaded at the first request): waits for the first HTTP answer
+# of /web/login (any code below 500), WAIT seconds at most from START; T_REPONSE and T_COUPURE (unavailability since the stop) are set.
+premiere_reponse() {
+    local port="$1" debut="$2" code coupure=""
+    command -v curl >/dev/null 2>&1 || { detail "curl absent : première réponse d'Odoo non mesurée"; return 0; }
+    while (( SECONDS - debut <= WAIT )); do
+        code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "http://127.0.0.1:$port/web/login" 2>/dev/null || true)
+        if [[ "$code" =~ ^[1-4][0-9][0-9]$ ]]; then
+            T_REPONSE=$((SECONDS - debut))
+            if [[ -n "$T_DEBUT_COUPURE" ]]; then T_COUPURE=$((SECONDS - T_DEBUT_COUPURE)); coupure=" ; site indisponible $(duree_lisible "$T_COUPURE") en tout, depuis l'arrêt"; fi
+            ok "Odoo répond (HTTP $code sur /web/login) $(duree_lisible "$T_REPONSE") après le démarrage$coupure"
+            return 0
+        fi
+        sleep 1
+    done
+    attn "Odoo écoute sur le port $port mais n'a pas répondu à /web/login en ${WAIT} s"
+}
+
+# resume_durees (1.33): one line with the duration of each phase, at the end of the update (also after a failure).
+resume_durees() {
+    local parties=() texte
+    [[ -n "$T_ARRET" ]] && parties+=("arrêt $(duree_lisible "$T_ARRET")")
+    [[ -n "${T_PG:-}" ]] && parties+=("PostgreSQL $(duree_lisible "$T_PG")")
+    [[ -n "$T_MAJ" ]] && parties+=("mise à jour des modules $(duree_lisible "$T_MAJ")")
+    [[ -n "$T_DEMARRAGE" ]] && parties+=("démarrage $(duree_lisible "$T_DEMARRAGE")")
+    [[ -n "$T_REPONSE" ]] && parties+=("première réponse $(duree_lisible "$T_REPONSE") après le démarrage")
+    [[ -n "$T_PRECHAUFFAGE" ]] && parties+=("préchauffage $(duree_lisible "$T_PRECHAUFFAGE")")
+    (( ${#parties[@]} )) || return 0
+    texte=$(printf '%s · ' "${parties[@]}"); texte="${texte% · }"
+    champ "Durées :" "$texte"
+    if [[ -n "$T_COUPURE" ]]; then champ "Site coupé :" "${C_BOLD}$(duree_lisible "$T_COUPURE")${C_RESET} ${C_DIM}(de l'arrêt d'Odoo à sa première réponse)${C_RESET}"; fi
+    return 0
 }
 
 # Cache warm-up (odoo-warmup.py) after the restart: public pages, latest events and polls, administration screens. Never a failure of the update:
@@ -1337,6 +1393,50 @@ check_after_start() {
     return 1
 }
 
+# redemarrer_postgresql (1.34, --restart-postgresql): Odoo is already stopped; restarts PG_SERVICE, then waits until PostgreSQL accepts the
+# connections (pg_isready, else a query through postgres_as), WAIT seconds at most. T_PG is its duration.
+T_PG=""
+redemarrer_postgresql() {
+    local debut=$SECONDS
+    etape "Redémarrage de PostgreSQL"
+    if (( DO_DRY_RUN )); then sim "systemctl restart $PG_SERVICE (puis attente : PostgreSQL accepte les connexions, ${WAIT} s au plus)"; return 0; fi
+    if ! sc restart "$PG_SERVICE"; then ko "« systemctl restart $PG_SERVICE » a échoué (journalctl -u $PG_SERVICE -n 50)"; return 1; fi
+    while (( SECONDS - debut <= WAIT )); do
+        if { command -v pg_isready >/dev/null 2>&1 && pg_isready -q 2>/dev/null; } || postgres_as psql -XAtqc "SELECT 1" >/dev/null 2>&1; then
+            T_PG=$((SECONDS - debut))
+            ok "PostgreSQL redémarré et prêt (en $(duree_lisible "$T_PG"))"
+            return 0
+        fi
+        sleep 1
+    done
+    ko "PostgreSQL n'accepte pas les connexions ${WAIT} s après « systemctl restart $PG_SERVICE » (journalctl -u $PG_SERVICE -n 50)"
+    return 1
+}
+
+# redemarrer_seulement (1.34, --restart-only / --restart-postgresql): the same guards as an update (quiet site, timings, warm-up, check of the
+# journal of Odoo) without touching the modules: nothing is changed, so there is no copy of the modules and no rollback. Odoo is always started
+# again, even when PostgreSQL failed.
+redemarrer_seulement() {
+    local echecs=0
+    ETAIT_ACTIF=0
+    if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]]; then ETAIT_ACTIF=1; fi
+    arreter || exit 1
+    if (( RESTART_PG )); then redemarrer_postgresql || echecs=$((echecs + 1)); fi
+    if demarrer; then
+        DEMARRAGE_EPOCH=$(date +%s)
+        if (( DO_WARMUP )); then T_PRECH_DEBUT=$SECONDS; prechauffer; (( DO_DRY_RUN )) || T_PRECHAUFFAGE=$((SECONDS - T_PRECH_DEBUT)); fi
+        check_after_start || echecs=$((echecs + 1))
+    else
+        echecs=$((echecs + 1))
+    fi
+    echo
+    if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; exit 0; fi
+    if (( echecs > 0 )); then ko "redémarrage terminé avec ${echecs} échecs"; resume_durees; exit 1; fi
+    if (( RESTART_PG )); then echo "${C_GREEN}✔ ${C_BOLD}redémarrage terminé${C_RESET} (PostgreSQL et Odoo)"; else echo "${C_GREEN}✔ ${C_BOLD}redémarrage terminé${C_RESET}"; fi
+    resume_durees
+    exit 0
+}
+
 # Rollback: stop, previous modules put back in place, new update (the database follows the previous code), restart, check. Question on a terminal
 # (Enter = yes), automatic otherwise (cron, systemd); never with --no-rollback (ROLLBACK=no) nor if this program did not replace the code (no archive).
 rollback() {
@@ -1359,7 +1459,7 @@ rollback() {
     mettre_a_jour || { demarrer || true; ko "la mise à jour avec les modules d'avant a échoué aussi : voir $JOURNAL"; return 1; }
     demarrer || return 1
     DEMARRAGE_EPOCH=$(date +%s)
-    if (( DO_WARMUP )); then prechauffer; fi
+    if (( DO_WARMUP )); then T_PRECH_DEBUT=$SECONDS; prechauffer; (( DO_DRY_RUN )) || T_PRECHAUFFAGE=$((SECONDS - T_PRECH_DEBUT)); fi
     check_after_start || { ko "erreurs aussi après le retour arrière"; return 1; }
     ok "${C_BOLD}retour arrière réussi${C_RESET} : modules d'avant en service"
     return 0
@@ -1383,19 +1483,26 @@ if (( ! DO_DRY_RUN )) && [[ "$EUID" -ne 0 && -z "${NGINX_TOOLS_TESTS:-}" ]]; the
     exit 1
 fi
 if (( ! DO_DRY_RUN )); then prendre_verrou; fi
-echo "${C_BOLD}Mise à jour des modules Odoo${C_RESET}  ${C_DIM}$(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")${C_RESET}"
+titre="Mise à jour des modules Odoo"
+if (( RESTART_PG )); then titre="Redémarrage d'Odoo et de PostgreSQL (sans mise à jour de modules)"
+elif (( RESTART_ONLY )); then titre="Redémarrage d'Odoo (sans mise à jour de modules)"; fi
+echo "${C_BOLD}${titre}${C_RESET}  ${C_DIM}$(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")${C_RESET}"
 detecter_service
 trouver_conf
 if declare -F odoo_conf_charger >/dev/null; then odoo_conf_charger "$ODOO_CONF_UTILISEE" 2>/dev/null || true; fi
 trouver_base
-trouver_zip
-trouver_destination
-trouver_modules
-commande_odoo
+ZIP_FICHIER=""
+if (( ! RESTART_ONLY )); then                                   # 1.34: --restart-only: no archive, no module, no update command
+    trouver_zip
+    trouver_destination
+    trouver_modules
+    commande_odoo
+fi
 echo
 champ "Service :" "${C_BOLD}$SERVICE${C_RESET}$( (( SERVICE_DETECTE )) && printf ' (détecté)' )"
 champ "Base :" "${C_BOLD}${C_YELLOW}$DB${C_RESET}"
-champ "Modules :" "${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"
+if (( RESTART_ONLY )); then champ "Modules :" "${C_DIM}aucun (redémarrage seulement)${C_RESET}"; else champ "Modules :" "${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; fi
+if (( RESTART_PG )); then champ "PostgreSQL :" "${C_BOLD}$PG_SERVICE${C_RESET} ${C_DIM}(redémarré entre l'arrêt et le démarrage d'Odoo)${C_RESET}"; fi
 if [[ -n "$ZIP_FICHIER" ]]; then champ "Archive :" "${C_BOLD}$ZIP_FICHIER${C_RESET} ${C_DIM}→ $DESTINATION${C_RESET}"
     for i in "${!ZIP_MODULES[@]}"; do champ "  ${ZIP_MODULES[$i]}" "version ${C_BOLD}${C_CYAN}${ZIP_VERSIONS[$i]}${C_RESET} ${C_DIM}(manifeste de l'archive)${C_RESET}"; done
 fi
@@ -1406,6 +1513,9 @@ if (( DO_DRY_RUN )); then echo "  ${C_YELLOW}Mode simulation : rien n'est arrêt
 ETAPES=5; if (( DO_WARMUP )); then ETAPES=6; fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
 if [[ -n "$ZIP_FICHIER" ]]; then ETAPES=$((ETAPES + 1)); fi
 ETAPES=$((ETAPES + 1))
+if (( RESTART_ONLY )); then                                    # 1.34: quiet site, stop, (PostgreSQL), start, (warm-up), check of the journal
+    ETAPES=4; if (( RESTART_PG )); then ETAPES=5; fi; if (( DO_WARMUP )); then ETAPES=$((ETAPES + 1)); fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
+fi
 
 if (( CHECK_ACTIVITY )); then rapport_activite; exit $?; fi
 demander_parametres_demarrage                                 # 1.17: questions at the start (threshold, window, wait), defaults after 10 s
@@ -1413,6 +1523,7 @@ echecs=0
 find_module_dirs
 if (( DO_BACKUP )); then sauvegarder || exit 1; fi
 wait_for_quiet_site                                           # 1.11: Odoo stops when the site is quiet (at most WAIT_QUIET min of waiting)
+if (( RESTART_ONLY )); then redemarrer_seulement; fi          # 1.34: never returns
 backup_modules || exit 1                                      # 1.11: copy of the previous modules: base of the rollback
 VERS_AVANT=$(versions_lire)                                   # versions before the update (read-only)
 ZIP_ECHEC=0; ETAIT_ACTIF=0
@@ -1430,12 +1541,14 @@ if (( ZIP_ECHEC )); then
     if (( ETAIT_ACTIF )); then sc start "$SERVICE" >/dev/null 2>&1 || true; fi
     exit 1
 fi
+T_MAJ_DEBUT=$SECONDS
 mettre_a_jour || echecs=$((echecs + 1))
+(( DO_DRY_RUN )) || T_MAJ=$((SECONDS - T_MAJ_DEBUT))
 if (( DO_DRY_RUN )); then sim "versions des modules installés avant / après la mise à jour (PostgreSQL, lecture seule)"; else afficher_versions; fi
 (( DO_DRY_RUN )) || purger_journaux
 if demarrer; then
     DEMARRAGE_EPOCH=$(date +%s)
-    if (( DO_WARMUP )); then prechauffer; fi
+    if (( DO_WARMUP )); then T_PRECH_DEBUT=$SECONDS; prechauffer; (( DO_DRY_RUN )) || T_PRECHAUFFAGE=$((SECONDS - T_PRECH_DEBUT)); fi
     check_after_start || echecs=$((echecs + 1))
 else
     echecs=$((echecs + 1))
@@ -1443,6 +1556,7 @@ fi
 if (( echecs > 0 )); then
     echo
     ko "mise à jour terminée avec ${echecs} échecs"
+    resume_durees
     if rollback; then
         echo
         ko "mise à jour ANNULÉE : les modules d'avant sont en service (journal de l'échec : $JOURNAL)"
@@ -1451,4 +1565,4 @@ if (( echecs > 0 )); then
 fi
 if (( DO_DRY_RUN )); then rollback || true; fi
 echo
-if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; else echo "${C_GREEN}✔ ${C_BOLD}mise à jour terminée${C_RESET} : ${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; fi
+if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; else echo "${C_GREEN}✔ ${C_BOLD}mise à jour terminée${C_RESET} : ${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; resume_durees; fi

@@ -900,3 +900,117 @@ msgstr " (no recent request: does not delay the update)"
 
 msgid "inchangé depuis le contrôle précédent"
 msgstr "unchanged since the previous check"
+
+msgid " arrêté (en "
+msgstr " stopped (in "
+
+msgid "curl absent : première réponse d'Odoo non mesurée"
+msgstr "curl missing: first answer of Odoo not measured"
+
+msgid " en tout, depuis l'arrêt"
+msgstr " in all, since the stop"
+
+msgid "Odoo répond (HTTP "
+msgstr "Odoo answers (HTTP "
+
+msgid " sur /web/login) "
+msgstr " on /web/login) "
+
+msgid " après le démarrage"
+msgstr " after the start"
+
+msgid "Odoo écoute sur le port "
+msgstr "Odoo listens on port "
+
+msgid " mais n'a pas répondu à /web/login en "
+msgstr " but did not answer /web/login within "
+
+msgid "arrêt "
+msgstr "stop "
+
+msgid "mise à jour des modules "
+msgstr "update of the modules "
+
+msgid "démarrage "
+msgstr "start "
+
+msgid "première réponse "
+msgstr "first answer "
+
+msgid "préchauffage "
+msgstr "warm-up "
+
+msgid "Durées :"
+msgstr "Durations:"
+
+msgid "Site coupé :"
+msgstr "Site down:"
+
+msgid "(de l'arrêt d'Odoo à sa première réponse)"
+msgstr "(from the stop of Odoo to its first answer)"
+
+msgid " ; site indisponible "
+msgstr "; site unavailable "
+
+msgid "  --restart-only               redémarrer Odoo SANS mettre à jour de modules : attente d'un site calme, arrêt, démarrage, première réponse,"
+msgstr "  --restart-only               restart Odoo WITHOUT updating modules: wait for a quiet site, stop, start, first answer,"
+
+msgid "                               préchauffage, contrôle du journal, durées (changement de odoo.conf ou de run.sh, TMPDIR...)"
+msgstr "                               warm-up, check of the journal, durations (change of odoo.conf or of run.sh, TMPDIR...)"
+
+msgid "  --restart-postgresql         comme --restart-only, et redémarre aussi PostgreSQL entre l'arrêt et le démarrage d'Odoo (réglage qui l'exige,"
+msgstr "  --restart-postgresql         like --restart-only, and also restarts PostgreSQL between the stop and the start of Odoo (setting that needs it,"
+
+msgid "                               p. ex. shared_preload_libraries) ; attend qu'il accepte les connexions avant de relancer Odoo"
+msgstr "                               e.g. shared_preload_libraries); waits until it accepts connections before starting Odoo again"
+
+msgid "  PG_SERVICE=postgresql         service systemd de PostgreSQL redémarré par --restart-postgresql"
+msgstr "  PG_SERVICE=postgresql         systemd service of PostgreSQL restarted by --restart-postgresql"
+
+msgid "--restart-only|Redémarrer Odoo sans mettre à jour de modules|Restart Odoo without updating modules|1"
+msgstr "--restart-only|Restart Odoo without updating modules|Restart Odoo without updating modules|1"
+
+msgid "--restart-postgresql|Redémarrer PostgreSQL et Odoo|Restart PostgreSQL and Odoo|1"
+msgstr "--restart-postgresql|Restart PostgreSQL and Odoo|Restart PostgreSQL and Odoo|1"
+
+msgid "Redémarrage de PostgreSQL"
+msgstr "Restart of PostgreSQL"
+
+msgid " (puis attente : PostgreSQL accepte les connexions, "
+msgstr " (then wait: PostgreSQL accepts connections, "
+
+msgid "« systemctl restart "
+msgstr "« systemctl restart "
+
+msgid "PostgreSQL redémarré et prêt (en "
+msgstr "PostgreSQL restarted and ready (in "
+
+msgid "PostgreSQL n'accepte pas les connexions "
+msgstr "PostgreSQL does not accept connections "
+
+msgid " s après « systemctl restart "
+msgstr " s after « systemctl restart "
+
+msgid " » (journalctl -u "
+msgstr " » (journalctl -u "
+
+msgid "redémarrage terminé avec "
+msgstr "restart finished with "
+
+msgid "redémarrage terminé"
+msgstr "restart finished"
+
+msgid " (PostgreSQL et Odoo)"
+msgstr " (PostgreSQL and Odoo)"
+
+msgid "Redémarrage d'Odoo et de PostgreSQL (sans mise à jour de modules)"
+msgstr "Restart of Odoo and PostgreSQL (without updating modules)"
+
+msgid "Redémarrage d'Odoo (sans mise à jour de modules)"
+msgstr "Restart of Odoo (without updating modules)"
+
+msgid "aucun (redémarrage seulement)"
+msgstr "none (restart only)"
+
+msgid "(redémarré entre l'arrêt et le démarrage d'Odoo)"
+msgstr "(restarted between the stop and the start of Odoo)"
