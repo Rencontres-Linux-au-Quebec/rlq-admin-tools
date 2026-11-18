@@ -279,6 +279,17 @@ class OdooUpdateModule(EnvTest):
         self.assertIn("Site coupé :", out)
         self.assertFalse(os.path.isdir(os.path.join(self.d, "copies")) and os.listdir(os.path.join(self.d, "copies")))     # no copy of the modules
 
+    def test_135_prechauffage_du_redemarrage_seulement(self):
+        """1.35 --restart-only : le journal du préchauffage a un vrai nom (restart-BASE-...-prechauffage.log dans le dossier des journaux), jamais
+        « -prechauffage.log » dans le dossier courant (grep et tail le prenaient pour une option)."""
+        self.faux_prechauffage()
+        rc, out, err = self.lancer("--restart-only")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("invalid option", out + err)
+        self.assertIn("cache préchauffé en 3 s : 12 appels", out)
+        journaux = os.listdir(os.path.join(self.d, "journaux"))
+        self.assertTrue(any(n.startswith("restart-") and n.endswith("-prechauffage.log") for n in journaux), journaux)
+
     def test_134_redemarrage_avec_postgresql_dans_l_ordre(self):
         """1.34 --restart-postgresql : Odoo arrêté, PostgreSQL redémarré et prêt, puis Odoo démarré ; échec de PostgreSQL : Odoo redémarré quand même."""
         self.mock("pg_isready", "exit 0")

@@ -316,20 +316,41 @@ class OdooWarmup(EnvTest):
         self.assertEqual(module.odoo_pids(None, os.path.join(self.d, "vide"))[1], [])
 
     def test_140_profil_resume_garde(self):
-        """1.40 : le résumé de py-spy est affiché et gardé dans PROFILE_DIR ; aucun échantillon : un message, rien de gardé."""
+        """1.40, 1.41 : le résumé de py-spy (apps/_pyprofile.py) est affiché et gardé à côté des échantillons ; aucun échantillon : un message, rien de gardé."""
         import importlib.util
         spec = importlib.util.spec_from_file_location("odoo_warmup_module141", script_path("odoo-warmup.py"))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        raw = os.path.join(self.d, "profile-20261118-160000.raw.txt")
+        spec = importlib.util.spec_from_file_location("_pyprofile_t", os.path.join(os.path.dirname(script_path("odoo-warmup.py")), "apps", "_pyprofile.py"))
+        vrai = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(vrai)
+        raw = os.path.join(self.d, "profile-proxmox1-odoo-warmup-20261118-160000.raw.txt")
+        texte = raw.replace(".raw.txt", ".txt")
         processus = types.SimpleNamespace(communicate=lambda timeout=None: ("", None), kill=lambda: None)
-        resume = {"samples": 100, "processes": 3, "leaf": [(0.7, "get_manifest", "odoo/modules/module.py")], "held": [(0.7, "statics", "odoo/http.py")]}
-        prof = types.SimpleNamespace(summarize=lambda _p: resume)
-        lignes = module.finish_profile((processus, raw, prof), 5)
-        self.assertIn("get_manifest", "\n".join(lignes))
-        self.assertTrue(os.path.isfile(raw.replace(".raw.txt", ".txt")))
-        prof.summarize = lambda _p: {"samples": 0, "processes": 0, "leaf": [], "held": []}
-        self.assertEqual(module.finish_profile((processus, raw, prof), 5), [])
+        resume = {"samples": 100, "idle": 3, "processes": 3, "leaf": [(0.7, "IrQWeb._compile", "odoo/addons/base/models/ir_qweb.py")],
+                  "held": [(0.7, "IrQWeb._compile", "odoo/addons/base/models/ir_qweb.py")], "modules": [(0.7, "base")], "causes": []}
+        prof = types.SimpleNamespace(summarize=lambda _p: resume, report_lines=vrai.report_lines, save=vrai.save)
+        lignes = module.finish_profile((processus, raw, prof, texte, "erplibre.service", 4242), 5)
+        self.assertIn("IrQWeb._compile", "\n".join(lignes))
+        self.assertIn("4242", open(texte).read())
+        prof.summarize = lambda _p: {"samples": 0, "idle": 0, "processes": 0, "leaf": [], "held": [], "modules": [], "causes": []}
+        self.assertEqual(module.finish_profile((processus, raw, prof, texte, "erplibre.service", 4242), 5), [])
+
+    def test_141_pages_dans_chaque_worker(self):
+        """1.41 : chaque page chargée est redemandée en parallèle autant de fois qu'il y a de workers (gabarits QWeb compilés dans chacun) ;
+        un seul worker : rien de plus ; une page en échec n'est pas redemandée."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module142", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        client = module.Client(self.url)
+        module.warm_public(client, ["/contactus", "/absente"], 1, module.Tally(), 0, (), 3)
+        self.assertEqual(FauxOdoo.appels.count(("GET", "/contactus")), 1 + 3)
+        self.assertEqual(FauxOdoo.appels.count(("GET", "/absente")), 1)                   # 404: not asked again
+        FauxOdoo.appels = []
+        module.warm_public(client, ["/contactus"], 1, module.Tally(), 0, (), 1)
+        self.assertEqual(FauxOdoo.appels.count(("GET", "/contactus")), 1)
+        self.assertEqual(module.warm_every_worker(client, [], 5), (0, 0, 0.0))
 
     def test_unite_systemd_trouvee_par_le_processus_odoo(self):
         import importlib.util

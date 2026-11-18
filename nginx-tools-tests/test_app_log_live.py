@@ -540,7 +540,7 @@ class AppLogLive(EnvTest):
         self.assertNotIn("conflit de mise à jour simultanée", out)
 
     def test_1197_profil_python_resume_et_commande(self):
-        """1.197 --profile : py-spy « raw » résumé par fonction (dernière frame ; frames tenues, la boucle du serveur commune à tout retirée) ;
+        """1.197 --profile, 1.198 : py-spy « raw » résumé (processus imbriqués, échantillons inactifs, cadre du serveur retiré, temps par module, causes connues), un seul dossier ;
         la commande échantillonne le processus principal ET ses workers sans les arrêter ; show_profile affiche le résumé."""
         import importlib.util, tempfile, types
         spec = importlib.util.spec_from_file_location("_pyprofile", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "apps", "_pyprofile.py"))
@@ -549,20 +549,49 @@ class AppLogLive(EnvTest):
         d = tempfile.mkdtemp(prefix="test-rlq-pyspy-")
         self.addCleanup(shutil.rmtree, d, True)
         raw = os.path.join(d, "p.txt")
-        boucle = "process 111:\"odoo-bin\";run (odoo/service/server.py:900);process_request (odoo/service/server.py:1000)"
+        # 1.198 (_pyprofile 1.1): --subprocesses nests the processes (run.sh;odoo_bin.sh;odoo-bin;worker): the last one owns the sample; idle
+        # samples (sleep, select) left out; frames of the server and of the frameworks left out; time per module; known causes
+        chaine = 'process 100:"bash run.sh";process 101:"odoo-bin";process {pid}:"odoo-bin";Worker._runloop (odoo/service/server.py:1192);Application.__call__ (odoo/http.py:2578)'
+        compil = ";IrQWeb._render (odoo/addons/base/models/ir_qweb.py:619);IrQWeb._compile (odoo/addons/base/models/ir_qweb.py:686);IrQWeb._compile_node (odoo/addons/base/models/ir_qweb.py:1366)"
+        sql = ";EventTicket._compute_price (event_product/models/event_event_ticket.py:27);Cursor.execute (odoo/sql_db.py:371)"
         with open(raw, "w") as f:
-            f.write(boucle + ";__call__ (/opt/erplibre/odoo/odoo/http.py:2300);statics (/opt/erplibre/odoo/odoo/http.py:2200);get_manifest (/opt/erplibre/odoo/odoo/modules/module.py:400) 70\n")
-            f.write(boucle + ";__call__ (/opt/erplibre/odoo/odoo/http.py:2300);execute (/usr/lib/python3/dist-packages/psycopg2/extras.py:10) 20\n")
-            f.write("process 222:\"odoo-bin\";run (odoo/service/server.py:900);select (selectors.py:1) 10\n")
+            f.write(chaine.format(pid=201) + compil + " 50\n")
+            f.write(chaine.format(pid=202) + compil + " 20\n")
+            f.write(chaine.format(pid=202) + sql + " 30\n")
+            f.write('process 100:"bash run.sh";process 101:"odoo-bin";PreforkServer.sleep (odoo/service/server.py:973) 40\n')
             f.write("ligne illisible\n")
         r = prof.summarize(raw)
-        self.assertEqual((r["samples"], r["processes"]), (100, 2))
-        self.assertEqual(r["leaf"][0][1:], ("get_manifest", "odoo/modules/module.py"))
-        self.assertAlmostEqual(r["leaf"][0][0], 0.70)
+        self.assertEqual((r["samples"], r["idle"], r["processes"]), (100, 40, 3))       # workers 201, 202 and the master 101
+        self.assertEqual(r["leaf"][0], (0.70, "IrQWeb._compile_node", "odoo/addons/base/models/ir_qweb.py"))
         tenues = {fn: share for share, fn, _p in r["held"]}
-        self.assertNotIn("run", tenues)                                                      # present in every sample: left out
-        self.assertAlmostEqual(tenues["statics"], 0.70)
-        self.assertNotIn("__call__", tenues)                                                 # 90 % of the samples: common, left out too
+        for absent in ("Worker._runloop", "Application.__call__"):
+            self.assertNotIn(absent, tenues)                                             # server and dispatch: say nothing
+        self.assertAlmostEqual(tenues["IrQWeb._compile"], 0.70)
+        modules = dict((m, v) for v, m in r["modules"])
+        self.assertAlmostEqual(modules["base"], 0.70)
+        self.assertAlmostEqual(modules["event_product"], 0.30)
+        self.assertAlmostEqual(modules["odoo (sql_db.py)"], 0.30)
+        causes = [t for _v, t in r["causes"]]
+        self.assertTrue(causes[0].startswith("QWeb templates compiled"))
+        self.assertTrue(any(t.startswith("waiting for PostgreSQL") for t in causes))
+        texte = "\n".join(prof.report_lines(r))
+        self.assertIn("100 busy samples in 3 processes (40 idle samples left out)", texte)
+        self.assertNotIn("Few samples", texte)                                           # 100 samples: enough
+        # One place for every profile: /var/lib/python-profile (PYPROFILE_DIR for the tests), name of the server and of the program
+        with unittest.mock.patch.object(prof, "PROFILE_DIRS", (os.path.join(d, "commun"),)):
+            brut, resume = prof.profile_paths("odoo-warmup", host="proxmox1", when=0)
+        self.assertEqual(os.path.dirname(brut), os.path.join(d, "commun"))
+        self.assertRegex(os.path.basename(resume), r"^profile-proxmox1-odoo-warmup-\d{8}-\d{6}\.txt$")
+        self.assertEqual(brut, resume[:-4] + ".raw.txt")
+        for k in range(4):
+            open(os.path.join(d, "commun", f"profile-proxmox1-odoo-warmup-2026010{k}-000000.raw.txt"), "w").close()
+            prof.save(["x"], os.path.join(d, "commun", f"profile-proxmox1-odoo-warmup-2026010{k}-000000.txt"), "odoo-warmup", keep=2)
+        open(os.path.join(d, "commun", "profile-proxmox1-app-log-live-20250101-000000.txt"), "w").close()
+        prof.save(["x"], os.path.join(d, "commun", "profile-proxmox1-odoo-warmup-20260109-000000.txt"), "odoo-warmup", keep=2)
+        restes = sorted(os.listdir(os.path.join(d, "commun")))
+        self.assertIn("profile-proxmox1-app-log-live-20250101-000000.txt", restes)          # another program: never removed
+        self.assertEqual(len([x for x in restes if "odoo-warmup" in x and not x.endswith(".raw.txt")]), 2)
+        self.assertEqual(len([x for x in restes if "odoo-warmup" in x and x.endswith(".raw.txt")]), 2)
         cmd = prof.record_command("/usr/bin/py-spy", 4242, 30, raw)
         for attendu in ("--pid", "4242", "--subprocesses", "--nonblocking", "--duration", "30", "--format", "raw"):
             self.assertIn(attendu, cmd)
@@ -591,15 +620,17 @@ class AppLogLive(EnvTest):
         # show_profile with py-spy and systemctl simulated
         live = self.module_live()
         sortie = []
-        faux = types.SimpleNamespace(find_pyspy=lambda: "/usr/bin/py-spy", install_pyspy=None, record_command=prof.record_command, summarize=lambda _p: r)
+        faux = types.SimpleNamespace(find_pyspy=lambda: "/usr/bin/py-spy", install_pyspy=None, record_command=prof.record_command, summarize=lambda _p: r,
+                                     report_lines=prof.report_lines, save=prof.save, profile_paths=lambda nom: (os.path.join(d, "l.raw.txt"), os.path.join(d, "l.txt")))
         with unittest.mock.patch.object(live, "load_module", lambda nom: faux if nom == "_pyprofile" else None), \
              unittest.mock.patch.object(live, "lancer", lambda cmd, delay=10: (0, "4242\n")), \
              unittest.mock.patch.object(live.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="")):
             self.assertEqual(live.show_profile("erplibre.service", 30, sortie.append), 0)
         texte = "\n".join(T(l) for l in sortie)
         self.assertIn("4242", texte)
-        self.assertIn("get_manifest", texte)
+        self.assertIn("IrQWeb._compile_node", texte)
         self.assertIn("70.0 %", texte)
+        self.assertTrue(os.path.isfile(os.path.join(d, "l.txt")))                         # summary kept
         with unittest.mock.patch.object(live, "lancer", lambda cmd, delay=10: (0, "0\n")):
             self.assertEqual(live.show_profile("erplibre.service", 30, sortie.append), 2)        # service stopped: no process
 

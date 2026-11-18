@@ -3592,18 +3592,6 @@ msgstr "limite de temps processeur"
 msgid "too long, stopped by Odoo"
 msgstr "trop long, arrêté par Odoo"
 
-msgid "Installing py-spy (apt-get install py-spy)..."
-msgstr "Installation de py-spy (apt-get install py-spy)..."
-
-msgid "Installing pip (apt-get install python3-pip)..."
-msgstr "Installation de pip (apt-get install python3-pip)..."
-
-msgid "Installing py-spy (pip install py-spy)..."
-msgstr "Installation de py-spy (pip install py-spy)..."
-
-msgid "py-spy missing and not installed (root required)."
-msgstr "py-spy absent et non installé (root requis)."
-
 msgid "ERROR: no running application process found (service {service}); specify --service NAME."
 msgstr "ERREUR : aucun processus de l'application en marche (service {service}) ; précisez --service NOM."
 
@@ -3616,17 +3604,11 @@ msgstr "Profil Python de {service} (processus {pid} et ses workers) pendant {sec
 msgid "ERROR: py-spy collected no sample: {reason}"
 msgstr "ERREUR : py-spy n'a recueilli aucun échantillon : {reason}"
 
-msgid "{samples} samples, {processes} processes"
-msgstr "{samples} échantillons, {processes} processus"
-
-msgid "Where the processor time goes (last function of each sample):"
-msgstr "Où va le temps processeur (dernière fonction de chaque échantillon) :"
-
-msgid "Functions that hold the time (with what they call):"
-msgstr "Fonctions qui retiennent le temps (avec ce qu'elles appellent) :"
-
-msgid "A worker waiting for a request shows as select/poll/accept: idle, not slow. Raw samples: {path}"
-msgstr "Un worker qui attend une requête apparaît comme select/poll/accept : inactif, pas lent. Échantillons bruts : {path}"
-
 msgid "Sample the Python of the application (all the Odoo workers) for SECONDS (default 60) with py-spy, installed if missing, without stopping it; then shows where the processor time goes and which functions hold it, and quits"
 msgstr "Échantillonne le Python de l'application (tous les workers d'Odoo) pendant SECONDES (défaut 60) avec py-spy, installé s'il manque, sans l'arrêter ; montre ensuite où va le temps processeur et quelles fonctions le retiennent, puis quitte"
+
+msgid "the application stayed idle during the whole profile"
+msgstr "l'application est restée inactive pendant tout le profil"
+
+msgid "Summary kept in {path} (raw samples: {raw})"
+msgstr "Résumé gardé dans {path} (échantillons bruts : {raw})"

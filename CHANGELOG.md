@@ -478,6 +478,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.198.20261118.172706 - Profiles in one place, summary that names the cause
+
+- Title: --profile keeps every profile in /var/lib/python-profile, with the name of the server and of the program, and its summary now shows the time per module of the application and the known causes.
+- Reason: request of the administrator on 2026-11-18: "the Python profiling files should all be in the same place (like the other scripts, in /var/lib, with the name of the server and of the program)". The first profile (60 s on 104 after a restart) said "55 samples, 1 process" and its list of functions held only the loop of the server.
+- Changes:
+  - show_profile(): samples and summary in prof.profile_paths("app-log-live") (/var/lib/python-profile/profile-HOST-app-log-live-YYYYMMDD-HHMMSS.raw.txt and .txt); summary printed with prof.report_lines() and kept with prof.save() (the 20 latest per program); when py-spy saw only idle workers, the error says so.
+  - apps/_pyprofile.py 1.1 (shared with odoo-warmup.py): profile_paths(), save(), report_lines(), is_infra(), module_of(); summarize() now strips every nested "process" frame of --subprocesses (run.sh;odoo_bin.sh;odoo-bin;worker: the last one owns the sample), leaves out the idle samples (PreforkServer.sleep, Worker.sleep, Hub.run, select...), leaves out the frames of the server and of the frameworks (threading, socketserver, werkzeug, odoo/http.py, odoo/service, decorators, caches), sums the time per module of the application (addon of Odoo, ORM, compiled QWeb templates) and names the known causes over a threshold (QWeb templates compiled, PostgreSQL, list of the static folders, prices of the tickets, has_group).
+  - New catalogue lang/_pyprofile.fr.po (supplementary catalogue of app-log-live.py and odoo-warmup.py); stale entries removed from lang/app-log-live.fr.po.
+  - The PYSPY_MESSAGES tuple is removed (its messages are in lang/_pyprofile.fr.po).
+- Bugs fixed:
+  - Symptom: "55 samples, 1 process" for 13 workers. Diagnosis: with --subprocesses, py-spy writes the whole chain of parent processes; only the first one (run.sh) was read. Fix: the last process frame owns the sample.
+  - Symptom: the functions that "hold the time" were Worker._runloop, Thread.run, socketserver... Diagnosis: those frames are in every request. Fix: frames of the server and of the frameworks left out, time per module added.
+  - Symptom: profiles in /tmp/app-log-live-profile-XXXX/ (app-log-live.py) and /var/log/odoo-warmup/ (odoo-warmup.py). Fix: one folder for both.
+- Safeguards and edge cases: /var/lib/python-profile not writable (not root): ~/.cache/python-profile, then /tmp; the cleaning removes only the files of the same program; fewer than 100 busy samples: a line says that Odoo was almost idle.
+- Checks performed: on the samples of the profile of 2026-11-18 16:47 (104): 50 busy samples in 6 processes, QWeb templates compiled in 32 % of them; nginx-tools-tests/test_app_log_live.py test_1197_profil_python_resume_et_commande rewritten (nested processes, idle samples, frames left out, modules, causes, one folder, cleaning per program); test_i18n.
+- Action required: none. Profiles from now on: `ls /var/lib/python-profile/`.
+
 ### 1.197.20261118.143832 - First request of a new Odoo worker, --profile with py-spy
 
 - Title: slow requests that are the first one of a newly started Odoo worker are flagged, replaced workers are counted, and the new option --profile shows where the Python time of Odoo goes.
@@ -2922,6 +2939,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.41.20261118.172706 - Pages in every worker, profiles in /var/lib/python-profile
+
+- Title: every public page loaded by the warm-up is asked again to every worker, in parallel; the profiles go to /var/lib/python-profile.
+- Reason: the first profile of 2026-11-18 (104, after a restart and a warm-up) showed about a third of the busy time in IrQWeb._compile: Odoo compiles the QWeb templates of a page in EACH worker the first time this worker shows it, and the warm-up asked each page once (one worker). Administrator: "the Python profiling files should all be in the same place".
+- Changes:
+  - New function warm_every_worker() and constant WORKER_PAGES_MAX (40): the pages loaded (load_page() now records them, language variants included) asked `workers` times in parallel; a busy worker takes no new request, so the requests spread over the workers. New line "Pages in every worker (N pages x W workers, in parallel): requests, failures, slowest".
+  - warm_public(): new argument workers (odoo_workers() is now read before the static files step).
+  - start_profile() and finish_profile(): prof.profile_paths("odoo-warmup"), prof.report_lines(), prof.save() of apps/_pyprofile.py 1.1 (same folder and same summary as app-log-live.py --profile); PROFILE_DIR, PROFILE_KEEP and PYSPY_MESSAGES removed; catalogue "_pyprofile" read (lang/_pyprofile.fr.po).
+  - doc/en and doc/fr odoo-warmup.conf.example (PROFILE: new folder); lang/odoo-warmup.fr.po.
+- Bugs fixed:
+  - Symptom: QWeb compilation in the profile after the warm-up. Diagnosis: each page was rendered by one worker only. Fix: warm_every_worker().
+- Safeguards and edge cases: one worker (or unknown): nothing more; a page that failed (4xx, 5xx) is not asked again; at most 40 pages.
+- Checks performed: nginx-tools-tests/test_odoo_warmup.py (new test test_141_pages_dans_chaque_worker; test_140_profil_resume_garde adapted).
+- Action required: none.
+
 ### 1.40.20261118.160516 - Static files of every worker, check of TMPDIR, --profile with py-spy
 
 - Title: the warm-up now asks the static files straight to every Odoo worker, checks that the temporary files of Odoo are in memory, and profiles the Python of Odoo during the warm-up.
@@ -3920,6 +3952,17 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
+
+### 1.35.20261118.172706 - Log of the warm-up with --restart-only
+
+- Title: with --restart-only, the warm-up writes its output in a real log file.
+- Reason: run of the administrator on 2026-11-18 16:46 (`--restart-only` in 104): "grep: invalid option -- 'p'", "tail: invalid option -- 'p'" and "[ATTN] warm-up interrupted (code 0): see -prechauffage.log".
+- Changes: prechauffer(): when JOURNAL is empty (--restart-only does not prepare the log of an update), preparer_journal() is called and the file is named restart-BASE-YYYYMMDD-HHMMSS-prechauffage.log in LOG_DIR; grep and tail now get "-e PATTERN -- FILE".
+- Bugs fixed:
+  - Symptom: grep and tail errors, warm-up reported as interrupted although it had run. Diagnosis: JOURNAL was empty, so the log was "-prechauffage.log" in the current folder, which grep and tail read as options. Fix: a log file is prepared, and "--" ends the options.
+- Safeguards and edge cases: LOG_DIR not writable: TMPDIR or /tmp (preparer_journal()).
+- Checks performed: bash -n; nginx-tools-tests/test_odoo_update_module.py (new test test_135_prechauffage_du_redemarrage_seulement).
+- Action required: none. The file "-prechauffage.log" left in the folder where the command ran in 104 can be removed: `rm -- -prechauffage.log`.
 
 ### 1.34.20261118.150000 - --restart-only and --restart-postgresql
 
