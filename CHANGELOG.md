@@ -478,6 +478,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.197.20261118.143832 - First request of a new Odoo worker, --profile with py-spy
+
+- Title: slow requests that are the first one of a newly started Odoo worker are flagged, replaced workers are counted, and the new option --profile shows where the Python time of Odoo goes.
+- Reason: request of the administrator on 2026-11-18 ("les deux recommandations"): static files and images took about 10 s with almost no SQL, while host-perf-audit.py --io-latency showed that the disks were not the cause. A prefork worker of Odoo builds at its first request what it then keeps in memory (list of the static folders of every module, registry, assets); that cost is paid by one visitor per new worker.
+- Changes:
+  - Line: new attribute odoo_pid (process that wrote the Odoo line, regex ODOO_PID_RE), carried over to the merged line (--log-nginx).
+  - Stats.ajouter(): reads "Worker WorkerHTTP (PID) alive" (WORKER_ALIVE_RE) and the replacement messages (WORKER_RECYCLE_RE: virtual memory limit, max request, CPU time limit, timeout); a request is the "first" one when its worker was seen starting and had not served a request yet. New fields slow_first, first_requests, workers_alive, workers_served, worker_starts, worker_recycles (in COUNTERS); snapshot() and since() handle them.
+  - New Stats.analyze_workers(), called by analyze_slow(): "N of the M slow requests were the FIRST request of a new Odoo worker (median ...)" and "Workers of Odoo started: N, replaced: N (reasons)". Nothing is said when the journal has no worker start.
+  - The two lines of analyze_slow() that said "Odoo read a file (the disk)" and "waiting for the disk" now name both causes (new worker or disk wait) and point to host-perf-audit.py --io-latency.
+  - New option --profile [SECONDS] (default 60): new functions service_main_pid() and show_profile(); new module apps/_pyprofile.py 1.0 (find_pyspy, install_pyspy, record_command, summarize). py-spy samples the main process of the service and its workers (--subprocesses --nonblocking, 50 per second), then two lists: the last function of each sample (where the processor time goes) and the functions present in the stacks (frames common to 90 % of the samples left out: the loop of the server).
+  - lang/app-log-live.fr.po: new and changed entries.
+- Bugs fixed:
+  - Symptom: the slow analysis blamed the disk for slow static files. Diagnosis: the ARC of ZFS served 99.9 % of the reads and PostgreSQL read nothing from the disk; the time was Python of Odoo. Fix: the message names the two causes and the new worker analysis tells which one applies.
+- Safeguards and edge cases:
+  - A worker not seen starting (journal begun after its start) is never counted as new.
+  - The second request of a worker is not a first one.
+  - first_requests is limited to 2000 entries.
+  - py-spy is installed when missing: apt package if apt knows it, otherwise pip (python3-pip installed first, --break-system-packages then without it); not root: nothing installed and a clear error.
+  - --nonblocking: the workers are never stopped; a stopped service (MainPID 0) gives a clear error.
+  - py-spy errors (stderr) are shown when no sample was collected.
+  - The raw samples are kept in a temporary folder for a closer look.
+- Checks performed: python3 -m py_compile; new tests in nginx-tools-tests/test_app_log_live.py (test_1197_premiere_requete_d_un_worker_neuf, test_1197_profil_python_resume_et_commande: summary, command, installation through apt and pip, not root, show_profile, service stopped); run-all.sh.
+- Action required: to see the cost of new workers, nothing: the end of session and --export-ai include it. To profile: `sudo ./app-log-live.py --profile 60` while the site is slow (for example right after a restart of Odoo with odoo-update-module.sh --restart-only).
+
 ### 1.196.20261117.143528 - HNE / HAE in the export for verification
 
 - Title: HNE / HAE in the export for verification.

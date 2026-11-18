@@ -3449,11 +3449,7 @@ msgstr "nginx : aucun rt= dans les journaux d'accès lus (format antérieur à n
 msgid " (total "
 msgstr " (total "
 
-msgid "slow requests ended in the same 2 seconds ({when}) with almost no SQL: waiting for the disk (images, files of the filestore or of the modules) or for the sending of the response, not Odoo computing; host-perf-audit.py measures the read wait of the disks"
-msgstr "requêtes lentes finies dans les mêmes 2 secondes ({when}) presque sans SQL : attente du disque (images, fichiers du filestore ou des modules) ou de l'envoi de la réponse, pas un calcul d'Odoo ; host-perf-audit.py mesure l'attente des lectures des disques"
 
-msgid "slow requests are static files or images with almost no SQL: Odoo read a file (the disk), it had nothing to compute; the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"
-msgstr "requêtes lentes sont des fichiers statiques ou des images presque sans SQL : Odoo a lu un fichier (le disque), il n'avait rien à calculer ; le cache de nginx (nginx-hardening.sh --update) les sert sans Odoo"
 
 msgid "    Disk latency per operation ("
 msgstr "    Latence des disques par opération ("
@@ -3568,3 +3564,69 @@ msgstr "données supplémentaires non lues : {problem}"
 
 msgid "inodes: {n} % free"
 msgstr "inodes : {n} % libres"
+
+msgid "slow requests ended in the same 2 seconds ({when}) with almost no SQL: not Odoo computing; new workers (see above), a wait for the disk or the sending of the response; host-perf-audit.py --io-latency measures the waits of the disks"
+msgstr "requêtes lentes finies dans les mêmes 2 secondes ({when}) presque sans SQL : Odoo ne calculait pas ; des workers neufs (voir plus haut), une attente du disque ou l'envoi de la réponse ; host-perf-audit.py --io-latency mesure les attentes des disques"
+
+msgid "slow requests are static files or images with almost no SQL: nothing to compute for Odoo: a new worker (see above) or a wait for the disk (host-perf-audit.py --io-latency tells which); the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"
+msgstr "requêtes lentes sont des fichiers statiques ou des images presque sans SQL : rien à calculer pour Odoo : un worker neuf (voir plus haut) ou une attente du disque (host-perf-audit.py --io-latency le dit) ; le cache de nginx (nginx-hardening.sh --update) les sert sans Odoo"
+
+msgid "of the {total} slow requests were the FIRST request of a new Odoo worker (median of the first requests: {median:.1f} s): the cost of a worker that starts, paid by one visitor; fewer restarts and fewer replaced workers make them rarer"
+msgstr "des {total} requêtes lentes étaient la PREMIÈRE requête d'un worker d'Odoo neuf (médiane des premières requêtes : {median:.1f} s) : le coût d'un worker qui démarre, payé par un visiteur ; moins de redémarrages et moins de workers remplacés les rendent plus rares"
+
+msgid "Workers of Odoo started: {starts}"
+msgstr "Workers d'Odoo démarrés : {starts}"
+
+msgid "replaced: {n} ({reasons})"
+msgstr "remplacés : {n} ({reasons})"
+
+msgid "memory limit"
+msgstr "limite de mémoire"
+
+msgid "number of requests"
+msgstr "nombre de requêtes"
+
+msgid "CPU time limit"
+msgstr "limite de temps processeur"
+
+msgid "too long, stopped by Odoo"
+msgstr "trop long, arrêté par Odoo"
+
+msgid "Installing py-spy (apt-get install py-spy)..."
+msgstr "Installation de py-spy (apt-get install py-spy)..."
+
+msgid "Installing pip (apt-get install python3-pip)..."
+msgstr "Installation de pip (apt-get install python3-pip)..."
+
+msgid "Installing py-spy (pip install py-spy)..."
+msgstr "Installation de py-spy (pip install py-spy)..."
+
+msgid "py-spy missing and not installed (root required)."
+msgstr "py-spy absent et non installé (root requis)."
+
+msgid "ERROR: no running application process found (service {service}); specify --service NAME."
+msgstr "ERREUR : aucun processus de l'application en marche (service {service}) ; précisez --service NOM."
+
+msgid "ERROR: py-spy is not available; --profile needs it."
+msgstr "ERREUR : py-spy n'est pas disponible ; --profile en a besoin."
+
+msgid "Python profile of {service} (process {pid} and its workers) for {seconds} s; the site keeps running"
+msgstr "Profil Python de {service} (processus {pid} et ses workers) pendant {seconds} s ; le site continue de fonctionner"
+
+msgid "ERROR: py-spy collected no sample: {reason}"
+msgstr "ERREUR : py-spy n'a recueilli aucun échantillon : {reason}"
+
+msgid "{samples} samples, {processes} processes"
+msgstr "{samples} échantillons, {processes} processus"
+
+msgid "Where the processor time goes (last function of each sample):"
+msgstr "Où va le temps processeur (dernière fonction de chaque échantillon) :"
+
+msgid "Functions that hold the time (with what they call):"
+msgstr "Fonctions qui retiennent le temps (avec ce qu'elles appellent) :"
+
+msgid "A worker waiting for a request shows as select/poll/accept: idle, not slow. Raw samples: {path}"
+msgstr "Un worker qui attend une requête apparaît comme select/poll/accept : inactif, pas lent. Échantillons bruts : {path}"
+
+msgid "Sample the Python of the application (all the Odoo workers) for SECONDS (default 60) with py-spy, installed if missing, without stopping it; then shows where the processor time goes and which functions hold it, and quits"
+msgstr "Échantillonne le Python de l'application (tous les workers d'Odoo) pendant SECONDES (défaut 60) avec py-spy, installé s'il manque, sans l'arrêter ; montre ensuite où va le temps processeur et quelles fonctions le retiennent, puis quitte"

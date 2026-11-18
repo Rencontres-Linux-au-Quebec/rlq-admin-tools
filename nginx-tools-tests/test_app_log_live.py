@@ -539,6 +539,100 @@ class AppLogLive(EnvTest):
         self.assertIn("bad query", out)
         self.assertNotIn("conflit de mise à jour simultanée", out)
 
+    def test_1197_profil_python_resume_et_commande(self):
+        """1.197 --profile : py-spy « raw » résumé par fonction (dernière frame ; frames tenues, la boucle du serveur commune à tout retirée) ;
+        la commande échantillonne le processus principal ET ses workers sans les arrêter ; show_profile affiche le résumé."""
+        import importlib.util, tempfile, types
+        spec = importlib.util.spec_from_file_location("_pyprofile", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "apps", "_pyprofile.py"))
+        prof = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(prof)
+        d = tempfile.mkdtemp(prefix="test-rlq-pyspy-")
+        self.addCleanup(shutil.rmtree, d, True)
+        raw = os.path.join(d, "p.txt")
+        boucle = "process 111:\"odoo-bin\";run (odoo/service/server.py:900);process_request (odoo/service/server.py:1000)"
+        with open(raw, "w") as f:
+            f.write(boucle + ";__call__ (/opt/erplibre/odoo/odoo/http.py:2300);statics (/opt/erplibre/odoo/odoo/http.py:2200);get_manifest (/opt/erplibre/odoo/odoo/modules/module.py:400) 70\n")
+            f.write(boucle + ";__call__ (/opt/erplibre/odoo/odoo/http.py:2300);execute (/usr/lib/python3/dist-packages/psycopg2/extras.py:10) 20\n")
+            f.write("process 222:\"odoo-bin\";run (odoo/service/server.py:900);select (selectors.py:1) 10\n")
+            f.write("ligne illisible\n")
+        r = prof.summarize(raw)
+        self.assertEqual((r["samples"], r["processes"]), (100, 2))
+        self.assertEqual(r["leaf"][0][1:], ("get_manifest", "odoo/modules/module.py"))
+        self.assertAlmostEqual(r["leaf"][0][0], 0.70)
+        tenues = {fn: share for share, fn, _p in r["held"]}
+        self.assertNotIn("run", tenues)                                                      # present in every sample: left out
+        self.assertAlmostEqual(tenues["statics"], 0.70)
+        self.assertNotIn("__call__", tenues)                                                 # 90 % of the samples: common, left out too
+        cmd = prof.record_command("/usr/bin/py-spy", 4242, 30, raw)
+        for attendu in ("--pid", "4242", "--subprocesses", "--nonblocking", "--duration", "30", "--format", "raw"):
+            self.assertIn(attendu, cmd)
+        self.assertEqual(prof.summarize(os.path.join(d, "absent"))["samples"], 0)
+        # Installation: apt when the package exists, pip otherwise (python3-pip first)
+        installe, appels = {}, []
+
+        def run(cmd, timeout=1800):
+            appels.append(" ".join(cmd))
+            if cmd[:2] == ["apt-cache", "show"]:
+                return (0 if installe.get("apt") else 100), ""
+            if "pip" in cmd and "install" in cmd:
+                installe["fait"] = True
+            if cmd[:3] == ["apt-get", "install", "-y"] and "py-spy" in cmd:
+                installe["fait"] = True
+            return 0, ""
+        which = lambda nom: ("/usr/bin/" + nom) if nom in ("apt-get", "pip3") or (nom == "py-spy" and installe.get("fait")) else None
+        with unittest.mock.patch.object(prof.os, "geteuid", lambda: 0):
+            self.assertEqual(prof.install_pyspy(run, which, lambda _t: None), "/usr/bin/py-spy")
+            self.assertTrue(any("pip install --break-system-packages py-spy" in c for c in appels))
+            installe.clear(); installe["apt"] = True; appels.clear()
+            self.assertEqual(prof.install_pyspy(run, which, lambda _t: None), "/usr/bin/py-spy")
+            self.assertTrue(any(c.startswith("apt-get install -y --no-install-recommends py-spy") for c in appels))
+        with unittest.mock.patch.object(prof.os, "geteuid", lambda: 1000):
+            self.assertIsNone(prof.install_pyspy(run, lambda _n: None, lambda _t: None))       # not root: nothing installed
+        # show_profile with py-spy and systemctl simulated
+        live = self.module_live()
+        sortie = []
+        faux = types.SimpleNamespace(find_pyspy=lambda: "/usr/bin/py-spy", install_pyspy=None, record_command=prof.record_command, summarize=lambda _p: r)
+        with unittest.mock.patch.object(live, "load_module", lambda nom: faux if nom == "_pyprofile" else None), \
+             unittest.mock.patch.object(live, "lancer", lambda cmd, delay=10: (0, "4242\n")), \
+             unittest.mock.patch.object(live.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="")):
+            self.assertEqual(live.show_profile("erplibre.service", 30, sortie.append), 0)
+        texte = "\n".join(T(l) for l in sortie)
+        self.assertIn("4242", texte)
+        self.assertIn("get_manifest", texte)
+        self.assertIn("70.0 %", texte)
+        with unittest.mock.patch.object(live, "lancer", lambda cmd, delay=10: (0, "0\n")):
+            self.assertEqual(live.show_profile("erplibre.service", 30, sortie.append), 2)        # service stopped: no process
+
+    def test_1197_premiere_requete_d_un_worker_neuf(self):
+        """1.197 : une requête lente qui est la PREMIÈRE d'un worker vu démarrer (« Worker WorkerHTTP (PID) alive ») est signalée ; les workers
+        remplacés sont comptés par raison ; la deuxième requête du même worker n'est pas une première."""
+        live = self.module_live()
+        st = live.Stats(5.0)
+
+        def de(pid, ligne):
+            return live.Line(ligne.replace(" 502385 ", f" {pid} "))
+        lent = '"GET /calendar/static/description/icon.png HTTP/1.1" 200 - 0 0.000 10.412'
+        rapide = '"GET /web/login HTTP/1.1" 200 - 12 0.010 0.080'
+        for ligne in (de(111, odoo("INFO", "?", "odoo.service.server", "Worker WorkerHTTP (111) alive", 30)),
+                      de(222, odoo("INFO", "?", "odoo.service.server", "Worker WorkerHTTP (222) alive", 30)),
+                      de(111, odoo("INFO", "base", "werkzeug", "69.157.88.222 - - [x] " + lent, 20)),
+                      de(111, odoo("INFO", "base", "werkzeug", "69.157.88.222 - - [x] " + lent, 19)),          # 2nd of worker 111: not a first
+                      de(222, odoo("INFO", "base", "werkzeug", "69.157.88.222 - - [x] " + rapide, 18)),
+                      de(333, odoo("INFO", "base", "werkzeug", "69.157.88.222 - - [x] " + lent, 17)),          # worker not seen starting
+                      de(444, odoo("INFO", "?", "odoo.service.server", "Worker (444) virtual memory limit (2147483648) reached.", 10)),
+                      de(555, odoo("INFO", "?", "odoo.service.server", "Worker (555) max request (8192) reached.", 9))):
+            st.ajouter(ligne, {}, None)
+        self.assertEqual(st.slow_first, [True, False, False])
+        self.assertEqual(st.worker_starts, 2)
+        self.assertEqual(dict(st.worker_recycles), {"memory": 1, "requests": 1})
+        texte = "\n".join(T(l) for l in st.analyze_workers())
+        self.assertIn("1", texte)
+        self.assertIn("PREMIÈRE requête d'un worker d'Odoo neuf", texte)
+        self.assertIn("Workers d'Odoo démarrés : 2", texte)
+        self.assertIn("remplacés : 2", texte)
+        vide = live.Stats(5.0)
+        self.assertEqual(vide.analyze_workers(), [])                                    # nginx lines only: nothing said
+
     def test_conflits_reessayes_et_echecs_definitifs_comptes_a_part_des_erreurs(self):
         """1.53 : « SERIALIZATION_FAILURE, N tries left » = conflit réessayé (sans gravité) ; « …, maximum number of tries reached! » = échec définitif. Deux compteurs à part,
         par code PostgreSQL ; les « bad query » d'un conflit réessayé ne comptent PLUS comme erreurs d'Odoo ; compté même si la ligne est masquée (--min)."""
