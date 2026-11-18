@@ -1230,12 +1230,27 @@ class JournauxTampon2109(unittest.TestCase):
         for nom in ("ws_lire_fichier() {", "ws_config_aplatie() {", "nginx_journaux_tampon() {"):
             debut = src.index(nom)
             fonctions += src[debut:src.index("\n}\n", debut) + 3]
-        script = (f"NGINX_HARDENING_NGINX_DIR={d}\nNGINX_HARDENING_BACKUP_DIR={d}/sauv\nACCESS_LOG_BUFFER=64k\nACCESS_LOG_FLUSH=10s\nCHECK_ONLY={check}\n"
+        for nom, contenu in fichiers.items():
+            if "@D@" in contenu:
+                with open(os.path.join(d, nom), "w") as f:
+                    f.write(contenu.replace("@D@", d))
+        script = (f"NGINX_HARDENING_NGINX_DIR={d}\nNGINX_HARDENING_BBB_NGINX_DIR={d}/bbb\nNGINX_HARDENING_BACKUP_DIR={d}/sauv\nACCESS_LOG_BUFFER=64k\nACCESS_LOG_FLUSH=10s\nCHECK_ONLY={check}\n"
                   f"pass() {{ echo \"PASS $*\"; }}\nwarn() {{ echo \"WARN $*\"; }}\nfail() {{ echo \"FAIL $*\"; }}\n"
                   f"run() {{ return {nginx_t_rc}; }}\nnginx_appliquer() {{ echo RECHARGE; }}\n{fonctions}\nnginx_journaux_tampon\n")
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
+        self.dossier = d
         with open(os.path.join(d, "sites-enabled/site")) as f:
             return out, f.read()
+
+    def test_2110_bigbluebutton(self):
+        """2.110 : aussi sur un serveur BBB : le site bigbluebutton et les fichiers inclus de /etc/bigbluebutton/nginx."""
+        out, site = self.lancer({"nginx.conf": "http {\n include sites-enabled/*;\n}\n",
+                                 "sites-enabled/site": "server {\n    access_log /var/log/nginx/bigbluebutton.access.log;\n    include @D@/bbb/*.nginx;\n}\n",
+                                 "bbb/web.nginx": "location /html5client { access_log /var/log/nginx/html5-client.log main; }\n"})
+        self.assertIn("bigbluebutton.access.log buffer=64k flush=10s;", site)
+        with open(os.path.join(self.dossier, "bbb/web.nginx")) as f:
+            self.assertIn("html5-client.log main buffer=64k flush=10s; }", f.read())
+        self.assertIn("PASS nginx : 2 access_log écrits par blocs", out)
 
     SITE = ("server {\n    access_log /var/log/nginx/site-access.log combined_host;   # site\n\taccess_log /var/log/nginx/deux.log;\n"
             "    access_log off;\n    access_log syslog:server=127.0.0.1;\n    access_log /var/log/nginx/deja.log buffer=32k;\n"

@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.109.20261118.071500"
+readonly SCRIPT_VERSION="2.110.20261118.073500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2206,19 +2206,19 @@ nginx_moins_de_disque() {
 # nginx_journaux_tampon (2.109, --update): every access_log of the configuration in effect (files of NGINX_HARDENING_NGINX_DIR, flattened) gets
 # « buffer=ACCESS_LOG_BUFFER flush=ACCESS_LOG_FLUSH »: nginx writes the lines by blocks (64 KiB, at least every 10 s) instead of one small write per
 # request. Left out: access_log off, syslog:, a line that already has buffer=, blocked-probes.log (the jail nginx-blocked-probes must see the
-# attacks at once) and the files outside the nginx folder. Each file is copied first; nginx -t refuses: every copy is put back, nginx not reloaded.
+# attacks at once) and the files outside the nginx folder and the nginx folder of BigBlueButton (2.110: called for Odoo AND for BBB). Each file is copied first; nginx -t refuses: every copy is put back, nginx not reloaded.
 nginx_journaux_tampon() {
-    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" ligne lieu texte fic num sauv copie fichiers="" n=0 f
+    local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" bbb="${NGINX_HARDENING_BBB_NGINX_DIR:-/etc/bigbluebutton/nginx}" ligne lieu texte fic num sauv copie fichiers="" n=0 f
     case "${ACCESS_LOG_BUFFER:-off},${ACCESS_LOG_FLUSH:-off}" in off,*|0,*|*,off|*,0) return 0 ;; esac
     local -A copies=()
     local -a a_faire=()
     while IFS=$'\t' read -r lieu texte; do
         texte="${texte%%#*}"
-        [[ "$texte" =~ ^[[:space:]]*access_log[[:space:]]+([^[:space:]\;]+) ]] || continue
-        case "${BASH_REMATCH[1]}" in off|syslog:*|*blocked-probes.log) continue ;; esac
+        [[ "$texte" =~ (^|[\{\;])[[:space:]]*access_log[[:space:]]+([^[:space:]\;]+) ]] || continue      # own line or « location /x { access_log ...; } »
+        case "${BASH_REMATCH[2]}" in off|syslog:*|*blocked-probes.log) continue ;; esac
         [[ "$texte" == *buffer=* ]] && continue
         fic="${lieu%:*}"; num="${lieu##*:}"
-        [[ "$fic" == "$dir"/* && -f "$fic" && "$num" =~ ^[0-9]+$ ]] || continue
+        [[ ( "$fic" == "$dir"/* || "$fic" == "$bbb"/* ) && -f "$fic" && "$num" =~ ^[0-9]+$ ]] || continue      # 2.110: also the files of BigBlueButton
         a_faire+=("$fic:$num")
     done < <(ws_config_aplatie 2>/dev/null || true)
     if (( ${#a_faire[@]} == 0 )); then
@@ -2239,7 +2239,7 @@ nginx_journaux_tampon() {
             copies[$fic]="$copie"
             fichiers+="${fichiers:+, }$fic"
         fi
-        sed -i -E "${num}s/^([[:space:]]*access_log[[:space:]][^;#]*[^;#[:space:]])[[:space:]]*;/\1 buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH};/" "$fic" && n=$((n + 1))
+        sed -i -E "${num}s/((^|[{;])[[:space:]]*access_log[[:space:]][^;#]*[^;#[:space:]])[[:space:]]*;/\1 buffer=${ACCESS_LOG_BUFFER} flush=${ACCESS_LOG_FLUSH};/" "$fic" && n=$((n + 1))
     done
     (( ${#copies[@]} > 0 )) || return 0
     if run nginx -t >/dev/null 2>&1; then
@@ -3090,6 +3090,7 @@ echo
 else
     sans_objet "jails du capteur catch-all et des connexions Odoo (capteur : HAProxy aiguille le port 443 de BBB)"
     durcir_bbb
+    nginx_journaux_tampon                                # 2.110: the access_log of BigBlueButton written by blocks too
     # Team addresses ignored by fail2ban: also applies to BigBlueButton (sshd jail in particular).
     if command -v fail2ban-client >/dev/null 2>&1; then verifier_ignoreip; fi
 fi

@@ -4128,6 +4128,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.110.20261118.073500 - access_log written by blocks on BigBlueButton too
+
+- Title: the buffer=64k flush=10s of 2.109 is also added on the BigBlueButton servers (VM bbb30 and bbb3).
+- Reason: request of the administrator on 2026-11-18: make the same change in the VMs of BBB.
+- Changes: nginx-hardening.sh: nginx_journaux_tampon is also called in the BBB branch (after durcir_bbb); it accepts the files of NGINX_HARDENING_BBB_NGINX_DIR (default /etc/bigbluebutton/nginx) as well as those of the nginx folder; an access_log placed after "{" or ";" on the same line (« location /x { access_log ...; } ») is found and changed too. Test: test_nginx_hardening.JournauxTampon2109.test_2110_bigbluebutton.
+- Bugs fixed: none.
+- Safeguards and edge cases: same exclusions as 2.109 (blocked-probes.log, off, syslog:, buffer= already there); copies first, nginx -t, restore on refusal. An upgrade of BigBlueButton can rewrite its nginx files: the next --update adds the buffer again (nothing changes when it is already there).
+- Checks performed: the 3 tests of JournauxTampon2109 pass (Odoo site, refusal of nginx -t and --check, BBB site with an included file).
+- Action required: run nginx-hardening.sh --update in VMs 430 and 433 (or host-perf-audit.py --guest-sync --guest-run --guests 430,433 from the Proxmox host).
+
 ### 2.109.20261118.071500 - access_log written by blocks (buffer=64k flush=10s)
 
 - Title: --update adds "buffer=64k flush=10s" to every access_log of the configuration in effect (new keys ACCESS_LOG_BUFFER and ACCESS_LOG_FLUSH).
