@@ -3007,3 +3007,72 @@ msgstr " later (blocked-probes.log stays immediate for fail2ban); nginx -t passe
 
 msgid "nginx : buffer= et flush= sur les access_log refusés par nginx -t — anciennes versions restaurées, nginx NON rechargé."
 msgstr "nginx: buffer= and flush= on the access_log refused by nginx -t — previous versions restored, nginx NOT reloaded."
+
+msgid "--- 17b) Odoo : rapports PDF (report.url) et fichiers temporaires en mémoire (TMPDIR) ---"
+msgstr "--- 17b) Odoo: PDF reports (report.url) and temporary files in memory (TMPDIR) ---"
+
+msgid "  [INFO] tests : étape ignorée (NGINX_HARDENING_PSQL absent)."
+msgstr "  [INFO] tests: step skipped (NGINX_HARDENING_PSQL missing)."
+
+msgid "  [INFO] report.url non réglé : dbfilter = « "
+msgstr "  [INFO] report.url not set: dbfilter = « "
+
+msgid " » dépend du nom du site (127.0.0.1 ne choisirait aucune base)."
+msgstr " » depends on the name of the site (127.0.0.1 would select no database)."
+
+msgid "  [INFO] report.url non vérifié : psql absent ou pas root."
+msgstr "  [INFO] report.url not checked: psql missing or not root."
+
+msgid " — les rapports PDF lisent les styles directement chez Odoo."
+msgstr " — the PDF reports read the styles directly from Odoo."
+
+msgid "Odoo ("
+msgstr "Odoo ("
+
+msgid ") : report.url = « "
+msgstr "): report.url = « "
+
+msgid " » (réglé à la main, gardé) ; "
+msgstr " » (set by hand, kept); "
+
+msgid " évite à wkhtmltopdf de ressortir par nginx pour chaque rapport PDF."
+msgstr " saves wkhtmltopdf from going out through nginx for each PDF report."
+
+msgid ") : report.url absent — wkhtmltopdf lit les styles par l'adresse publique (nginx, CDN) ; --update le règle à "
+msgstr "): report.url missing — wkhtmltopdf reads the styles through the public address (nginx, CDN); --update sets it to "
+
+msgid " ajouté (Paramètres > Technique > Paramètres système) : les rapports PDF ne ressortent plus par nginx ; pris en compte sans redémarrage."
+msgstr " added (Settings > Technical > System Parameters): the PDF reports no longer go out through nginx; taken into account without a restart."
+
+msgid ") : report.url non ajouté (PostgreSQL a refusé) — à régler à la main : Paramètres > Technique > Paramètres système, report.url = "
+msgstr "): report.url not added (PostgreSQL refused) — to set by hand: Settings > Technical > System Parameters, report.url = "
+
+msgid "  [INFO] fichiers temporaires d'Odoo : service d'Odoo introuvable — non vérifié."
+msgstr "  [INFO] temporary files of Odoo: service of Odoo not found — not checked."
+
+msgid "Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire ("
+msgstr "Odoo: temporary files (TMPDIR) in /run/odoo-tmp, in memory ("
+
+msgid "  [INFO] fichiers temporaires d'Odoo laissés sur le disque : /run n'a que "
+msgstr "  [INFO] temporary files of Odoo left on the disk: /run has only "
+
+msgid " Mo libres (1024 Mo au moins)."
+msgstr " MB free (1024 MB at least)."
+
+msgid "Odoo : fichiers temporaires (PDF en préparation, exports) sur le disque — --update les met dans /run/odoo-tmp (mémoire, "
+msgstr "Odoo: temporary files (PDF in the making, exports) on the disk — --update puts them in /run/odoo-tmp (memory, "
+
+msgid " Mo libres)."
+msgstr " MB free)."
+
+msgid " écrit (TMPDIR=/run/odoo-tmp, en mémoire, "
+msgstr " written (TMPDIR=/run/odoo-tmp, in memory, "
+
+msgid " Mo libres) — pris en compte au prochain redémarrage d'Odoo (non redémarré par ce script)."
+msgstr " MB free) — taken into account at the next restart of Odoo (not restarted by this script)."
+
+msgid "# Ajouté par nginx-hardening.sh 2.113 : fichiers temporaires d'Odoo (PDF en préparation, exports, imports) en mémoire."
+msgstr "# Added by nginx-hardening.sh 2.113: temporary files of Odoo (PDF in the making, exports, imports) in memory."
+
+msgid "# /run/odoo-tmp est vidé à l'arrêt d'Odoo (rien n'y est gardé). Pour retirer : supprimer ce fichier, systemctl daemon-reload, redémarrer Odoo."
+msgstr "# /run/odoo-tmp is emptied when Odoo stops (nothing is kept in it). To remove: delete this file, systemctl daemon-reload, restart Odoo."

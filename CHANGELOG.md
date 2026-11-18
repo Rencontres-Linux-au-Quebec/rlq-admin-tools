@@ -4174,6 +4174,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.113.20261118.101500 - PDF reports through 127.0.0.1 (report.url), temporary files of Odoo in memory
+
+- Title: new step 17b (Odoo, --update): system parameter report.url = http://127.0.0.1:HTTP_PORT, and the temporary files of Odoo (TMPDIR) in /run/odoo-tmp, in memory.
+- Reason: request of the administrator on 2026-11-18: the generation of files by Odoo (PDF, temporary files) is slow; a ramdisk for the filestore was set aside (attachments lost on an outage, no gain with sync=disabled and the ARC), these two safe changes were kept instead.
+- Changes: nginx-hardening.sh: new function odoo_rapports_et_tmp and step 17b after step 17; new keys ODOO_REPORT_URL and ODOO_TMPDIR_RAM (yes by default, no = never changed); doc/en and doc/fr nginx-hardening.conf.example; lang/nginx-hardening.en.po. Test: test_nginx_hardening.RapportsEtTmp2113.
+- Bugs fixed: none (new step).
+- Safeguards and edge cases: report.url is added only when absent (a value set by hand is kept, with a warning), in each database of db_name (else every database that has ir_config_parameter), never when dbfilter contains %h or %d (127.0.0.1 would select no database); the caches of the parameters are invalidated through base_cache_signaling and base_cache_signaling_default only (not the assets: no recompilation). TMPDIR: systemd drop-in 91-nginx-hardening-tmpdir.conf of the Odoo unit (RuntimeDirectory=odoo-tmp, mode 0700, owned by the user of the service, emptied when Odoo stops), daemon-reload only: Odoo is NEVER restarted by the script, the change applies at its next restart; not done when /run has less than 1 GiB free. With --check: warnings only.
+- Checks performed: RapportsEtTmp2113 (2 tests: addition and drop-in, value set by hand kept, dbfilter with %d, /run too small, --check).
+- Action required: run nginx-hardening.sh --update in 104 and 105 (or host-perf-audit.py --guest-sync --guest-run --guests 104,105), then restart Odoo at a quiet hour for TMPDIR. To check a PDF: print a report and look at the time in app-log-live.py.
+
 ### 2.112.20261118.091500 - English messages of the access_log step
 
 - Title: the messages of the step "access_log written by blocks" (2.109 to 2.111) are translated in English.

@@ -49,8 +49,12 @@
 #ODOO_GEVENT_PORT=
 # --odoo-http-port (défaut : celui de la configuration d'Odoo)
 #ODOO_HTTP_PORT=
+# step 17b: system parameter report.url = http://127.0.0.1:HTTP_PORT (PDF reports without going out through nginx); added only when absent; no = never changed
+#ODOO_REPORT_URL=yes
 # --odoo-service (défaut : détecté automatiquement)
 #ODOO_SERVICE=
+# step 17b: temporary files of Odoo (TMPDIR) in /run/odoo-tmp, in memory (.d file of the systemd unit, at the next restart of Odoo); no = never changed
+#ODOO_TMPDIR_RAM=yes
 # step 17: slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (conf.d file, reloaded without restart); no = step skipped
 #PG_LOGGING=yes
 # step 17: duration in milliseconds from which a query is written to the PostgreSQL log (log_min_duration_statement)
