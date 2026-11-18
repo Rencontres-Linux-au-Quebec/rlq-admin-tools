@@ -18,6 +18,12 @@
 #   * Odoo has several processes (workers) and some caches are PER process: each request is repeated --repeat times IN PARALLEL to reach several
 #     processes (no guarantee to reach them all, but the assets are shared through the database).
 #   * Waits for Odoo to answer (--wait seconds at most): can be started right after the start.
+#   * 1.40: STATIC files of EVERY worker, straight to Odoo (never through nginx, whose cache serves them to the visitors): the first static file
+#     that a worker serves makes it list the static folders of every module (about 10 s with the many modules of ERPLibre). wkhtmltopdf (PDF
+#     reports, report.url = 127.0.0.1) reads its fonts that way: without this step, the first PDF of each worker waited for it.
+#   * 1.40: checks that the Odoo processes really write their temporary files in memory (TMPDIR on a tmpfs, nginx-hardening.sh step 17b).
+#   * 1.40: --profile SECONDS (key PROFILE, 60 by default, 0: none): py-spy (installed if missing) samples the Odoo processes during the
+#     warm-up, without stopping them; summary of the functions that take the time, kept in /var/log/odoo-warmup/.
 #   * Automatic start: --systemd-install adds to Odoo's unit (--service) a .d file that starts this program in the background after each start
 #     (systemd-run, without delaying Odoo's start); --systemd-remove removes it.
 # Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.conf (the last one wins); -c/--config: that file ALONE; the command line
@@ -56,7 +62,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.39.20261112.082236"
+__version__ = "1.40.20261118.160516"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -79,6 +85,12 @@ DETECTION_WAIT = 120                                  # seconds the port detecti
 DEFAULT_LINKS, DEFAULT_LATEST = 6, 5                    # linked pages discovered in the public pages; latest events / surveys (administration)
 LATEST_KINDS = (("event.event", "website_url", "events"), ("survey.survey", "survey_start_url", "surveys"))
 DEFAULT_SERVICE = "odoo.service"
+# 1.40: static files read by wkhtmltopdf (PDF reports) and by every page: the first one served by a worker builds its list of static folders
+STATIC_FILES = ["/web/static/fonts/lato/Lato-Reg-webfont.woff", "/web/static/fonts/lato/Lato-Bol-webfont.woff", "/web/static/fonts/lato/Lato-Lig-webfont.woff"]
+STATIC_SLOW = 2.0                                       # seconds: a static file slower than this was the first one of its worker
+DEFAULT_PROFILE = 60                                    # seconds of py-spy during the warm-up (key PROFILE, --profile; 0: none)
+PROFILE_DIR = os.environ.get("ODOO_WARMUP_PROFILE_DIR", "/var/log/odoo-warmup")      # variable: tests only
+PROFILE_KEEP = 20                                       # summaries kept in PROFILE_DIR
 DEFAULT_LANGUAGES = "fr,en,es"                             # site languages warmed up for each public page (key LANGS, --site-languages)
 PAGES_FILE = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), "odoo-warmup-pages.conf")      # extra pages, one per line
 VERBOSE = False
@@ -159,14 +171,14 @@ def read_config(explicite=None):
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
-            m = re.fullmatch(r"(REPEAT|WAIT|LINKS|LATEST)\s*=\s*[\"']?(\d+)[\"']?", line)
+            m = re.fullmatch(r"(REPEAT|WAIT|LINKS|LATEST|PROFILE)\s*=\s*[\"']?(\d+)[\"']?", line)
             v = re.fullmatch(r"(VERBOSE|DEBUG_LEVEL)\s*=\s*[\"']?(\w*)[\"']?", line)
             c = re.fullmatch(r"(LOG_KEEP_DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
             a = re.fullmatch(r"(ANONYMIZE)\s*=\s*[\"']?(\w+)[\"']?", line)
             if path in common and not (v or c or a or re.match(r"LANGUAGE\s*=", line)):
                 continue                                       # the common file defines only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE (apps/_config.py CLES_COMMUNES)
             t = re.fullmatch(r"(URL|HOST|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
-            if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST")):
+            if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST", "PROFILE")):
                 values[m.group(1)] = int(m.group(2))
             elif v:
                 if v.group(1) == "VERBOSE" and v.group(2).lower() in ("1", "true", "yes", "oui", "on", "0", "false", "no", "non", "off"):
@@ -186,7 +198,7 @@ def read_config(explicite=None):
                 if t.group(2).strip():
                     values[t.group(1)] = t.group(2).strip()
             else:
-                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)")
+                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST, PROFILE: numbers; LANGUAGE: en, fr, auto)")
     level = values.get("DEBUG_LEVEL", 0)
     if level >= 1 and "VERBOSE" not in values:               # DEBUG_LEVEL >= 1 means VERBOSE=yes
         values["VERBOSE"] = True
@@ -944,6 +956,166 @@ def detect_odoo_url(attente=0):
     return DEFAULT_URL
 
 
+def odoo_workers(proc="/proc"):
+    """Number of HTTP workers of Odoo: --workers of its command line, else workers of its configuration file; 0 if unknown."""
+    for texte in commandes_odoo(proc):
+        m = re.findall(r"--workers[= ](\d+)", texte)
+        if m:
+            return int(m[-1])
+    module = load_module("_odoo_conf")
+    chemin = module.trouver() if module else None
+    valeur = module.valeur(chemin, "workers") if chemin else ""
+    return int(valeur) if valeur and valeur.strip().isdigit() else 0
+
+
+def warm_statics(base_url, workers, repetitions, tally):
+    """1.40: each static file of STATIC_FILES asked 2 x workers times IN PARALLEL, straight to Odoo: a worker busy building its list of static
+    folders (first static file it serves) leaves the next requests to the other workers, so every worker builds it now rather than for a
+    visitor or a PDF report. Returns (requests, slow ones, slowest)."""
+    client = Client(base_url)
+    count = max(2 * workers, 2 * repetitions, 4)
+    jobs = [(path, (lambda path=path: client.request_(path))) for path in STATIC_FILES]
+    slow, slowest, n = 0, 0.0, 0
+    for name, results in group_results(in_parallel(jobs, count)):
+        tally.add_item(name + " (Odoo)", results)
+        for code, duration, _text in results:
+            n += 1
+            slowest = max(slowest, duration)
+            if duration >= STATIC_SLOW:
+                slow += 1
+    return n, slow, slowest
+
+
+def odoo_pids(service, proc="/proc"):
+    """MainPID of the Odoo unit and its children (the workers), or the Odoo Python processes when the unit is unknown."""
+    main = 0
+    if service:
+        try:
+            out = subprocess.run(["systemctl", "show", "-p", "MainPID", "--value", service], capture_output=True, text=True, timeout=10, check=False).stdout.strip()
+            main = int(out) if out.isdigit() else 0
+        except (OSError, subprocess.SubprocessError):
+            main = 0
+    pids = []
+    for dossier in glob.glob(os.path.join(proc, "[0-9]*")):
+        pid = int(os.path.basename(dossier))
+        try:
+            with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                commande = f.read().lower()
+            with open(os.path.join(dossier, "stat"), encoding="utf-8", errors="replace") as f:
+                parent = int(f.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        if (main and (pid == main or parent == main)) or (not main and est_processus_odoo(commande)):
+            pids.append(pid)
+    return main, sorted(pids)
+
+
+def mount_type(path, mounts="/proc/mounts"):
+    """Type of the filesystem that holds `path` (tmpfs, zfs, ext4...): longest mount point of /proc/mounts that contains it; '' if unknown."""
+    best, kind = "", ""
+    try:
+        with open(mounts, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                point = parts[1].replace("\\040", " ")
+                if (path == point or path.startswith(point.rstrip("/") + "/")) and len(point) >= len(best):
+                    best, kind = point, parts[2]
+    except OSError:
+        return ""
+    return kind
+
+
+def check_tmpdir(service, proc="/proc", mounts="/proc/mounts"):
+    """1.40: do the running Odoo processes write their temporary files (PDF in preparation, exports, imports) in memory? TMPDIR of their
+    environment (nginx-hardening.sh step 17b sets it in a systemd drop-in, active after a restart of Odoo) on a tmpfs. Returns (state, text):
+    state "ok", "disk" (on a disk), "restart" (drop-in written but Odoo not restarted since) or "unknown"."""
+    _main, pids = odoo_pids(service, proc)
+    if not pids:
+        return "unknown", "no running Odoo process found"
+    values = set()
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, str(pid), "environ"), "rb") as f:
+                env = dict(x.split(b"=", 1) for x in f.read().split(b"\0") if b"=" in x)
+        except OSError:
+            return "unknown", "environment of the Odoo processes unreadable (root required)"
+        values.add(env.get(b"TMPDIR", b"").decode("utf-8", "replace"))
+    tmpdir = sorted(values)[-1] if values else ""
+    dropin = os.path.join(os.environ.get("ODOO_WARMUP_SYSTEMD_DIR", "/etc/systemd/system"), f"{service}.d", "91-nginx-hardening-tmpdir.conf") if service else ""
+    if not tmpdir:
+        if dropin and os.path.isfile(dropin):
+            return "restart", f"Odoo still writes its temporary files in /tmp: {dropin} is not active yet; restart Odoo when the site is quiet (odoo-update-module.sh --restart-only)"
+        return "disk", f"Odoo writes its temporary files in /tmp ({mount_type('/tmp', mounts) or '?'}); nginx-hardening.sh --update puts them in memory (/run/odoo-tmp)"
+    kind = mount_type(tmpdir, mounts)
+    if kind == "tmpfs":
+        return "ok", f"Odoo writes its temporary files in memory: TMPDIR={tmpdir} (tmpfs)"
+    return "disk", f"Odoo writes its temporary files in TMPDIR={tmpdir}, on {kind or '?'}, not in memory"
+
+
+PYSPY_MESSAGES = ("Installing py-spy (apt-get install py-spy)...", "Installing pip (apt-get install python3-pip)...", "Installing py-spy (pip install py-spy)...")  # said by apps/_pyprofile.py (catalogue)
+
+
+def start_profile(service, seconds):
+    """1.40: py-spy (apps/_pyprofile.py; installed if missing) samples the Odoo processes for `seconds`, in the background, during the warm-up.
+    Returns (process, raw file, module) or None, with the reason printed."""
+    prof = load_module("_pyprofile")
+    main, _pids = odoo_pids(service)
+    if prof is None or not main:
+        print("Python profile skipped: " + ("apps/_pyprofile.py missing" if prof is None else "no running Odoo unit (SERVICE or --service)"))
+        return None
+    pyspy = prof.find_pyspy() or prof.install_pyspy(say=print)
+    if not pyspy:
+        print("Python profile skipped: py-spy is not available (root required to install it and to read the Odoo processes)")
+        return None
+    try:
+        os.makedirs(PROFILE_DIR, exist_ok=True)
+    except OSError:
+        pass
+    raw = os.path.join(PROFILE_DIR if os.path.isdir(PROFILE_DIR) else "/tmp", time.strftime("profile-%Y%m%d-%H%M%S.raw.txt"))
+    try:
+        process = subprocess.Popen(prof.record_command(pyspy, main, seconds, raw), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, errors="replace")
+    except OSError as e:
+        print(f"Python profile skipped: {e}")
+        return None
+    print(f"Python profile of the Odoo processes ({service}, process {main} and its workers) for {seconds} s, during the warm-up")
+    return process, raw, prof
+
+
+def finish_profile(started, seconds):
+    """Waits for py-spy, prints the summary and keeps it in PROFILE_DIR (the PROFILE_KEEP latest). Returns the text lines."""
+    process, raw, prof = started
+    try:
+        output, _ = process.communicate(timeout=seconds + 120)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        output = "py-spy did not finish"
+    summary = prof.summarize(raw)
+    if not summary["samples"]:
+        last = (output or "").strip().splitlines()[-1:] or ["?"]
+        print(f"Python profile: no sample ({last[0]})")
+        return []
+    lines = [f"Python profile: {summary['samples']} samples, {summary['processes'] or 1} processes",
+             "  Where the processor time goes (last function of each sample):"]
+    lines += [f"    {share * 100:5.1f} %  {fn}  ({path})" for share, fn, path in summary["leaf"]]
+    lines.append("  Functions that hold the time (with what they call):")
+    lines += [f"    {share * 100:5.1f} %  {fn}  ({path})" for share, fn, path in summary["held"]]
+    for line in lines:
+        print(line)
+    text_path = raw.replace(".raw.txt", ".txt")
+    try:
+        with open(text_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"  Summary kept in {text_path} (raw samples: {raw})")
+        olds = sorted(glob.glob(os.path.join(os.path.dirname(raw), "profile-*.txt")))
+        for old in olds[:-2 * PROFILE_KEEP]:
+            os.remove(old)
+    except OSError:
+        pass
+    return lines
+
+
 MENU_ENTREES = [
     ([], 'Warm up the Odoo cache', 'Warm up the Odoo cache', False),
     (['--systemd-install'], 'Install warm-up at startup', 'Install warm-up at startup', True),
@@ -963,6 +1135,7 @@ def main():
     parser.add_argument("--links", type=int, default=None, metavar="N", help=f"Also loads N linked pages found in the public pages (event pages, surveys…) (default: {DEFAULT_LINKS}; 0: none). Key LINKS")
     parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--pages-file", default=None, metavar="FILE", help=f"File of additional public pages, one path per line (default: {PAGES_FILE}; created at first run). Key PAGES_FILE")
+    parser.add_argument("--profile", type=int, default=None, metavar="SECONDS", help=f"Samples the Python of the Odoo processes during the warm-up for SECONDS with py-spy, installed if missing (default: {DEFAULT_PROFILE}; 0: none; root). Key PROFILE")
     parser.add_argument("--repeat", type=int, default=None, metavar="N", help=f"Parallel passes of each administration call (default: {DEFAULT_REPETITIONS}) : touche plusieurs processus d'Odoo")
     parser.add_argument("--report-err", action="store_true",
                         help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
@@ -1041,10 +1214,11 @@ def main():
     service = args.service or config.get("SERVICE")
     links_count = args.links if args.links is not None else config.get("LINKS", DEFAULT_LINKS)
     latest = args.latest if args.latest is not None else config.get("LATEST", DEFAULT_LATEST)
+    profile_seconds = args.profile if args.profile is not None else config.get("PROFILE", DEFAULT_PROFILE)
     if repetitions < 1 or wait_seconds < 1:
         parser.error("--repeat and --wait must be positive numbers")
-    if links_count < 0 or latest < 0:
-        parser.error("--links and --latest must be positive numbers or zero")
+    if links_count < 0 or latest < 0 or profile_seconds < 0:
+        parser.error("--links, --latest and --profile must be positive numbers or zero")
     if args.config:
         read_files = f"{load_module('_config').avec_date(files_read[0])} (requested by -c/--config: no other file is read)"
     else:
@@ -1082,8 +1256,22 @@ def main():
     if not wait_for_odoo(client, wait_seconds):
         eprint(f"ERROR: Odoo does not answer at {url} after {wait_seconds} s (service stopped? different HTTP port: --url).")
         return 2
+    if not service:                                          # 1.40: the Odoo unit, for the profile and the check of TMPDIR
+        units = odoo_units()
+        service = units[0] if len(units) == 1 else None
+    profiling = start_profile(service, profile_seconds) if profile_seconds and os.geteuid() == 0 else None
+    if profile_seconds and os.geteuid() != 0:
+        print("Python profile skipped: root required (py-spy reads the Odoo processes)")
     tally = Tally()
     start = time.time()
+    direct = url if re.match(r"https?://(127\.0\.0\.1|localhost|\[::1\])(:|/|$)", url) else None
+    if not direct:                                           # through nginx: the HTTP port of Odoo, for the static files
+        http_ports, _gevent = odoo_conf_ports()
+        direct = f"http://127.0.0.1:{http_ports[0]}" if http_ports else None
+    if direct:
+        workers = odoo_workers()
+        n_static, slow_static, slowest_static = warm_statics(direct, workers, repetitions, tally)
+        print(f"Static files of every worker ({direct}, {workers or '?'} workers): {n_static} requests, {slow_static} slower than {STATIC_SLOW:g} s (first static file of a worker), slowest {slowest_static:.1f} s")
     n_assets = warm_public(client, pages, repetitions, tally, links_count, languages)
     administration = None
     if login and key_file:
@@ -1096,6 +1284,10 @@ def main():
             return 2
         administration = warm_admin(client, database, login, key, models, repetitions, tally, latest, languages)
     failures = tally.display()
+    state, text = check_tmpdir(service) if service else ("unknown", "Odoo unit unknown (SERVICE or --service)")
+    print(("[OK]   " if state == "ok" else "[ATTN] " if state in ("restart", "disk") else "[INFO] ") + "Temporary files: " + text)
+    if profiling:
+        finish_profile(profiling, profile_seconds)
     print(f"Warm-up finished in {time.time() - start:.0f} s : {len(tally.lines)} appels, {n_assets} assets publics, {failures} failures"
           + ("" if administration is not None else " ; administration not warmed up (set LOGIN and KEY_FILE)."))
     return 1 if failures or administration is False else 0

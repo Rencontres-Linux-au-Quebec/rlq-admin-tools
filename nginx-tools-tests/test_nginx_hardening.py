@@ -1293,8 +1293,15 @@ class RapportsEtTmp2113(unittest.TestCase):
     """2.113 : étape 17b, report.url = http://127.0.0.1:PORT ajouté s'il manque (jamais par-dessus une valeur à la main, jamais avec un dbfilter
     qui dépend du nom), et TMPDIR d'Odoo dans /run/odoo-tmp par un fichier .d de l'unité (jamais de redémarrage)."""
 
-    def lancer(self, report_url="", dbfilter="", run_libre=4096, check=0, ps="", db_name=""):
+    def lancer(self, report_url="", dbfilter="", run_libre=4096, check=0, ps="", db_name="", environ=None):
         d = tempfile.mkdtemp(prefix="test-rlq-rapports-")
+        extra = ""
+        if environ is not None:                                                         # 2.115: drop-in already there, process 4242 running
+            os.makedirs(os.path.join(d, "systemd/erplibre.service.d"))
+            open(os.path.join(d, "systemd/erplibre.service.d/91-nginx-hardening-tmpdir.conf"), "w").write("[Service]\n")
+            os.makedirs(os.path.join(d, "proc/4242"))
+            open(os.path.join(d, "proc/4242/environ"), "wb").write(environ)
+            extra = f"NGINX_HARDENING_PROC={d}/proc\nNGINX_HARDENING_MAINPID=4242\n"
         with open(os.path.join(d, "ps"), "w") as f:
             f.write(ps)
         self.addCleanup(shutil.rmtree, d, True)
@@ -1311,7 +1318,7 @@ class RapportsEtTmp2113(unittest.TestCase):
             debut = src.index(nom)
             fonction += src[debut:src.index("\n}\n", debut) + 3]
         script = (f"NGINX_HARDENING_PSQL={psql}\nNGINX_HARDENING_SYSTEMD_DIR={d}/systemd\nODOO_HTTP_PORT=10000\nODOO_CONF=/x\nodoo_service=erplibre.service\n"
-                  f"CHECK_ONLY={check}\nEUID=0\nNGINX_HARDENING_PS={d}/ps\n"
+                  f"CHECK_ONLY={check}\nEUID=0\nNGINX_HARDENING_PS={d}/ps\n" + extra +
                   f"odoo_conf_valeur() {{ [[ \"$2\" == dbfilter ]] && echo '{dbfilter}'; [[ \"$2\" == db_name ]] && echo '{db_name}'; return 0; }}\n"
                   f"df() {{ echo 'Filesystem 1M-blocks Used Available'; echo 'tmpfs 9999 1 {run_libre} 1% /run'; }}\n"
                   "pass() { echo \"PASS $*\"; }\nwarn() { echo \"WARN $*\"; }\nfail() { echo \"FAIL $*\"; }\nrun() { echo \"$*\" >> " + d + "/appels; }\n"
@@ -1335,6 +1342,14 @@ class RapportsEtTmp2113(unittest.TestCase):
         self.assertIn("RuntimeDirectory=odoo-tmp", dropin)
         self.assertIn("systemctl daemon-reload", self.appels)
         self.assertNotIn("restart", self.appels)                                       # never restarted by the script
+
+    def test_2115_tmpdir_actif_ou_redemarrage_a_faire(self):
+        """2.115 : fichier .d présent : TMPDIR du processus principal d'Odoo en marche dit s'il est actif ; sinon, redémarrage à faire."""
+        out, _r, _d = self.lancer(environ=b"PATH=/usr/bin\0TMPDIR=/run/odoo-tmp\0")
+        self.assertIn("PASS Odoo : fichiers temporaires (TMPDIR) dans /run/odoo-tmp, en mémoire, actif (processus 4242)", out)
+        out, _r, _d = self.lancer(environ=b"PATH=/usr/bin\0HOME=/opt/odoo\0")
+        self.assertIn("n'a pas été redémarré depuis : ses fichiers temporaires restent dans /tmp", out)
+        self.assertIn("--restart-only", out)
 
     def test_2114_base_de_la_ligne_de_commande_et_db_name_false(self):
         """2.114 : la base servie vient de « -d NOM » des processus d'Odoo ; db_name = False n'est pas une base ; aucune base : un avertissement."""

@@ -185,8 +185,8 @@ msgstr "--report-err indisponible (apps/_rapport.py absent) — exécution norma
 msgid "events"
 msgstr "événements"
 
-msgid " » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)"
-msgstr " » (clés : URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST : nombres ; LANGUAGE : en, fr, auto)"
+msgid " » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST, PROFILE: numbers; LANGUAGE: en, fr, auto)"
+msgstr " » (clés : URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST, PROFILE : nombres ; LANGUAGE : en, fr, auto)"
 
 msgid " (not public)"
 msgstr " (non public)"
@@ -202,9 +202,6 @@ msgstr "Charge aussi N pages liées trouvées dans les pages publiques (fiches d
 
 msgid "; 0: none). Key LINKS"
 msgstr " ; 0 : aucune). Clé LINKS"
-
-msgid "--links and --latest must be positive numbers or zero"
-msgstr "--links et --latest doivent être des nombres positifs ou zéro"
 
 msgid " latest events/surveys, "
 msgstr " derniers événements/sondages, "
@@ -309,3 +306,114 @@ msgstr "Retirer le préchauffage au démarrage"
 
 msgid "interactive menu of the common operations (dialog if installed; terminal required)"
 msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+
+msgid "Static files of every worker ("
+msgstr "Fichiers statiques de chaque worker ("
+
+msgid " workers): "
+msgstr " workers) : "
+
+msgid " requests, "
+msgstr " requêtes, "
+
+msgid " slower than "
+msgstr " plus lentes que "
+
+msgid " s (first static file of a worker), slowest "
+msgstr " s (premier fichier statique d'un worker), la plus lente "
+
+msgid "Temporary files: "
+msgstr "Fichiers temporaires : "
+
+msgid "no running Odoo process found"
+msgstr "aucun processus d'Odoo en marche"
+
+msgid "environment of the Odoo processes unreadable (root required)"
+msgstr "environnement des processus d'Odoo illisible (root requis)"
+
+msgid "Odoo still writes its temporary files in /tmp: "
+msgstr "Odoo écrit encore ses fichiers temporaires dans /tmp : "
+
+msgid " is not active yet; restart Odoo when the site is quiet (odoo-update-module.sh --restart-only)"
+msgstr " n'est pas encore actif ; redémarrer Odoo à une heure creuse (odoo-update-module.sh --restart-only)"
+
+msgid "Odoo writes its temporary files in /tmp ("
+msgstr "Odoo écrit ses fichiers temporaires dans /tmp ("
+
+msgid "); nginx-hardening.sh --update puts them in memory (/run/odoo-tmp)"
+msgstr ") ; nginx-hardening.sh --update les met en mémoire (/run/odoo-tmp)"
+
+msgid "Odoo writes its temporary files in memory: TMPDIR="
+msgstr "Odoo écrit ses fichiers temporaires en mémoire : TMPDIR="
+
+msgid "Odoo writes its temporary files in TMPDIR="
+msgstr "Odoo écrit ses fichiers temporaires dans TMPDIR="
+
+msgid ", not in memory"
+msgstr ", pas en mémoire"
+
+msgid "Odoo unit unknown (SERVICE or --service)"
+msgstr "unité d'Odoo inconnue (SERVICE ou --service)"
+
+msgid "Python profile skipped: "
+msgstr "Profil Python sauté : "
+
+msgid "apps/_pyprofile.py missing"
+msgstr "apps/_pyprofile.py absent"
+
+msgid "no running Odoo unit (SERVICE or --service)"
+msgstr "aucune unité d'Odoo en marche (SERVICE ou --service)"
+
+msgid "Python profile skipped: py-spy is not available (root required to install it and to read the Odoo processes)"
+msgstr "Profil Python sauté : py-spy n'est pas disponible (root requis pour l'installer et lire les processus d'Odoo)"
+
+msgid "Python profile skipped: root required (py-spy reads the Odoo processes)"
+msgstr "Profil Python sauté : root requis (py-spy lit les processus d'Odoo)"
+
+msgid "Python profile of the Odoo processes ("
+msgstr "Profil Python des processus d'Odoo ("
+
+msgid " and its workers) for "
+msgstr " et ses workers) pendant "
+
+msgid " s, during the warm-up"
+msgstr " s, pendant le préchauffage"
+
+msgid "Python profile: no sample ("
+msgstr "Profil Python : aucun échantillon ("
+
+msgid "Python profile: "
+msgstr "Profil Python : "
+
+msgid " samples, "
+msgstr " échantillons, "
+
+msgid "  Where the processor time goes (last function of each sample):"
+msgstr "  Où va le temps processeur (dernière fonction de chaque échantillon) :"
+
+msgid "  Functions that hold the time (with what they call):"
+msgstr "  Fonctions qui retiennent le temps (avec ce qu'elles appellent) :"
+
+msgid "  Summary kept in "
+msgstr "  Résumé gardé dans "
+
+msgid " (raw samples: "
+msgstr " (échantillons bruts : "
+
+msgid "Installing py-spy (apt-get install py-spy)..."
+msgstr "Installation de py-spy (apt-get install py-spy)..."
+
+msgid "Installing pip (apt-get install python3-pip)..."
+msgstr "Installation de pip (apt-get install python3-pip)..."
+
+msgid "Installing py-spy (pip install py-spy)..."
+msgstr "Installation de py-spy (pip install py-spy)..."
+
+msgid "Samples the Python of the Odoo processes during the warm-up for SECONDS with py-spy, installed if missing (default: "
+msgstr "Échantillonne le Python des processus d'Odoo pendant le préchauffage, SECONDES durant, avec py-spy, installé s'il manque (défaut : "
+
+msgid "; 0: none; root). Key PROFILE"
+msgstr " ; 0 : aucun ; root). Clé PROFILE"
+
+msgid "--links, --latest and --profile must be positive numbers or zero"
+msgstr "--links, --latest et --profile doivent être des nombres positifs ou zéro"

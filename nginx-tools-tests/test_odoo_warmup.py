@@ -1,6 +1,9 @@
 """odoo-warmup.py — préchauffage du cache d'Odoo (pages publiques, assets, administration, démarrage automatique systemd) contre un FAUX serveur Odoo."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
 ENVIRONNEMENT = "odoo"   # Odoo seulement
+import shutil
+import types
+import unittest.mock
 import json
 import os
 import threading
@@ -47,7 +50,7 @@ class FauxOdoo(BaseHTTPRequestHandler):
             self.end_headers()
         elif self.path in ("/en_CA/event", "/es_MX/event", "/contactus", "/blog", "/", "/web/login", "/survey", "/event/jpol-1", "/event/jpol-2/register", "/event/jpol-3", "/event/dernier-9", "/survey/start/tok1"):
             self._repondre(200, PAGE)
-        elif self.path.startswith("/web/assets/"):
+        elif self.path.startswith("/web/assets/") or self.path.startswith("/web/static/"):
             self._repondre(200, "x")
         elif self.path == "/odoo":
             self._repondre(200, CLIENT)
@@ -269,6 +272,64 @@ class OdooWarmup(EnvTest):
         self.assertNotEqual(code, 0)
         code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
         self.assertFalse(os.path.exists(unite))
+
+    def test_140_fichiers_statiques_de_chaque_worker(self):
+        """1.40 : les polices lues par wkhtmltopdf sont demandées en parallèle directement à Odoo (2 fois par worker au moins), jamais par nginx."""
+        code, out, err = self.lancer("--url", self.url, "--wait", "5", "--repeat", "2", "--profile", "0")
+        self.assertEqual(code, 0, out + err)
+        for police in ("/web/static/fonts/lato/Lato-Reg-webfont.woff", "/web/static/fonts/lato/Lato-Bol-webfont.woff"):
+            self.assertEqual(FauxOdoo.appels.count(("GET", police)), 4)                     # max(2 x workers, 2 x --repeat, 4)
+        self.assertIn("Fichiers statiques de chaque worker", out)
+        self.assertNotIn("Profil Python", out)                                            # --profile 0: none
+
+    def test_140_tmpdir_en_memoire_ou_redemarrage(self):
+        """1.40 : TMPDIR des processus d'Odoo en marche sur un tmpfs ; fichier .d présent sans TMPDIR : redémarrage à faire ; sur le disque."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module140", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        proc, mounts = os.path.join(self.d, "proc140"), os.path.join(self.d, "mounts")
+        with open(mounts, "w") as f:
+            f.write("rpool/root / zfs rw 0 0\ntmpfs /run tmpfs rw 0 0\n")
+
+        def processus(environ):
+            shutil.rmtree(proc, True)
+            for pid, parent in (("500", "1"), ("501", "500")):
+                os.makedirs(os.path.join(proc, pid))
+                open(os.path.join(proc, pid, "cmdline"), "wb").write(b"python3\0odoo-bin\0")
+                open(os.path.join(proc, pid, "stat"), "w").write(f"{pid} (python3) S {parent} 0 0")
+                open(os.path.join(proc, pid, "environ"), "wb").write(environ)
+        systemd = os.path.join(self.d, "sd140")
+        with unittest.mock.patch.dict(os.environ, {"ODOO_WARMUP_SYSTEMD_DIR": systemd}), \
+             unittest.mock.patch.object(module.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout="500\n", returncode=0)):
+            processus(b"TMPDIR=/run/odoo-tmp\0")
+            self.assertEqual(module.check_tmpdir("erplibre.service", proc, mounts)[0], "ok")
+            processus(b"PATH=/usr/bin\0")
+            self.assertEqual(module.check_tmpdir("erplibre.service", proc, mounts)[0], "disk")
+            os.makedirs(os.path.join(systemd, "erplibre.service.d"))
+            open(os.path.join(systemd, "erplibre.service.d", "91-nginx-hardening-tmpdir.conf"), "w").write("[Service]\n")
+            etat, texte = module.check_tmpdir("erplibre.service", proc, mounts)
+            self.assertEqual(etat, "restart")
+            self.assertIn("--restart-only", texte)
+            processus(b"TMPDIR=/var/tmp/odoo\0")
+            self.assertEqual(module.check_tmpdir("erplibre.service", proc, mounts), ("disk", "Odoo writes its temporary files in TMPDIR=/var/tmp/odoo, on zfs, not in memory"))
+        self.assertEqual(module.odoo_pids(None, os.path.join(self.d, "vide"))[1], [])
+
+    def test_140_profil_resume_garde(self):
+        """1.40 : le résumé de py-spy est affiché et gardé dans PROFILE_DIR ; aucun échantillon : un message, rien de gardé."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module141", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        raw = os.path.join(self.d, "profile-20261118-160000.raw.txt")
+        processus = types.SimpleNamespace(communicate=lambda timeout=None: ("", None), kill=lambda: None)
+        resume = {"samples": 100, "processes": 3, "leaf": [(0.7, "get_manifest", "odoo/modules/module.py")], "held": [(0.7, "statics", "odoo/http.py")]}
+        prof = types.SimpleNamespace(summarize=lambda _p: resume)
+        lignes = module.finish_profile((processus, raw, prof), 5)
+        self.assertIn("get_manifest", "\n".join(lignes))
+        self.assertTrue(os.path.isfile(raw.replace(".raw.txt", ".txt")))
+        prof.summarize = lambda _p: {"samples": 0, "processes": 0, "leaf": [], "held": []}
+        self.assertEqual(module.finish_profile((processus, raw, prof), 5), [])
 
     def test_unite_systemd_trouvee_par_le_processus_odoo(self):
         import importlib.util
