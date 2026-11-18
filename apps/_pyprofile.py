@@ -12,20 +12,38 @@
 # main process of the service AND its children (the prefork workers of Odoo) without stopping them (--nonblocking), for a while, then the
 # samples are summed per function: where the processor time is spent (last frame) and which functions of the application hold the time
 # (every frame, the frames common to almost all the samples left out: the loop of the server). py-spy is installed when missing.
-"""p = find_pyspy() or install_pyspy(run); code, err = record(p, pid, seconds, raw_path, run_live); s = summarize(raw_path)"""
+# 1.1: every profile of every program in ONE place, /var/lib/python-profile/profile-HOST-PROGRAM-YYYYMMDD-HHMMSS.txt (summary) and .raw.txt
+# (samples of py-spy), like the other programs of the repository (/var/lib/PROGRAM, name of the server in the file name); the summary leaves
+# out the frames of the server and of the frameworks, sums the time per module of the application and names the known causes.
+"""raw, text = profile_paths("odoo-warmup"); cmd = record_command(pyspy, pid, s, raw); s = summarize(raw); lines = report_lines(s, tr); save(lines, text)"""
+import glob
 import os
 import re
 import shutil
 import subprocess
+import time
 from collections import Counter
 
-__version__ = "1.0.20261118.143832"
+__version__ = "1.1.20261118.172706"
 
 # py-spy « raw » (collapsed stacks): « frame;frame;...;frame COUNT », frame = « function (file.py:line) »; with --subprocesses the first frame
 # can be « process PID:"command" »
 RAW_RE = re.compile(r"^(.*) (\d+)$")
 FRAME_RE = re.compile(r"^(.*?) \((.*?)(?::(\d+))?\)$")
 PYSPY_PATHS = ("py-spy", "/usr/bin/py-spy", "/usr/local/bin/py-spy", "/root/.local/bin/py-spy")
+PROFILE_DIRS = (os.environ.get("PYPROFILE_DIR"), "/var/lib/python-profile", os.path.join(os.path.expanduser("~"), ".cache", "python-profile"))
+PROFILE_KEEP = 20                                       # profiles kept per program (summary and samples)
+# Frames that say nothing about the application: loop of the prefork server, sockets, WSGI, dispatch of Odoo, decorators, caches
+INFRA_FILES = ("threading.py", "socketserver.py", "http/server.py", "werkzeug/serving.py", "odoo/service/server.py", "odoo/service/model.py",
+               "odoo/http.py", "odoo/tools/facade.py", "decorator.py", "odoo/tools/profiler.py", "odoo/tools/cache.py", "odoo/tools/func.py",
+               "odoo-bin", "odoo/cli/", "gevent/hub.py", "selectors.py")
+IDLE_FUNCTIONS = ("PreforkServer.sleep", "Worker.sleep", "Hub.run", "select", "poll", "accept")
+# Known causes: (function of the stack, minimum share, text). The share is that of the active samples holding the function.
+CAUSES = (("IrQWeb._compile", 0.15, "QWeb templates compiled: the first time a page is shown in EACH worker, Odoo compiles its templates (a cache per process): a warm-up of every worker (odoo-warmup.py) or fewer restarts and replaced workers"),
+          ("Cursor.execute", 0.25, "waiting for PostgreSQL: SQL queries (host-perf-audit.py --io-latency shows the queries and the tables read from the disk)"),
+          ("Application.statics", 0.05, "list of the static folders of every module: first static file of a worker (odoo-warmup.py asks them to every worker)"),
+          ("_get_contextual_pricelist", 0.05, "prices of the event tickets (website_sale pricelists) computed for each page"),
+          ("Users._has_group", 0.10, "rights of the user checked again and again in the templates (has_group)"))
 APT_ENV = dict(os.environ, DEBIAN_FRONTEND="noninteractive", NEEDRESTART_MODE="a")
 
 
@@ -77,6 +95,42 @@ def record_command(pyspy, pid, seconds, raw_path, rate=50):
             "--format", "raw", "--output", raw_path]
 
 
+def profile_paths(program, host=None, when=None):
+    """(samples, summary) paths of a new profile of `program`: the first writable folder of PROFILE_DIRS (created if needed)."""
+    host = host or os.uname().nodename.split(".")[0]
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(when))
+    for folder in PROFILE_DIRS:
+        if not folder:
+            continue
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError:
+            continue
+        if os.access(folder, os.W_OK):
+            base = os.path.join(folder, f"profile-{host}-{program}-{stamp}")
+            return base + ".raw.txt", base + ".txt"
+    base = os.path.join("/tmp", f"profile-{host}-{program}-{stamp}")
+    return base + ".raw.txt", base + ".txt"
+
+
+def save(lines, text_path, program, keep=PROFILE_KEEP):
+    """Writes the summary; keeps the `keep` latest profiles of `program` in its folder (summaries and samples). Returns True when written."""
+    try:
+        with open(text_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        return False
+    folder = os.path.dirname(text_path)
+    for suffix in (".raw.txt", ".txt"):
+        olds = sorted(x for x in glob.glob(os.path.join(folder, f"profile-*-{program}-*{suffix}")) if suffix == ".raw.txt" or not x.endswith(".raw.txt"))
+        for old in olds[:-keep]:
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+    return True
+
+
 def parse_frame(frame):
     """(function, file, line) of a frame of py-spy."""
     m = FRAME_RE.match(frame.strip())
@@ -87,6 +141,8 @@ def parse_frame(frame):
 
 def short_file(path):
     """The end of a path that names the module: …/odoo/http.py, …/addons/website/models/ir_http.py."""
+    if not path.startswith("/"):                          # py-spy already gives the path from the package (werkzeug/serving.py)
+        return path
     for marker in ("/odoo/addons/", "/addons/", "/odoo/", "/site-packages/", "/lib/python"):
         i = path.rfind(marker)
         if i >= 0:
@@ -94,11 +150,34 @@ def short_file(path):
     return os.path.basename(path)
 
 
+def is_infra(path):
+    return any(marker in path for marker in INFRA_FILES) or path.startswith("<frozen")
+
+
+def module_of(fn, path):
+    """Module of the application a frame belongs to: addon of Odoo (website, base...), the ORM, compiled QWeb templates, or a Python library."""
+    if path.startswith("<") and path[1:-1].isdigit():
+        return "QWeb templates (rendering)"
+    if path.startswith("odoo/addons/"):
+        return path.split("/")[2]
+    if path.startswith("addons/"):
+        return path.split("/")[1]
+    if path in ("odoo/models.py", "odoo/fields.py", "odoo/api.py"):
+        return "odoo (ORM)"
+    if path.startswith("odoo/"):
+        return "odoo (" + path.split("/")[-1] + ")"
+    parts = path.split("/")
+    return parts[0] if len(parts) > 1 and "." not in parts[0] else (parts[-1].rsplit(".", 1)[0] or "?")
+
+
 def summarize(raw_path, top=12, common=0.9):
-    """{"samples", "processes", "leaf": [(share, function, file)], "held": [(share, function, file)]} of a collapsed file of py-spy.
-    leaf: where the processor time is spent (last frame of each sample); held: functions present in the stacks (inclusive time), the frames
-    present in at least `common` of the samples left out (the loop of the server, the start of the request: always there, they say nothing)."""
-    samples, leaf, held, processes = 0, Counter(), Counter(), set()
+    """Summary of a collapsed file of py-spy (samples of the busy threads only: py-spy leaves out the idle ones):
+    {"samples", "idle", "processes", "leaf": [(share, function, file)], "held": [(share, function, file)], "modules": [(share, module)],
+     "causes": [(share, text)]}. leaf: last frame of each sample (where the processor time goes); held: the functions of the application in the
+    stacks (inclusive time; frames of the server and of the frameworks, and frames present in `common` of the samples, left out); modules:
+    inclusive time per module of the application; causes: known causes over their threshold. Shares are of the busy samples."""
+    samples, idle, leaf, held, modules, processes = 0, 0, Counter(), Counter(), Counter(), set()
+    empty = {"samples": 0, "idle": 0, "processes": 0, "leaf": [], "held": [], "modules": [], "causes": []}
     try:
         with open(raw_path, encoding="utf-8", errors="replace") as f:
             for line in f:
@@ -107,22 +186,55 @@ def summarize(raw_path, top=12, common=0.9):
                     continue
                 stack, n = m.group(1), int(m.group(2))
                 frames = [x for x in stack.split(";") if x]
-                if frames and frames[0].startswith("process "):
-                    processes.add(frames[0].split(":", 1)[0])
-                    frames = frames[1:]
+                owner = None
+                while frames and frames[0].startswith("process "):        # --subprocesses: run.sh;odoo_bin.sh;odoo-bin;worker: the last is the owner
+                    owner = frames.pop(0).split(":", 1)[0]
+                if owner:
+                    processes.add(owner)
                 frames = [x for x in frames if not x.startswith("thread ")]
                 if not frames:
                     continue
+                parsed = [(fn, short_file(path)) for fn, path, _ln in map(parse_frame, frames)]
+                if any(fn.endswith(name) for fn, _p in parsed[-1:] for name in IDLE_FUNCTIONS):
+                    idle += n
+                    continue
                 samples += n
-                fn, path, _ln = parse_frame(frames[-1])
-                leaf[(fn, short_file(path))] += n
-                for key in {(parse_frame(x)[0], short_file(parse_frame(x)[1])) for x in frames}:
+                leaf[parsed[-1]] += n
+                for key in set(parsed):
                     held[key] += n
+                for name in {module_of(fn, path) for fn, path in parsed if not is_infra(path)}:
+                    modules[name] += n
     except OSError:
-        return {"samples": 0, "processes": 0, "leaf": [], "held": []}
+        return empty
     if not samples:
-        return {"samples": 0, "processes": len(processes), "leaf": [], "held": []}
-    held_list = [(v / samples, fn, path) for (fn, path), v in held.items() if v / samples < common]
-    return {"samples": samples, "processes": len(processes),
+        return dict(empty, idle=idle, processes=len(processes))
+    held_list = [(v / samples, fn, path) for (fn, path), v in held.items() if v / samples < common and not is_infra(path)]
+    causes = []
+    for function, threshold, text in CAUSES:
+        share = max((v for (fn, _p), v in held.items() if fn.endswith(function)), default=0) / samples
+        if share >= threshold:
+            causes.append((share, text))
+    return {"samples": samples, "idle": idle, "processes": len(processes),
             "leaf": [(v / samples, fn, path) for (fn, path), v in leaf.most_common(top)],
-            "held": sorted(held_list, reverse=True)[:top]}
+            "held": sorted(held_list, reverse=True)[:top],
+            "modules": [(v / samples, name) for name, v in modules.most_common(8)],
+            "causes": sorted(causes, reverse=True)}
+
+
+def report_lines(summary, tr=lambda t: t):
+    """Text of the summary, translated by `tr` (catalogue lang/_pyprofile.LANG.po)."""
+    lines = [tr("Python profile: {samples} busy samples in {processes} processes ({idle} idle samples left out); each sample is 1/50 s of a busy worker").format(
+        samples=summary["samples"], processes=summary["processes"] or 1, idle=summary.get("idle", 0))]
+    if summary["samples"] < 100:
+        lines.append(tr("  Few samples: Odoo was almost idle during the profile; profile while the site is slow, or longer"))
+    if summary.get("causes"):
+        lines.append(tr("  What takes the time:"))
+        lines += [f"    {share * 100:5.1f} %  " + tr(text) for share, text in summary["causes"]]
+    if summary.get("modules"):
+        lines.append(tr("  Time per module of the application (with what it calls):"))
+        lines += [f"    {share * 100:5.1f} %  {tr(name) if name.startswith(('QWeb', 'odoo (')) else name}" for share, name in summary["modules"]]
+    lines.append(tr("  Where the processor time goes (last function of each sample):"))
+    lines += [f"    {share * 100:5.1f} %  {fn}  ({path})" for share, fn, path in summary["leaf"]]
+    lines.append(tr("  Functions of the application that hold the time (with what they call):"))
+    lines += [f"    {share * 100:5.1f} %  {fn}  ({path})" for share, fn, path in summary["held"]]
+    return lines

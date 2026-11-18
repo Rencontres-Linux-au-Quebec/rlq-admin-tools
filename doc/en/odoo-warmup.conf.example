@@ -22,7 +22,7 @@
 # --latest : pages publiques des N derniers événements et sondages (lus avec la session d'administration LOGIN / KEY_FILE) ; 0 = aucun
 #LATEST=5
 # 1.40: seconds of py-spy profile of the Odoo processes during the warm-up (installed if missing, root;
-# summary in /var/log/odoo-warmup/); 0 = none.
+# summary in /var/lib/python-profile/, with the profiles of app-log-live.py --profile); 0 = none.
 #PROFILE=60
 # --links : pages liées trouvées dans les pages publiques (fiches d'événements, sondages...) à charger aussi ; 0 = aucune
 #LINKS=6

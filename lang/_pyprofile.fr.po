@@ -1,0 +1,58 @@
+# French translation of the messages of apps/_pyprofile.py (msgid = English text of the code, msgstr = French translation).
+# Standard PO format. Empty msgstr = untranslated (English stays). Keep the {placeholders} and the leading/trailing spaces.
+msgid ""
+msgstr ""
+"Project-Id-Version: _pyprofile\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Python profile: {samples} busy samples in {processes} processes ({idle} idle samples left out); each sample is 1/50 s of a busy worker"
+msgstr "Profil Python : {samples} échantillons actifs dans {processes} processus ({idle} échantillons inactifs écartés) ; chaque échantillon vaut 1/50 s d'un worker occupé"
+
+msgid "  Few samples: Odoo was almost idle during the profile; profile while the site is slow, or longer"
+msgstr "  Peu d'échantillons : Odoo était presque inactif pendant le profil ; profiler pendant que le site est lent, ou plus longtemps"
+
+msgid "  What takes the time:"
+msgstr "  Ce qui prend le temps :"
+
+msgid "  Time per module of the application (with what it calls):"
+msgstr "  Temps par module de l'application (avec ce qu'il appelle) :"
+
+msgid "  Where the processor time goes (last function of each sample):"
+msgstr "  Où va le temps processeur (dernière fonction de chaque échantillon) :"
+
+msgid "  Functions of the application that hold the time (with what they call):"
+msgstr "  Fonctions de l'application qui retiennent le temps (avec ce qu'elles appellent) :"
+
+msgid "QWeb templates (rendering)"
+msgstr "Gabarits QWeb (affichage)"
+
+msgid "QWeb templates compiled: the first time a page is shown in EACH worker, Odoo compiles its templates (a cache per process): a warm-up of every worker (odoo-warmup.py) or fewer restarts and replaced workers"
+msgstr "Gabarits QWeb compilés : la première fois qu'une page est affichée dans CHAQUE worker, Odoo compile ses gabarits (un cache par processus) : préchauffer chaque worker (odoo-warmup.py), ou moins de redémarrages et de workers remplacés"
+
+msgid "waiting for PostgreSQL: SQL queries (host-perf-audit.py --io-latency shows the queries and the tables read from the disk)"
+msgstr "attente de PostgreSQL : requêtes SQL (host-perf-audit.py --io-latency montre les requêtes et les tables lues sur le disque)"
+
+msgid "list of the static folders of every module: first static file of a worker (odoo-warmup.py asks them to every worker)"
+msgstr "liste des dossiers statiques de tous les modules : premier fichier statique d'un worker (odoo-warmup.py les demande à chaque worker)"
+
+msgid "prices of the event tickets (website_sale pricelists) computed for each page"
+msgstr "prix des billets d'événements (listes de prix de website_sale) calculés à chaque page"
+
+msgid "rights of the user checked again and again in the templates (has_group)"
+msgstr "droits de l'utilisateur vérifiés encore et encore dans les gabarits (has_group)"
+
+msgid "Installing py-spy (apt-get install py-spy)..."
+msgstr "Installation de py-spy (apt-get install py-spy)..."
+
+msgid "Installing pip (apt-get install python3-pip)..."
+msgstr "Installation de pip (apt-get install python3-pip)..."
+
+msgid "Installing py-spy (pip install py-spy)..."
+msgstr "Installation de py-spy (pip install py-spy)..."
+
+msgid "py-spy missing and not installed (root required)."
+msgstr "py-spy absent et non installé (root requis)."

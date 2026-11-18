@@ -122,12 +122,12 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.197.20261118.143832"
+__version__ = "1.198.20261118.172706"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 # Catalogues of the shared modules whose messages this program displays (lang/NAME.LANG.po), read at start and again by refresh_translations().
-SUPPLEMENTARY_CATALOGUES = ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites", "_advisor")
+SUPPLEMENTARY_CATALOGUES = ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites", "_advisor", "_pyprofile")
 
 
 def catalogues_mtime():
@@ -3033,10 +3033,6 @@ def service_main_pid(service):
     return int(out) if out.isdigit() and int(out) > 0 else None
 
 
-PYSPY_MESSAGES = ("Installing py-spy (apt-get install py-spy)...", "Installing pip (apt-get install python3-pip)...", "Installing py-spy (pip install py-spy)...",
-                  "py-spy missing and not installed (root required).")      # 1.197: said by apps/_pyprofile.py, translated by show_profile() (catalogue)
-
-
 def show_profile(service, seconds, write_line=print, color=True):
     """1.197 --profile: py-spy samples the master process of the service and its workers for SECONDS, then the summary: where the processor
     time goes (last function of each sample) and the functions of the application that hold the time. Returns the exit code."""
@@ -3053,7 +3049,7 @@ def show_profile(service, seconds, write_line=print, color=True):
     if not pyspy:
         eprint(TR("ERROR: py-spy is not available; --profile needs it."))
         return 2
-    raw = os.path.join(tempfile.mkdtemp(prefix="app-log-live-profile-"), "profile.txt")
+    raw, text_path = prof.profile_paths("app-log-live")               # 1.198: every profile in one place (/var/lib/python-profile)
     write_line(color_code(STYLES["title"], TR("Python profile of {service} (process {pid} and its workers) for {seconds} s; the site keeps running").format(service=service, pid=pid, seconds=seconds)))
     vcmd(prof.record_command(pyspy, pid, seconds, raw))
     try:                                                                  # py-spy writes its errors on stderr: kept for the message
@@ -3065,16 +3061,20 @@ def show_profile(service, seconds, write_line=print, color=True):
     summary = prof.summarize(raw)
     if not summary["samples"]:
         last = output.strip().splitlines()[-1] if output.strip() else str(code)
-        eprint(TR("ERROR: py-spy collected no sample: {reason}").format(reason=last))
+        eprint(TR("ERROR: py-spy collected no sample: {reason}").format(reason=TR("the application stayed idle during the whole profile") if summary.get("idle") else last))
         return 1
-    write_line(TR("{samples} samples, {processes} processes").format(samples=summary["samples"], processes=summary["processes"] or 1))
-    write_line(color_code(STYLES["title"], TR("Where the processor time goes (last function of each sample):")))
-    for share, fn, path in summary["leaf"]:
-        write_line(f"  {color_code(ORANGE if share >= 0.1 else '', f'{share * 100:5.1f} %')}  {fn}  ({path})")
-    write_line(color_code(STYLES["title"], TR("Functions that hold the time (with what they call):")))
-    for share, fn, path in summary["held"]:
-        write_line(f"  {color_code(ORANGE if share >= 0.25 else '', f'{share * 100:5.1f} %')}  {fn}  ({path})")
-    write_line(TR("A worker waiting for a request shows as select/poll/accept: idle, not slow. Raw samples: {path}").format(path=raw))
+    lines = prof.report_lines(summary, TR)
+    for line in lines:
+        if not line.startswith(" ") or line.endswith(":"):
+            line = color_code(STYLES["title"], line)
+        elif line.lstrip()[:1].isdigit():
+            value = float(line.split("%", 1)[0])
+            line = line.replace(f"{value:5.1f} %", color_code(ORANGE, f"{value:5.1f} %"), 1) if value >= 25 else line
+        write_line(line)
+    header = [TR("Python profile of {service} (process {pid} and its workers) for {seconds} s; the site keeps running").format(service=service, pid=pid, seconds=seconds),
+              time.strftime("%Y-%m-%d %H:%M:%S %Z") + f" · {os.uname().nodename} · app-log-live.py {__version__}", ""]
+    if prof.save(header + lines, text_path, "app-log-live"):
+        write_line(TR("Summary kept in {path} (raw samples: {raw})").format(path=text_path, raw=raw))
     return 0
 
 

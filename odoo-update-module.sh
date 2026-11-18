@@ -105,7 +105,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.34.20261118.150000"
+readonly SCRIPT_VERSION="1.35.20261118.172706"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -719,6 +719,10 @@ resume_durees() {
 prechauffer() {
     local prog="$SCRIPT_DIR/odoo-warmup.py" port="${ODOO_CONF_HTTP_PORT:-8069}" log code=0 resume lignes
     etape "Préchauffage du cache"
+    if [[ -z "$JOURNAL" ]]; then          # 1.35: --restart-only does not prepare the update log: its own file, never "-prechauffage.log" in the current folder
+        preparer_journal
+        JOURNAL="${JOURNAL/\/update-//restart-}"
+    fi
     log="${JOURNAL%.log}-prechauffage.log"
     if (( DO_DRY_RUN )); then sim "python3 $prog --url http://127.0.0.1:$port --db $DB --wait 60 --lang fr > $log"; return 0; fi
     if [[ ! -r "$prog" ]] || ! command -v python3 >/dev/null 2>&1; then
@@ -728,20 +732,20 @@ prechauffer() {
     trace python3 "$prog" --url "http://127.0.0.1:$port" --db "$DB" --wait 60 --lang fr
     echo "  ${C_DIM}pages publiques, derniers événements et sondages, administration — en cours…${C_RESET}"
     NGINX_TOOLS_CONFIG_VUE=1 timeout --foreground --kill-after=10 600 python3 "$prog" --url "http://127.0.0.1:$port" --db "$DB" --wait 60 --lang fr > "$log" 2>&1 < /dev/null || code=$?
-    resume=$(grep -E '^Pr.chauffage termin' "$log" | tail -n 1 || true)
+    resume=$(grep -E -e '^Pr.chauffage termin' -- "$log" | tail -n 1 || true)
     if [[ -z "$resume" ]]; then
         attn "préchauffage interrompu (code $code) : voir $log"
-        tail -n 5 "$log" | en_retrait "$C_DIM"
+        tail -n 5 -- "$log" | en_retrait "$C_DIM"
         return 0
     fi
-    lignes=$(grep -cE '^  \[(OK|.CHEC)' "$log" || true)
-    if grep -q '.CHEC ' "$log"; then
+    lignes=$(grep -cE -e '^  \[(OK|.CHEC)' -- "$log" || true)
+    if grep -q -e '.CHEC ' -- "$log"; then
         attn "préchauffage terminé avec des échecs (${lignes} appels) :"
-        grep -E '^  \[.CHEC' "$log" | head -n 5 | cut -c1-160 | en_retrait "$C_YELLOW"
+        grep -E -e '^  \[.CHEC' -- "$log" | head -n 5 | cut -c1-160 | en_retrait "$C_YELLOW"
     else
         ok "cache préchauffé en ${resume#* en }"
     fi
-    if grep -q 'administration non pr.chauff.e' "$log"; then
+    if grep -q -e 'administration non pr.chauff.e' -- "$log"; then
         detail "administration non préchauffée : LOGIN et KEY_FILE à définir dans /etc/default/odoo-warmup.conf (derniers événements et sondages, écrans d'administration)"
     fi
     detail "détail : $log"

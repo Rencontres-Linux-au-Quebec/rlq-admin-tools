@@ -388,26 +388,11 @@ msgstr "Profil Python : "
 msgid " samples, "
 msgstr " échantillons, "
 
-msgid "  Where the processor time goes (last function of each sample):"
-msgstr "  Où va le temps processeur (dernière fonction de chaque échantillon) :"
-
-msgid "  Functions that hold the time (with what they call):"
-msgstr "  Fonctions qui retiennent le temps (avec ce qu'elles appellent) :"
-
 msgid "  Summary kept in "
 msgstr "  Résumé gardé dans "
 
 msgid " (raw samples: "
 msgstr " (échantillons bruts : "
-
-msgid "Installing py-spy (apt-get install py-spy)..."
-msgstr "Installation de py-spy (apt-get install py-spy)..."
-
-msgid "Installing pip (apt-get install python3-pip)..."
-msgstr "Installation de pip (apt-get install python3-pip)..."
-
-msgid "Installing py-spy (pip install py-spy)..."
-msgstr "Installation de py-spy (pip install py-spy)..."
 
 msgid "Samples the Python of the Odoo processes during the warm-up for SECONDS with py-spy, installed if missing (default: "
 msgstr "Échantillonne le Python des processus d'Odoo pendant le préchauffage, SECONDES durant, avec py-spy, installé s'il manque (défaut : "
@@ -417,3 +402,15 @@ msgstr " ; 0 : aucun ; root). Clé PROFILE"
 
 msgid "--links, --latest and --profile must be positive numbers or zero"
 msgstr "--links, --latest et --profile doivent être des nombres positifs ou zéro"
+
+msgid "Pages in every worker ("
+msgstr "Pages dans chaque worker ("
+
+msgid " pages x "
+msgstr " pages x "
+
+msgid " workers, in parallel): "
+msgstr " workers, en parallèle) : "
+
+msgid " failures, slowest "
+msgstr " échecs, la plus lente "
