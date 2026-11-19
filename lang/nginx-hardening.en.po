@@ -3184,3 +3184,12 @@ msgstr "/odoo-update-module.sh --restart-only; back: cp -p "
 
 msgid "--- 17c) Odoo : dossiers d'addons_path et liste des dossiers static ---"
 msgstr "--- 17c) Odoo: folders of addons_path and list of the static folders ---"
+
+msgid "  [INFO] rlq_preload_statics présent dans addons_path ("
+msgstr "  [INFO] rlq_preload_statics present in addons_path ("
+
+msgid ") mais pas dans server_wide_modules : "
+msgstr ") but not in server_wide_modules: "
+
+msgid "/nginx-hardening.sh --update --odoo-preload-statics l'ajoute, puis redémarrer Odoo."
+msgstr "/nginx-hardening.sh --update --odoo-preload-statics adds it, then restart Odoo."

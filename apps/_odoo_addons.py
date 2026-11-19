@@ -22,7 +22,7 @@ import shutil
 import sys
 import time
 
-__version__ = "1.0.20261118.192321"
+__version__ = "1.1.20261118.193104"
 
 PRELOAD = "rlq_preload_statics"
 CORE_MODULES = ("base", "web")                      # a folder with one of them is the core of Odoo: always kept
@@ -75,9 +75,11 @@ def analyze(text, installed, preload_dir=None):
     if not swm:
         has_rpc = any("rpc" in mods for mods in per_path.values())
         swm = ["base", "rpc", "web"] if has_rpc else list(DEFAULT_SWM)
-    preload = PRELOAD in swm and (preload_dir is None or os.path.realpath(preload_dir) in {os.path.realpath(p) for p in paths})
+    # 1.1: the module where it already is in addons_path (rlq-odoo-addons): only server_wide_modules to complete; otherwise preload_dir added
+    found = next((p for p in paths if PRELOAD in per_path[p]), "")
+    preload = PRELOAD in swm and bool(found or (preload_dir and os.path.realpath(preload_dir) in {os.path.realpath(p) for p in paths}))
     return {"paths": paths, "modules": sum(len(m) for m in per_path.values()), "per_path": per_path, "keep": keep, "unused": unused,
-            "swm": swm, "preload": preload,
+            "swm": swm, "preload": preload, "preload_path": found,
             "installed_found": len(set(installed) & {m for mods in per_path.values() for m in mods}),
             "unused_modules": sum(len(per_path[p]) for p in unused)}
 
@@ -87,7 +89,7 @@ def new_text(text, result, trim, preload_dir):
     paths = list(result["keep"] if trim else result["paths"])
     swm = list(result["swm"])
     if preload_dir:
-        if os.path.realpath(preload_dir) not in {os.path.realpath(p) for p in paths}:
+        if not result.get("preload_path") and os.path.realpath(preload_dir) not in {os.path.realpath(p) for p in paths}:
             paths.append(preload_dir)
         if PRELOAD not in swm:
             swm.append(PRELOAD)
@@ -126,6 +128,7 @@ def main(argv=None):
     print(f"unused_modules={r['unused_modules']}")
     print(f"swm={','.join(r['swm'])}")
     print(f"preload={1 if r['preload'] else 0}")
+    print(f"preload_path={r['preload_path']}")
     if not (a.trim or a.preload):
         return 0
     if a.trim and installed and r["installed_found"] < len(set(installed)):

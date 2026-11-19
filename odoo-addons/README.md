@@ -2,6 +2,12 @@
 
 ## rlq_preload_statics
 
+**EN** - Source: the repository rlq-odoo-addons (`rlq_preload_statics/`). This copy is used only when that module is not already in
+`addons_path`; `nginx-hardening.sh` 2.117 uses the copy of rlq-odoo-addons when it finds it there.
+
+**FR** - Source : le dépôt rlq-odoo-addons (`rlq_preload_statics/`). Cette copie ne sert que si ce module n'est pas déjà dans
+`addons_path` ; `nginx-hardening.sh` 2.117 prend la copie de rlq-odoo-addons quand il l'y trouve.
+
 **EN** - Server-wide module (never installed in a database). The main process of Odoo lists the `static/` folders of every module of
 `addons_path` once, before it starts its workers; every worker, the replaced ones included, inherits the list. Without it, each worker
 builds the list the first time it serves a static file (about 10 s with ERPLibre). Enabled by `nginx-hardening.sh --update --odoo-preload-statics`
