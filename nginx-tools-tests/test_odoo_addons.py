@@ -139,7 +139,7 @@ class OdooAddons(unittest.TestCase):
 
     def test_etape_17c_de_nginx_hardening(self):
         psql = os.path.join(self.d, "psql")
-        open(psql, "w").write("#!/bin/bash\ncase \"${@: -1}\" in *ir_module_module*) printf 'base\\nweb\\nwebsite\\na2\\n' ;; esac\nexit 0\n")
+        open(psql, "w").write("#!/bin/bash\ncase \"${@: -1}\" in *to_regclass*) echo t ;; *ir_module_module*) printf 'base\\nweb\\nwebsite\\na2\\n' ;; esac\nexit 0\n")
         os.chmod(psql, 0o755)
         ps = os.path.join(self.d, "ps")
         open(ps, "w").write("python3 ./odoo-bin -c ./config.conf -d base1\n")
@@ -172,6 +172,30 @@ class OdooAddons(unittest.TestCase):
         out = etape(1)
         self.assertIn("PASS Odoo : chaque dossier d'addons_path contient un module installé", out)
         self.assertIn("PASS Odoo : rlq_preload_statics dans server_wide_modules", out)
+
+    def test_118_odoo_sans_d_ni_db_name(self):
+        """2.118 : Odoo lancé sans -d et db_name = False (DEV d'ERPLibre) : toutes les bases du serveur, sauf celles qui ne sont pas d'Odoo ;
+        modules de plusieurs bases comptés une fois."""
+        psql = os.path.join(self.d, "psql")
+        open(psql, "w").write("#!/bin/bash\nbase=\"$2\"\ncase \"${@: -1}\" in\n"
+                              "  *pg_database*) printf 'base_dev\\nautre\\nbase_test\\n' ;;\n"
+                              "  *to_regclass*) [[ $base == autre ]] && echo f || echo t ;;\n"
+                              "  *ir_module_module*) printf 'base\\nweb\\nwebsite\\na2\\n' ;;\nesac\nexit 0\n")
+        os.chmod(psql, 0o755)
+        ps = os.path.join(self.d, "ps")
+        open(ps, "w").write("python3 ./odoo18.0/odoo/odoo-bin -c ./config.conf\n")
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        fonction = ""
+        for nom in ("odoo_bases_servies() {", "odoo_modules_et_chemins() {"):
+            debut = src.index(nom)
+            fonction += src[debut:src.index("\n}\n", debut) + 3]
+        script = (f"SCRIPT_DIR={SCRIPTS}\nNGINX_HARDENING_PSQL={psql}\nNGINX_HARDENING_PS={ps}\nODOO_CONF={self.conf}\nCHECK_ONLY=1\nEUID=0\n"
+                  "odoo_service=\nodoo_conf_valeur() { echo False; }\nsystemctl() { return 0; }\n"
+                  "pass() { echo \"PASS $*\"; }\nwarn() { echo \"WARN $*\"; }\n" + fonction + "\nodoo_modules_et_chemins\n")
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=60).stdout
+        self.assertIn("4 modules installés (bases : base_dev base_test)", out)
+        self.assertIn("WARN Odoo : 3 dossiers d'addons_path", out)
 
 
 if __name__ == "__main__":

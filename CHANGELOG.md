@@ -4302,6 +4302,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.118.20261118.195309 - Step 17c: installed modules read in every database of Odoo
+
+- Title: step 17c finds the installed modules when Odoo runs without -d and db_name = False.
+- Reason: run of the administrator on 2026-11-18 19:48 in 104 (`--update --odoo-preload-statics --odoo-trim-addons-path`): « 0 modules installés (bases : aucune lue) », so addons_path was not reduced (the preload was added).
+- Changes:
+  - odoo_modules_et_chemins(): third source of the databases, like step 17b: every database of the server (pg_database); the databases without the table ir_module_module (not Odoo) are left out; the line says the databases really read.
+  - apps/_odoo_addons.py 1.2: the installed modules of several databases counted once.
+- Bugs fixed:
+  - Symptom: « 0 modules installés (bases : aucune lue) » in 104. Diagnosis: the Odoo of DEV is started without -d and its db_name is False; step 17b had a fallback to the list of the databases, step 17c did not. Fix: same fallback.
+- Safeguards and edge cases: several Odoo databases on the server: a folder is kept when one of them uses one of its modules.
+- Checks performed: bash -n; nginx-tools-tests/test_odoo_addons.py (new test test_118_odoo_sans_d_ni_db_name; 9 tests).
+- Action required: `sudo /opt/rlq-admin-tools/nginx-hardening.sh --update --odoo-trim-addons-path` in 104, then `odoo-update-module.sh --restart-only`.
+
 ### 2.117.20261118.193104 - rlq_preload_statics: crash fixed, copy of rlq-odoo-addons used
 
 - Title: the module rlq_preload_statics no longer fails at its first line, and step 17c uses the copy of rlq-odoo-addons when it is in addons_path.
