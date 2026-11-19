@@ -1399,9 +1399,6 @@ msgstr "État du timer, dernier passage, dernière alerte"
 msgid "List all Odoo logins (or BigBlueButton participants) in alphabetical order"
 msgstr "Lister par ordre alphabétique toutes les connexions à Odoo (ou les participants BigBlueButton)"
 
-msgid "With --summary or --list-users: limit to the last N days (1 to 366; summary: 30 by default)"
-msgstr "Avec --summary ou --list-users : limiter aux N derniers jours (1 à 366 ; sommaire : 30 par défaut)"
-
 msgid "With --list-users: add each account's traffic (slower to compute)"
 msgstr "Avec --list-users : ajouter le trafic de chaque compte (plus long à calculer)"
 
@@ -2804,3 +2801,61 @@ msgstr "nginx-log-audit.sh : robots refusés en 403 qui sont probablement des pe
 
 msgid "  To check and exempt them (confirmation asked): sudo nginx-log-audit.sh --verify-bots"
 msgstr "  Pour les vérifier et les exempter (confirmation demandée) : sudo nginx-log-audit.sh --verify-bots"
+
+# 2.92 --hourly
+msgid "Visitors and requests per hour — "
+msgstr "Visiteurs et requêtes par heure — "
+
+msgid "Average per day over the "
+msgstr "Moyenne par jour sur les "
+
+msgid " past days, since "
+msgstr " jours passés, depuis le "
+
+msgid " (start of the period or oldest site log); --days N to change the period ("
+msgstr " (début de la période ou plus ancien journal du site) ; --days N pour changer la période ("
+
+msgid "No past day in the site logs: today only"
+msgstr "Aucun jour passé dans les journaux du site : aujourd'hui seulement"
+
+msgid "Visitor = distinct IP address in the hour; page = GET answered 2xx, without images, CSS, JS; this server's own tests excluded"
+msgstr "Visiteur = adresse IP distincte dans l'heure ; page = GET répondu 2xx, sans images, CSS, JS ; tests de ce serveur exclus"
+
+msgid "  * current hour: not over"
+msgstr "  * heure en cours : pas terminée"
+
+msgid "Busiest hour: "
+msgstr "Heure la plus chargée : "
+
+msgid " visitors, "
+msgstr " visiteurs, "
+
+msgid " pages on average)"
+msgstr " pages en moyenne)"
+
+msgid "Calmest hours (a moment to restart the application): "
+msgstr "Heures les plus calmes (un moment pour redémarrer l'application) : "
+
+msgid " visitors)"
+msgstr " visiteurs)"
+
+msgid "Visitors, page views and requests per hour of the day: average of the past days (--days N, 30 by default) and today; busiest and calmest hours"
+msgstr "Visiteurs, pages vues et requêtes par heure de la journée : moyenne des jours passés (--days N, 30 par défaut) et aujourd'hui ; heures les plus chargées et les plus calmes"
+
+msgid "With --summary, --hourly or --list-users: limit to the last N days (1 to 366; summary: 30 by default)"
+msgstr "Avec --summary, --hourly ou --list-users : limiter aux N derniers jours (1 à 366 ; sommaire : 30 par défaut)"
+
+msgid "Hour"
+msgstr "Heure"
+
+msgid "Visitors"
+msgstr "Visiteurs"
+
+msgid "Requests"
+msgstr "Requêtes"
+
+msgid "(avg.)"
+msgstr "(moy.)"
+
+msgid "Pages (avg.)"
+msgstr "Pages (moy.)"

@@ -62,6 +62,7 @@
 #   --changelog        Affiche le journal des modifications
 #   --config-merge     Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --dry-run          Lance les outils et affiche la décision, sans courriel ni modification des positions de lecture
+#   --hourly           Visiteurs, pages et requêtes par heure (moyenne des jours passés, aujourd'hui ; --days N)
 #   --install-timer    Installe et active le timer systemd
 #   --investigate-user Enquête sur UN compte Odoo (toutes ses adresses IP, son activité, son courriel, Internet avec accord)
 #   --list-users       Lister par ordre alphabétique toutes les connexions à Odoo (ou les participants BigBlueButton)

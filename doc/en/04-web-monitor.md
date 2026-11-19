@@ -6,6 +6,7 @@ Runs the suite's tools on a schedule, **alerts only when action is needed**, and
 web-monitor.py --install-timer --interval-hours 1   # systemd timer, one pass per hour
 web-monitor.py --status                             # timer state, last pass, last alert
 web-monitor.py --summary --days 7                   # traffic, blocks and attacks, errors, requests per DNS name, highlights, log coverage
+web-monitor.py --hourly --days 14                   # visitors, pages and requests per hour of the day (average and today), calmest hours
 web-monitor.py --apply                              # make the recommended fixes, one question per fix
 web-monitor.py --apply --yes                        # same, without questions
 web-monitor.py --list-users --table --sort last --reverse   # Odoo logins (or BBB participants) with traffic

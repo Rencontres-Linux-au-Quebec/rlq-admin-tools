@@ -3581,6 +3581,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.92.20261118.215549 - Visitors and requests per hour (--hourly)
+
+- Title: new option --hourly: visitors, page views and requests per hour of the day, averaged over the past days, and today.
+- Reason: request of the administrator on 2026-11-18 ("stats par heure", visitors and requests over several days), after the warm-up work: to see when the site is busy and when it is calm (a moment to restart Odoo).
+- Changes:
+  - collect_summary(): new fact "heures", (day, hour) -> [requests, pages, distinct addresses], for the lines of the long period (same filters as --summary: our own programs and this server excluded; page = GET answered 2xx without images, CSS, JS).
+  - New functions hourly_table() and show_hourly(): 24 rows, the average per day over every past day of the period (from its start, or from the oldest site log if later, to yesterday; a day without any line counts as 0), then today's figures; the current hour marked "*"; a bar of the average pages; the busiest hour and the three calmest hours.
+  - New option --hourly (read-only, no root needed, like --summary); --days N also applies to it. lang/web-monitor.fr.po (the table titles are translated before padding), doc/en and doc/fr web-monitor.conf.example (command-line options) and 04-web-monitor.md.
+- Bugs fixed: none (new).
+- Safeguards and edge cases: no past day in the logs: today only, no busiest or calmest hour; hours read from the nginx time of each line (local time of the server); the rotated and compressed logs are read like --summary.
+- Checks performed: nginx-tools-tests/test_web_monitor.py new test Bilan.test_292_visiteurs_et_requetes_par_heure (2 past days, 14h: 1.5 visitors, 1.5 pages, 2 requests; this server and the CSS not counted as pages).
+- Action required: none. Try: web-monitor.py --hourly (30 days) or web-monitor.py --hourly --days 7.
+
 ### 2.91.20261112.095816 - Robots refused with 403 that are probably people
 
 - Title: the hourly report signals the addresses that nginx-log-audit.sh 2.97 finds "probably a PERSON" among the robots refused with 403.
