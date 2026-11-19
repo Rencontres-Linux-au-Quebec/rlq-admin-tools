@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.117.20261118.193104"
+readonly SCRIPT_VERSION="2.118.20261118.195309"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -4194,10 +4194,16 @@ odoo_modules_et_chemins() {
     if [[ -n "${NGINX_HARDENING_PSQL:-}" ]] || { command -v psql >/dev/null 2>&1 && [[ "$EUID" -eq 0 ]]; }; then
         dbs=$(odoo_bases_servies)
         [[ -n "${dbs// /}" ]] || dbs=$(odoo_conf_valeur "$conf" db_name 2>/dev/null | tr ',' '\n' | grep -vxE '[[:space:]]*(False|false|None)?[[:space:]]*' | tr '\n' ' ' || true)
+        # 2.118: Odoo started without -d and db_name = False (DEV of ERPLibre): every database of the server, like step 17b; the databases that
+        # are not Odoo ones (no ir_module_module) are left out; several databases: the modules installed in ANY of them are kept
+        [[ -n "${dbs// /}" ]] || dbs=$(pgq2 postgres "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate AND datname <> 'postgres' ORDER BY 1" 2>/dev/null | tr '\n' ' ' || true)
+        local lues=""
         for db in $dbs; do
             [[ "$db" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
-            pgq2 "$db" "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade', 'to remove')" >> "$inst" 2>/dev/null || true
+            [[ "$(pgq2 "$db" "SELECT to_regclass('ir_module_module') IS NOT NULL" 2>/dev/null)" == "t" ]] || continue
+            pgq2 "$db" "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade', 'to remove')" >> "$inst" 2>/dev/null && lues+="$db "
         done
+        dbs="${lues% }"
     fi
     sortie=$(python3 "$helper" --conf "$conf" --installed "$inst" --preload "$dossier" 2>&1 || true)
     while IFS='=' read -r cle valeur; do [[ -n "$cle" ]] && V[$cle]="$valeur"; done <<< "$sortie"

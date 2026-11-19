@@ -22,7 +22,7 @@ import shutil
 import sys
 import time
 
-__version__ = "1.1.20261118.193104"
+__version__ = "1.2.20261118.195309"
 
 PRELOAD = "rlq_preload_statics"
 CORE_MODULES = ("base", "web")                      # a folder with one of them is the core of Odoo: always kept
@@ -117,7 +117,7 @@ def main(argv=None):
     installed = []
     if a.installed:
         source = sys.stdin if a.installed == "-" else open(a.installed, encoding="utf-8")
-        installed = [line.strip() for line in source if line.strip()]
+        installed = sorted({line.strip() for line in source if line.strip()})      # 1.2: several databases: each module once
     r = analyze(text, installed, a.preload)
     print(f"paths={len(r['paths'])}")
     print(f"modules={r['modules']}")
