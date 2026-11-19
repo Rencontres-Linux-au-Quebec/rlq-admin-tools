@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.115.20261118.160516"
+readonly SCRIPT_VERSION="2.116.20261118.192321"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -170,6 +170,8 @@ JOURNAL_PERSISTENT=1      # 2.83: 1 = journal systemd kept on disk (Storage=pers
 PG_LOGGING=1              # 2.83: 1 = slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (step 17); no = step skipped
 PG_SLOW_MS="2000"         # 2.83: log_min_duration_statement written by step 17 (milliseconds)
 ODOO_REPORT_URL=1         # 2.113: step 17b, system parameter report.url = http://127.0.0.1:HTTP_PORT (PDF reports without going out through nginx); 0 = never changed
+ODOO_PRELOAD_STATICS=0    # 2.116: step 17c, server-wide module rlq_preload_statics (odoo-addons/): static folders listed once, before the workers start; 1 = enable
+ODOO_TRIM_ADDONS_PATH=0   # 2.116: step 17c, addons_path reduced to the folders that hold an installed module (copy .bak-DATE before); 1 = apply
 ODOO_TMPDIR_RAM=1         # 2.113: step 17b, temporary files of Odoo (TMPDIR) in /run/odoo-tmp, in memory (systemd drop-in); 0 = never changed
 PG_TUNING=1               # 2.91: step 17, memory and checkpoints of PostgreSQL raised for the memory of the server (less disk); 0 = never changed
 ACCESS_LOG_BUFFER="64k"   # 2.109: buffer= and flush= added by --update to the access_log of the sites (fewer small writes on SATA disks); off = never changed
@@ -217,6 +219,8 @@ if declare -F config_lire >/dev/null; then
     config_defaut PG_TUNING PG_TUNING PG_TUNING booleen
     config_defaut ODOO_REPORT_URL ODOO_REPORT_URL ODOO_REPORT_URL booleen
     config_defaut ODOO_TMPDIR_RAM ODOO_TMPDIR_RAM ODOO_TMPDIR_RAM booleen
+    config_defaut ODOO_PRELOAD_STATICS ODOO_PRELOAD_STATICS --odoo-preload-statics booleen
+    config_defaut ODOO_TRIM_ADDONS_PATH ODOO_TRIM_ADDONS_PATH --odoo-trim-addons-path booleen
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -270,6 +274,8 @@ while [[ $# -gt 0 ]]; do
                if [[ "$CDN" == none || "$CDN" == cloudflare ]]; then CDN_A_ENREGISTRER="$CDN"; fi
                shift 2 ;;
         --odoo-conf) ODOO_CONF="${2:-}"; shift 2 ;;
+        --odoo-preload-statics) ODOO_PRELOAD_STATICS=1; shift ;;
+        --odoo-trim-addons-path) ODOO_TRIM_ADDONS_PATH=1; shift ;;
         --odoo-conf-paths) ODOO_CONF_PATHS="${2:-}"; shift 2 ;;
         --workers) ODOO_WORKERS_OVERRIDE="${2:-}"; shift 2 ;;
         --cron-threads) ODOO_CRON_OVERRIDE="${2:-}"; shift 2 ;;
@@ -325,7 +331,9 @@ Options (par ordre alphabétique) :
                                /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)
   --odoo-gevent-port PORT      port gevent (websocket) d'Odoo à vérifier (défaut : celui de la configuration d'Odoo)
   --odoo-http-port PORT        port HTTP d'Odoo à vérifier (défaut : celui de la configuration d'Odoo)
+  --odoo-preload-statics       avec --update : le processus principal d'Odoo dresse une fois la liste des dossiers static avant ses workers (module rlq_preload_statics) ; clé ODOO_PRELOAD_STATICS
   --odoo-service NAME         unité systemd d'Odoo (défaut : détectée)
+  --odoo-trim-addons-path      avec --update : addons_path réduit aux dossiers qui contiennent un module installé (copie .bak avant) ; clé ODOO_TRIM_ADDONS_PATH
   --rename-from NAME           ancien nom DNS public à remplacer dans nginx (étape 0e ; avec --rename-to et --update)
   --rename-to NAME             nouveau nom DNS public : nginx et certificat Let's Encrypt sont refaits pour ce nom (sans --rename-from, l'ancien nom est cherché dans nginx)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
@@ -4160,6 +4168,99 @@ if [[ "$APP_NAME" == "odoo" && ( "${ODOO_REPORT_URL:-1}" == "1" || "${ODOO_TMPDI
         echo "  [INFO] tests : étape ignorée (NGINX_HARDENING_PSQL absent)."
     else
         odoo_rapports_et_tmp
+    fi
+    echo
+fi
+
+# 2.116: step 17c (Odoo). Every folder of addons_path is read by Odoo: at the start, and by EACH worker the first time it serves a static file
+# (odoo.http.root.statics: a manifest read and an icon looked for in every folder, for every module: about 10 s with the 135 folders and 4480
+# modules of ERPLibre, for 265 modules installed). apps/_odoo_addons.py counts the folders that hold no installed module (ir_module_module of the
+# databases served) and, with --update:
+#   --odoo-trim-addons-path (ODOO_TRIM_ADDONS_PATH=1): addons_path keeps only the folders with an installed module (and odoo itself); a module
+#     to install later needs its folder put back (copy FILE.bak-DATE). Refused when an installed module is not found in addons_path.
+#   --odoo-preload-statics (ODOO_PRELOAD_STATICS=1): odoo-addons/ of this repository added to addons_path and rlq_preload_statics to
+#     server_wide_modules: the main process lists the static folders once, before it forks the workers; every worker inherits the list.
+# Both: the file read again the way Odoo reads it (apps/_odoo_conf_check.py), the copy put back if it fails; active at the next restart of Odoo,
+# never restarted by this script.
+odoo_modules_et_chemins() {
+    local helper="$SCRIPT_DIR/apps/_odoo_addons.py" dossier="$SCRIPT_DIR/odoo-addons" conf="$ODOO_CONF" inst sortie db dbs ligne
+    local -A V=()
+    if [[ -z "$conf" || ! -r "$conf" ]] || ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$helper" ]]; then
+        echo "  [INFO] addons_path non vérifié : configuration d'Odoo, python3 ou apps/_odoo_addons.py introuvable."
+        return 0
+    fi
+    inst=$(mktemp)
+    pgq2() { if [[ -n "${NGINX_HARDENING_PSQL:-}" ]]; then $NGINX_HARDENING_PSQL -d "$1" -XAtqc "$2"; else runuser -u postgres -- psql -d "$1" -XAtqc "$2"; fi; }
+    if [[ -n "${NGINX_HARDENING_PSQL:-}" ]] || { command -v psql >/dev/null 2>&1 && [[ "$EUID" -eq 0 ]]; }; then
+        dbs=$(odoo_bases_servies)
+        [[ -n "${dbs// /}" ]] || dbs=$(odoo_conf_valeur "$conf" db_name 2>/dev/null | tr ',' '\n' | grep -vxE '[[:space:]]*(False|false|None)?[[:space:]]*' | tr '\n' ' ' || true)
+        for db in $dbs; do
+            [[ "$db" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+            pgq2 "$db" "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade', 'to remove')" >> "$inst" 2>/dev/null || true
+        done
+    fi
+    sortie=$(python3 "$helper" --conf "$conf" --installed "$inst" --preload "$dossier" 2>&1 || true)
+    while IFS='=' read -r cle valeur; do [[ -n "$cle" ]] && V[$cle]="$valeur"; done <<< "$sortie"
+    if [[ -n "${V[error]:-}" ]]; then
+        warn "addons_path non vérifié : ${V[error]}"
+        rm -f "$inst"; return 0
+    fi
+    echo "  addons_path : ${V[paths]:-?} dossiers, ${V[modules]:-?} modules ; ${V[installed]:-0} modules installés (bases : ${dbs:-aucune lue})"
+    local demande=() trim=0 precharge=0
+    if (( ${V[installed]:-0} == 0 )); then
+        echo "  [INFO] modules installés non lus (psql absent, pas root ou aucune base) : addons_path non réduit."
+    elif (( ${V[unused]:-0} > 0 )); then
+        if [[ "$CHECK_ONLY" != "1" && "${ODOO_TRIM_ADDONS_PATH:-0}" == "1" ]]; then
+            trim=1
+        else
+            warn "Odoo : ${V[unused]} dossiers d'addons_path (${V[unused_modules]} modules) ne contiennent aucun module installé, et Odoo les lit quand même : au démarrage et dans chaque worker au premier fichier statique (environ 10 s avec ERPLibre) — $SCRIPT_DIR/nginx-hardening.sh --update --odoo-trim-addons-path garde ${V[keep]} dossiers (copie .bak avant), puis redémarrer Odoo."
+        fi
+    else
+        pass "Odoo : chaque dossier d'addons_path contient un module installé (${V[keep]} dossiers)."
+    fi
+    if [[ "${V[preload]:-0}" == "1" ]]; then
+        pass "Odoo : rlq_preload_statics dans server_wide_modules — la liste des dossiers static est dressée une fois, avant les workers."
+    elif [[ "$CHECK_ONLY" != "1" && "${ODOO_PRELOAD_STATICS:-0}" == "1" ]]; then
+        precharge=1
+    else
+        echo "  [INFO] chaque worker d'Odoo dresse la liste des dossiers static au premier fichier statique qu'il sert ; $SCRIPT_DIR/nginx-hardening.sh --update --odoo-preload-statics la fait dresser une seule fois par le processus principal (module rlq_preload_statics), puis redémarrer Odoo."
+    fi
+    if (( precharge )); then
+        local lecteur
+        lecteur=$(systemctl show -p User --value "${odoo_service:-x}" 2>/dev/null || true)
+        if [[ -n "$lecteur" && "$lecteur" != root ]] && ! runuser -u "$lecteur" -- test -r "$dossier/rlq_preload_statics/__init__.py" 2>/dev/null; then
+            warn "Odoo : $dossier illisible par l'utilisateur d'Odoo ($lecteur) : rlq_preload_statics non ajouté."
+            precharge=0
+        fi
+    fi
+    (( trim )) && demande+=(--trim)
+    (( precharge )) && demande+=(--preload "$dossier")
+    if (( ${#demande[@]} > 0 )); then
+        local avant="" ok=1
+        sortie=$(python3 "$helper" --conf "$conf" --installed "$inst" "${demande[@]}" --write 2>&1) || ok=0
+        V=(); while IFS='=' read -r cle valeur; do [[ -n "$cle" ]] && V[$cle]="$valeur"; done <<< "$sortie"
+        avant="${V[backup]:-}"
+        if (( ! ok )); then
+            warn "Odoo : $conf non modifié : ${V[missing]:+modules installés introuvables dans addons_path : ${V[missing]}}${V[error]:-}"
+        elif [[ -n "$avant" && -r "$SCRIPT_DIR/apps/_odoo_conf_check.py" ]] && python3 "$SCRIPT_DIR/apps/_odoo_conf_check.py" "$avant" >/dev/null 2>&1 \
+             && ! python3 "$SCRIPT_DIR/apps/_odoo_conf_check.py" "$conf" >/dev/null 2>&1; then           # an error that the change brought: put back
+            cp -p "$avant" "$conf"
+            warn "Odoo : $conf refusé à la relecture (apps/_odoo_conf_check.py) : version d'avant remise ($avant)."
+        elif [[ -n "$avant" ]]; then
+            (( trim )) && pass "Odoo : addons_path réduit à ${V[keep]} dossiers (copie : $avant) — pris en compte au prochain redémarrage d'Odoo (non redémarré par ce script)."
+            (( precharge )) && pass "Odoo : rlq_preload_statics ajouté à server_wide_modules et $dossier à addons_path (copie : $avant) — pris en compte au prochain redémarrage d'Odoo (non redémarré par ce script)."
+            echo "         Redémarrage à une heure creuse : $SCRIPT_DIR/odoo-update-module.sh --restart-only ; retour : cp -p $avant $conf"
+        fi
+    fi
+    rm -f "$inst"
+    return 0
+}
+if [[ "$APP_NAME" == "odoo" ]]; then
+    echo "--- 17c) Odoo : dossiers d'addons_path et liste des dossiers static ---"
+    if [[ -n "${NGINX_TOOLS_TESTS:-}" && -z "${NGINX_HARDENING_PSQL:-}" ]]; then
+        echo "  [INFO] tests : étape ignorée (NGINX_HARDENING_PSQL absent)."
+    else
+        odoo_modules_et_chemins
     fi
     echo
 fi

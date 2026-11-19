@@ -3100,3 +3100,87 @@ msgstr " — restart Odoo when the site is quiet (odoo-update-module.sh --restar
 
 msgid "  [INFO] processus d'Odoo non lu : actif seulement si Odoo a redémarré après l'écriture du fichier."
 msgstr "  [INFO] Odoo process not read: active only if Odoo restarted after the file was written."
+
+msgid "  --odoo-preload-statics       avec --update : le processus principal d'Odoo dresse une fois la liste des dossiers static avant ses workers (module rlq_preload_statics) ; clé ODOO_PRELOAD_STATICS"
+msgstr "  --odoo-preload-statics       with --update: the main process of Odoo lists the static folders once, before its workers (module rlq_preload_statics); key ODOO_PRELOAD_STATICS"
+
+msgid "  --odoo-trim-addons-path      avec --update : addons_path réduit aux dossiers qui contiennent un module installé (copie .bak avant) ; clé ODOO_TRIM_ADDONS_PATH"
+msgstr "  --odoo-trim-addons-path      with --update: addons_path reduced to the folders that hold an installed module (.bak copy before); key ODOO_TRIM_ADDONS_PATH"
+
+msgid "  [INFO] addons_path non vérifié : configuration d'Odoo, python3 ou apps/_odoo_addons.py introuvable."
+msgstr "  [INFO] addons_path not checked: Odoo configuration, python3 or apps/_odoo_addons.py not found."
+
+msgid "addons_path non vérifié : "
+msgstr "addons_path not checked: "
+
+msgid " modules ; "
+msgstr " modules; "
+
+msgid " modules installés (bases : "
+msgstr " installed modules (databases: "
+
+msgid "aucune lue"
+msgstr "none read"
+
+msgid "  [INFO] modules installés non lus (psql absent, pas root ou aucune base) : addons_path non réduit."
+msgstr "  [INFO] installed modules not read (psql missing, not root or no database): addons_path not reduced."
+
+msgid " dossiers d'addons_path ("
+msgstr " folders of addons_path ("
+
+msgid " modules) ne contiennent aucun module installé, et Odoo les lit quand même : au démarrage et dans chaque worker au premier fichier statique (environ 10 s avec ERPLibre) — "
+msgstr " modules) hold no installed module, and Odoo reads them anyway: at the start and in each worker at its first static file (about 10 s with ERPLibre) — "
+
+msgid "/nginx-hardening.sh --update --odoo-trim-addons-path garde "
+msgstr "/nginx-hardening.sh --update --odoo-trim-addons-path keeps "
+
+msgid " dossiers (copie .bak avant), puis redémarrer Odoo."
+msgstr " folders (.bak copy before), then restart Odoo."
+
+msgid "Odoo : chaque dossier d'addons_path contient un module installé ("
+msgstr "Odoo: every folder of addons_path holds an installed module ("
+
+msgid "Odoo : rlq_preload_statics dans server_wide_modules — la liste des dossiers static est dressée une fois, avant les workers."
+msgstr "Odoo: rlq_preload_statics in server_wide_modules — the list of the static folders is built once, before the workers."
+
+msgid "  [INFO] chaque worker d'Odoo dresse la liste des dossiers static au premier fichier statique qu'il sert ; "
+msgstr "  [INFO] each worker of Odoo lists the static folders at the first static file it serves; "
+
+msgid "/nginx-hardening.sh --update --odoo-preload-statics la fait dresser une seule fois par le processus principal (module rlq_preload_statics), puis redémarrer Odoo."
+msgstr "/nginx-hardening.sh --update --odoo-preload-statics has the main process list them only once (module rlq_preload_statics), then restart Odoo."
+
+msgid " illisible par l'utilisateur d'Odoo ("
+msgstr " unreadable by the user of Odoo ("
+
+msgid ") : rlq_preload_statics non ajouté."
+msgstr "): rlq_preload_statics not added."
+
+msgid " non modifié : "
+msgstr " not changed: "
+
+msgid "modules installés introuvables dans addons_path : "
+msgstr "installed modules not found in addons_path: "
+
+msgid " refusé à la relecture (apps/_odoo_conf_check.py) : version d'avant remise ("
+msgstr " refused when read again (apps/_odoo_conf_check.py): previous version put back ("
+
+msgid "Odoo : addons_path réduit à "
+msgstr "Odoo: addons_path reduced to "
+
+msgid ") — pris en compte au prochain redémarrage d'Odoo (non redémarré par ce script)."
+msgstr ") — taken into account at the next restart of Odoo (not restarted by this script)."
+
+msgid "Odoo : rlq_preload_statics ajouté à server_wide_modules et "
+msgstr "Odoo: rlq_preload_statics added to server_wide_modules and "
+
+msgid " à addons_path (copie : "
+msgstr " to addons_path (copy: "
+
+msgid "         Redémarrage à une heure creuse : "
+msgstr "         Restart when the site is quiet: "
+
+msgid "/odoo-update-module.sh --restart-only ; retour : cp -p "
+msgstr "/odoo-update-module.sh --restart-only; back: cp -p "
+
+msgid "--- 17c) Odoo : dossiers d'addons_path et liste des dossiers static ---"
+msgstr "--- 17c) Odoo: folders of addons_path and list of the static folders ---"

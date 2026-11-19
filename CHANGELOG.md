@@ -4302,6 +4302,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.116.20261118.192321 - Step 17c: folders of addons_path, static folders listed before the workers
+
+- Title: new step 17c: the folders of addons_path that hold no installed module are counted, and two options of --update remove the cost of the static folders: --odoo-trim-addons-path and --odoo-preload-statics.
+- Reason: request of the administrator on 2026-11-18 ("oui", to the two solutions proposed after the profiles of the warm-up). Measured in 104: 135 folders in addons_path, 4480 modules, 265 installed; odoo.http.root.statics takes 10.1 s, built by EACH worker at its first static file (61.6 % of the busy time of the warm-up in get_manifest, get_module_icon and os.path.exists).
+- Changes:
+  - New function odoo_modules_et_chemins() and step « 17c) Odoo : dossiers d'addons_path et liste des dossiers static » (Odoo only): modules installed read in ir_module_module of the databases served (odoo_bases_servies, db_name), analysis by the new module apps/_odoo_addons.py 1.0 (read_value, set_value, modules_of, analyze, new_text; KEY=VALUE output).
+  - New options --odoo-preload-statics and --odoo-trim-addons-path, keys ODOO_PRELOAD_STATICS and ODOO_TRIM_ADDONS_PATH (0 by default: only proposed), doc/en and doc/fr nginx-hardening.conf.example, help, lang/nginx-hardening.en.po.
+  - New Odoo module odoo-addons/rlq_preload_statics 1.0 (server-wide, never installed in a database; odoo-addons/README.md): its post_load builds odoo.http.root.statics in the main process, before the prefork workers are forked; every worker, the replaced ones included, inherits the list; not done in the gevent process; a failure is logged and changes nothing.
+  - --odoo-trim-addons-path: addons_path keeps the folders that hold an installed module, the folders of the core of Odoo (base, web) and the folder of rlq_preload_statics; relative or missing folders are never touched.
+  - --odoo-preload-statics: odoo-addons/ of this repository added to addons_path and rlq_preload_statics to server_wide_modules (the default of Odoo when absent: base,rpc,web or base,web).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The configuration is copied to FILE.bak-YYYYMMDD-HHMMSS before any change, its owner and mode are kept; it is read again by apps/_odoo_conf_check.py and the copy is put back if the change brought an error.
+  - Never trimmed blind: refused when no installed module could be read, or when an installed module is not found in addons_path (listed).
+  - rlq_preload_statics not added when its folder is unreadable by the user of the Odoo unit.
+  - --check (and --update without the options): only the counts and the command to run; Odoo is never restarted by this script (the command odoo-update-module.sh --restart-only and the command to go back are shown).
+  - A module to install later in a folder that was removed: put the folder back from the .bak copy.
+- Checks performed: bash -n; new nginx-tools-tests/test_odoo_addons.py (analysis, writing with copy, refusal without the installed modules or with a module not found, lines of the configuration, manifest and post_load of the module, step 17c in --check then --update with both options then --check again); test_nginx_hardening.py; test_i18n.
+- Action required: in DEV (104) first, at a quiet hour: `sudo /opt/rlq-admin-tools/nginx-hardening.sh --update --odoo-preload-statics --odoo-trim-addons-path`, then `sudo /opt/rlq-admin-tools/odoo-update-module.sh --restart-only`; the journal of Odoo then says « rlq_preload_statics: static folders of N modules listed in X s, before the workers start ».
+
 ### 2.115.20261118.160516 - TMPDIR of the running Odoo checked
 
 - Title: step 17b checks that the TMPDIR drop-in is really active in the running Odoo.

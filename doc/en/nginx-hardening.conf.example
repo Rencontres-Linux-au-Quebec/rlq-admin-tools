@@ -55,6 +55,12 @@
 #ODOO_SERVICE=
 # step 17b: temporary files of Odoo (TMPDIR) in /run/odoo-tmp, in memory (.d file of the systemd unit, at the next restart of Odoo); no = never changed
 #ODOO_TMPDIR_RAM=yes
+# step 17c (2.116): the main process of Odoo lists the static folders once, before its workers (module rlq_preload_statics of odoo-addons/,
+# added to addons_path and server_wide_modules; copy .bak before; at the next restart of Odoo); option --odoo-preload-statics
+#ODOO_PRELOAD_STATICS=no
+# step 17c (2.116): addons_path reduced to the folders that hold a module installed in the databases (copy .bak before; a module to install
+# later needs its folder put back); option --odoo-trim-addons-path
+#ODOO_TRIM_ADDONS_PATH=no
 # step 17: slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (conf.d file, reloaded without restart); no = step skipped
 #PG_LOGGING=yes
 # step 17: duration in milliseconds from which a query is written to the PostgreSQL log (log_min_duration_statement)
