@@ -546,3 +546,46 @@ class BlocsDeRedirection(unittest.TestCase):
         bloc = next(d for d, inc in blocs_server(texte) if "rencontres-linux-quebec-prod-noncanonical.name.conf" in inc)
         ordre = [" ".join(d[:2]) if d[0] == "location" else os.path.basename(d[1]) for d in bloc if d[0] in ("location", "include")]
         self.assertLess(ordre.index("location ~"), ordre.index("securite-commune.conf"))
+
+
+@unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration absente : {CONFIG_DIR}")
+class FormesAvecPrefixeDeLangue132(unittest.TestCase):
+    """1.32 (2026-11-19) : un membre connecté en anglais recevait des 429 sur /en_CA/web_editor/shape/... : ces adresses ne passaient pas par la règle des
+    formes (rafale de 120) mais par « location / » (rafale de 60), dans la même zone que les redirections 303 des mêmes formes."""
+    COMMUN = os.path.join("snippets", "odoo", "_odoo-common.conf")
+
+    def bloc(self):
+        texte = lire(self.COMMUN)
+        lignes = [l for l in texte.splitlines() if l.startswith("location") and "web_editor/shape" in l]
+        self.assertEqual(len(lignes), 1, "une seule règle pour les formes")
+        debut = texte.index(lignes[0])
+        return lignes[0], texte[debut:texte.index("\n}\n", debut) + 3]
+
+    def test_formes_avec_et_sans_prefixe_captees_et_rien_d_autre(self):
+        ligne, _ = self.bloc()
+        m = re.match(r'^location ~ "(.*)" \{$', ligne)
+        self.assertIsNotNone(m, "expression entre guillemets (« {2} » non protégé est refusé par nginx)")
+        rx = m.group(1)
+        for chemin in ("/web_editor/shape/web_editor/Rainy/09_001.svg", "/en_CA/web_editor/shape/web_editor/Airy/03.svg",
+                       "/fr_CA/web_editor/shape/web_editor/Wavy/12.svg", "/fr/web_editor/shape/web_editor/Zigs/01.svg"):
+            with self.subTest(chemin=chemin):
+                self.assertTrue(re.search(rx, chemin), f"{chemin} devrait passer par la règle des formes")
+        for chemin in ("/web/image/12/web_editor/shape/x.svg", "/x/y/web_editor/shape/a.svg", "/en_CA/event", "/web_editor/static/src/img/curved_arrow.svg",
+                       "/eng_CA/web_editor/shape/a.svg"):
+            with self.subTest(chemin=chemin):
+                self.assertFalse(re.search(rx, chemin), f"{chemin} ne doit pas être touché")
+
+    def test_rafale_des_formes_plus_large_que_location_racine(self):
+        _, bloc = self.bloc()
+        rafale = int(re.search(r"limit_req zone=odoo_general burst=(\d+)", bloc).group(1))
+        racine = lire(self.COMMUN).split("\nlocation / {", 1)[1]
+        rafale_racine = int(re.search(r"limit_req zone=odoo_general burst=(\d+)", racine).group(1))
+        self.assertGreaterEqual(rafale, 100, "~170 formes d'un coup pour un éditeur connecté (excès observé : 78)")
+        self.assertGreater(rafale, rafale_racine)
+        self.assertIn("limit_req zone=odoo_curl", bloc)
+
+    def test_aucune_regle_de_refus_ne_capte_les_formes_prefixees(self):
+        regles = regles_de_refus(os.path.join(CONFIG_DIR, "snippets", "securite-commune.conf"))
+        for chemin in ("/en_CA/web_editor/shape/web_editor/Rainy/05_001.svg", "/fr_CA/web_editor/shape/web_editor/Blocks/04.svg"):
+            with self.subTest(chemin=chemin):
+                self.assertFalse(any(re.search(rx, chemin, re.I if op == "~*" else 0) for op, rx in regles), f"{chemin} serait refusé par nginx")
