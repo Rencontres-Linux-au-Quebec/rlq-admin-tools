@@ -14,7 +14,7 @@ import time
 
 import odoo
 
-__version__ = "1.0.20261118.192321"
+__version__ = "1.1.20261118.193104"
 _logger = logging.getLogger(__name__)
 
 
@@ -23,8 +23,8 @@ def post_load():
         return
     start = time.time()
     try:
-        import odoo.http
-        count = len(odoo.http.root.statics)
+        from odoo import http                     # never « import odoo.http » here: it would make odoo a local name
+        count = len(http.root.statics)
     except Exception:  # noqa: BLE001 - never stop Odoo for an optimisation
         _logger.exception("rlq_preload_statics: static folders not listed in advance (each worker will list them itself)")
         return

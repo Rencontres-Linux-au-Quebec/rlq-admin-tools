@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.116.20261118.192321"
+readonly SCRIPT_VERSION="2.117.20261118.193104"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -4222,8 +4222,13 @@ odoo_modules_et_chemins() {
         pass "Odoo : rlq_preload_statics dans server_wide_modules — la liste des dossiers static est dressée une fois, avant les workers."
     elif [[ "$CHECK_ONLY" != "1" && "${ODOO_PRELOAD_STATICS:-0}" == "1" ]]; then
         precharge=1
+    elif [[ -n "${V[preload_path]:-}" ]]; then
+        echo "  [INFO] rlq_preload_statics présent dans addons_path (${V[preload_path]}) mais pas dans server_wide_modules : $SCRIPT_DIR/nginx-hardening.sh --update --odoo-preload-statics l'ajoute, puis redémarrer Odoo."
     else
         echo "  [INFO] chaque worker d'Odoo dresse la liste des dossiers static au premier fichier statique qu'il sert ; $SCRIPT_DIR/nginx-hardening.sh --update --odoo-preload-statics la fait dresser une seule fois par le processus principal (module rlq_preload_statics), puis redémarrer Odoo."
+    fi
+    if (( precharge )) && [[ -n "${V[preload_path]:-}" ]]; then
+        dossier="${V[preload_path]}"                 # 2.117: rlq_preload_statics already in addons_path (rlq-odoo-addons): that copy, nothing added
     fi
     if (( precharge )); then
         local lecteur

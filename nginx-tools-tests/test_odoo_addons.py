@@ -70,6 +70,56 @@ class OdooAddons(unittest.TestCase):
         code, v = self.lancer("--installed", self.inst, "--trim", "--write")
         self.assertEqual(code, 3)                                                       # no installed module read: never trimmed
 
+    def test_117_module_deja_dans_addons_path(self):
+        """2.117 : rlq_preload_statics déjà dans un dossier d'addons_path (rlq-odoo-addons) : seulement server_wide_modules complété."""
+        rlq = os.path.join(self.d, "rlq-odoo-addons")
+        os.makedirs(os.path.join(rlq, "rlq_preload_statics"))
+        open(os.path.join(rlq, "rlq_preload_statics", "__manifest__.py"), "w").write("{}")
+        texte = open(self.conf).read().replace("\nxmlrpc", "," + rlq + "\nxmlrpc")
+        open(self.conf, "w").write(texte)
+        code, v = self.lancer("--installed", self.inst, "--preload", os.path.join(SCRIPTS, "odoo-addons"))
+        self.assertEqual((v["preload"], v["preload_path"]), ("0", rlq))
+        code, v = self.lancer("--installed", self.inst, "--preload", os.path.join(SCRIPTS, "odoo-addons"), "--write")
+        nouveau = open(self.conf).read()
+        self.assertEqual(oa.read_value(nouveau, "addons_path"), oa.read_value(texte, "addons_path"))     # nothing added
+        self.assertEqual(oa.read_value(nouveau, "server_wide_modules"), "base,rpc,web,rlq_preload_statics")
+        code, v = self.lancer("--installed", self.inst, "--trim")
+        self.assertEqual(v["keep"], "3")                                                # its folder is always kept
+
+    def test_117_post_load_du_module_livre(self):
+        """2.117 : post_load du module livré (odoo-addons/) avec un faux odoo : liste construite une fois ; rien en gevent ; jamais
+        « import odoo.http » dans la fonction (odoo devenait un nom local : UnboundLocalError dès la première ligne, en 2.116)."""
+        import importlib.util
+        import types
+
+        class Racine:
+            appels = 0
+
+            @property
+            def statics(self):
+                Racine.appels += 1
+                return {"web": "/w"}
+        for evented, attendu in ((False, 1), (True, 0)):
+            faux = types.ModuleType("odoo")
+            faux.evented = evented
+            faux.http = types.ModuleType("odoo.http")
+            faux.http.root = Racine()
+            Racine.appels = 0
+            avant = {k: sys.modules.get(k) for k in ("odoo", "odoo.http")}
+            sys.modules["odoo"], sys.modules["odoo.http"] = faux, faux.http
+            try:
+                spec = importlib.util.spec_from_file_location("rlq_preload_t", os.path.join(SCRIPTS, "odoo-addons", "rlq_preload_statics", "__init__.py"))
+                m = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(m)
+                m.post_load()
+            finally:
+                for k, val in avant.items():
+                    if val is None:
+                        sys.modules.pop(k, None)
+                    else:
+                        sys.modules[k] = val
+            self.assertEqual(Racine.appels, attendu)
+
     def test_valeurs_et_lignes(self):
         t = "[options]\naddons_path = /a\nx = 1\naddons_path=/b\n"
         self.assertEqual(oa.read_value(t, "addons_path"), "/b")                         # last line wins, like Odoo

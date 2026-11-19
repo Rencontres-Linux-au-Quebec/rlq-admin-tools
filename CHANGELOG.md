@@ -4302,6 +4302,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.117.20261118.193104 - rlq_preload_statics: crash fixed, copy of rlq-odoo-addons used
+
+- Title: the module rlq_preload_statics no longer fails at its first line, and step 17c uses the copy of rlq-odoo-addons when it is in addons_path.
+- Reason: the administrator gave access to the repository rlq-odoo-addons (2026-11-18): the module goes there (PR 31 of rlq-odoo-addons); writing its tests found a bug in the copy shipped by 2.116.
+- Changes:
+  - odoo-addons/rlq_preload_statics/__init__.py 1.1: post_load() uses « from odoo import http ».
+  - apps/_odoo_addons.py 1.1: analyze() finds rlq_preload_statics in the folders of addons_path (output preload_path); new_text() then adds only the module to server_wide_modules, never the folder odoo-addons/ (two modules of the same name in addons_path: Odoo would take the first).
+  - odoo_modules_et_chemins(): the copy found in addons_path is used (no readability check of odoo-addons/); new [INFO] line when it is in addons_path but not in server_wide_modules.
+  - odoo-addons/README.md: the source is rlq-odoo-addons; lang/nginx-hardening.en.po.
+- Bugs fixed:
+  - Symptom (would have been seen at the first restart with --odoo-preload-statics): « UnboundLocalError: cannot access local variable 'odoo' » in the log of Odoo, list not built. Diagnosis: « import odoo.http » inside post_load() makes odoo a local name of the whole function, so its first line read it before the import. Fix: « from odoo import http ». Nobody had enabled it yet (2.116 merged the same evening, option off by default).
+- Safeguards and edge cases: the folder of the module found in addons_path is always kept by --odoo-trim-addons-path.
+- Checks performed: bash -n; nginx-tools-tests/test_odoo_addons.py (new tests test_117_module_deja_dans_addons_path and test_117_post_load_du_module_livre: post_load run with a fake odoo, list built once, nothing in gevent); test_nginx_hardening.py; test_i18n; in rlq-odoo-addons: 3 tests of rlq_preload_statics without Odoo, ruff.
+- Action required: merge PR 31 of rlq-odoo-addons and this one; if the folder of rlq-odoo-addons is in addons_path in 104, its copy is used; then the same test in DEV as for 2.116.
+
 ### 2.116.20261118.192321 - Step 17c: folders of addons_path, static folders listed before the workers
 
 - Title: new step 17c: the folders of addons_path that hold no installed module are counted, and two options of --update remove the cost of the static folders: --odoo-trim-addons-path and --odoo-preload-statics.
