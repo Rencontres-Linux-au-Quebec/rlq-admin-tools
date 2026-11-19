@@ -4018,6 +4018,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.38.20261119.184342 - Step counter with several --zip archives
+
+- Reason for the request: with several `--zip` archives the progress showed step 11/8: the total of steps counted one decompression step for the whole run, but one step is printed for each archive.
+- Changes: `ETAPES` now adds one step per archive (`${#ZIP_FICHIERS[@]}`) instead of one. `SCRIPT_VERSION` 1.38. Test `test_138_compteur_d_etapes_avec_plusieurs_archives` added to `nginx-tools-tests/test_odoo_update_module.py` (which also gets the `import re` it needs).
+- Bugs fixed: symptom: "[11/8]" with two archives. Diagnosis: `ETAPES` was incremented by 1 for the decompression, `decompresser()` calls `etape()` once per archive. Fix: the total counts the archives.
+- Safeguards and edge cases: no archive, one archive (total unchanged: one step), restart-only (no decompression, count unchanged).
+- Checks performed: `bash -n`; nginx-tools-tests/test_odoo_update_module.py: 57 passed.
+- Action required: none.
+
 ### 1.37.20261119.181525 - --zip repeatable: several archives in one update
 
 - Title: `--zip` can be given several times, and ZIP of the configuration can hold several archives; each archive is extracted in turn and all their modules are updated by one `odoo -u`.

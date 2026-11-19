@@ -4,6 +4,7 @@ ENVIRONNEMENT = "odoo"
 import datetime
 import getpass
 import os
+import re
 import shutil
 import tarfile
 import unittest
@@ -811,6 +812,19 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         commande = next(l for l in self.appels() if l.startswith("odoo "))
         self.assertIn("rlq_nouveau_zip", commande)
         self.assertIn("rlq_survey_report", commande)
+
+    def test_138_compteur_d_etapes_avec_plusieurs_archives(self):
+        """1.38 : le total d'étapes compte une étape par archive : la dernière étape affichée est [N/N], jamais [N+1/N]."""
+        a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))
+        b = self.zip_modules("b.zip", modules=(("rlq_nouveau_zip", "18.0.1.0.0"),))
+        rc, out, err = self.lancer("--zip", a, "--zip", b, "--addons-dir", f"{self.odoo}/custom")
+        self.assertEqual(rc, 0, out + err)
+        etapes = [int(m.group(1)) for m in re.finditer(r"\[(\d+)/(\d+)\]", re.sub(r"\x1b\[[0-9;]*m", "", out))]
+        totaux = {int(m.group(2)) for m in re.finditer(r"\[(\d+)/(\d+)\]", re.sub(r"\x1b\[[0-9;]*m", "", out))}
+        self.assertEqual(len(totaux), 1, out)
+        total = totaux.pop()
+        self.assertLessEqual(max(etapes), total, out)
+        self.assertEqual(max(etapes), total, out)
 
     def test_137_un_module_dans_deux_archives_refuse(self):
         a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))

@@ -106,7 +106,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.37.20261119.181525"
+readonly SCRIPT_VERSION="1.38.20261119.184342"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -1598,7 +1598,7 @@ champ "Dossier :" "${C_DIM}${ODOO_DIR:-?}${C_RESET}"
 champ "Config Odoo :" "${C_DIM}$ODOO_CONF_UTILISEE${C_RESET}"
 if (( DO_DRY_RUN )); then echo "  ${C_YELLOW}Mode simulation : rien n'est arrêté, écrit ni démarré.${C_RESET}"; fi
 ETAPES=5; if (( DO_WARMUP )); then ETAPES=6; fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
-if (( ${#ZIP_FICHIERS[@]} > 0 )); then ETAPES=$((ETAPES + 1)); fi
+if (( ${#ZIP_FICHIERS[@]} > 0 )); then ETAPES=$((ETAPES + ${#ZIP_FICHIERS[@]})); fi      # 1.38: one step per archive (decompresser runs one etape per archive)
 ETAPES=$((ETAPES + 1))
 if (( RESTART_ONLY )); then                                    # 1.34: quiet site, stop, (PostgreSQL), start, (warm-up), check of the journal
     ETAPES=4; if (( RESTART_PG )); then ETAPES=5; fi; if (( DO_WARMUP )); then ETAPES=$((ETAPES + 1)); fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
