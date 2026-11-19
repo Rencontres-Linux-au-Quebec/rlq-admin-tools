@@ -368,6 +368,40 @@ class OdooWarmup(EnvTest):
         self.assertEqual(FauxOdoo.appels.count(("GET", "/contactus")), 1)
         self.assertEqual(module.warm_every_worker(client, [], 5), (0, 0, 0.0))
 
+    def test_143_files_limitees_et_statiques_avec_rlq_preload_statics(self):
+        """1.43 : la moitié des workers par défaut (au moins 2), WORKER_LANES / --worker-lanes (0 : aucune) ; rlq_preload_statics dans --load :
+        chaque fichier statique n'est demandé qu'une fois ; chaque préchauffage est noté (début, fin, PID) pour app-log-live.py."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module143", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual([module.worker_lanes(w) for w in (0, 1, 2, 3, 13)], [0, 0, 2, 2, 6])
+        self.assertEqual([module.worker_lanes(13, n) for n in (0, 3, 40)], [0, 3, 13])
+        proc = os.path.join(self.d, "proc143")
+        os.makedirs(os.path.join(proc, "301"))
+        with open(os.path.join(proc, "301", "cmdline"), "wb") as f:
+            f.write(b"python3\0/opt/erplibre/odoo-bin\0--load=base,web,rlq_preload_statics\0")
+        self.assertTrue(module.preload_active(proc))
+        with open(os.path.join(proc, "301", "cmdline"), "wb") as f:
+            f.write(b"python3\0/opt/erplibre/odoo-bin\0--load=base,web\0")
+        self.assertFalse(module.preload_active(proc))
+        tally = module.Tally()
+        n, _lentes, _max = module.warm_statics(self.url, 13, 4, tally, count=1)
+        self.assertEqual(n, len(module.STATIC_FILES))
+        # a full run: lanes asked from the configuration, and the run written in ODOO_WARMUP_RUNS
+        runs = os.path.join(self.d, "runs")
+        self.env["ODOO_WARMUP_RUNS"] = runs
+        self.conf("WORKER_LANES=0\n")
+        code, out, err = self.lancer("--url", self.url, "--wait", "5", "--profile", "0")
+        self.assertEqual(code, 0, out + err)
+        with open(runs) as f:
+            debut, fin, pid = f.read().split()
+        self.assertGreater(float(fin), float(debut))
+        self.assertTrue(pid.isdigit())
+        code, out, err = self.lancer("--url", self.url, "--wait", "5", "--profile", "0", "--worker-lanes", "-1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("--worker-lanes", err)
+
     def test_unite_systemd_trouvee_par_le_processus_odoo(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("odoo_warmup_module", script_path("odoo-warmup.py"))

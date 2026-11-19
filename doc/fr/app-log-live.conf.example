@@ -189,3 +189,5 @@
 #   --ack-list               Liste les constats vérifiés, puis quitte
 #   --ack-note TEXT          Avec --ack : pourquoi c'est correct
 #   --unack CODE             Retire la vérification d'un constat, puis quitte
+#   --profile [SECONDES]     Échantillonne le Python d'Odoo avec py-spy (60 s par défaut), montre où va le temps, puis quitte
+#   --warmup-lines           Chaque requête d'odoo-warmup.py une par une (défaut : une ligne de résumé par préchauffage)

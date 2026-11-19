@@ -13,5 +13,13 @@ odoo-warmup.py --systemd-remove
 
 Créer un utilisateur Odoo dédié et une clé d'API dans un fichier de droits 0600 ; renseigner `LOGIN`, `KEY_FILE`, `DB` dans `/etc/default/odoo-warmup.conf`. Sans eux, seules les pages publiques sont préchauffées. Chemins publics supplémentaires : un par ligne dans `/etc/default/odoo-warmup-pages.conf` (créé au premier lancement).
 
+## Plusieurs workers
+
+Odoo compile les gabarits QWeb d'une page dans chaque worker, la première fois que ce worker la montre. Les pages chargées sont donc redemandées par plusieurs files en parallèle, chacune avec sa propre session (`WORKER_LANES`, `--worker-lanes`). Par défaut, il y a une file pour deux workers : les autres workers restent libres pour les visiteurs qui arrivent pendant le préchauffage. `0` désactive cette étape.
+
+Les fichiers statiques sont demandés directement à Odoo. Avec le module serveur `rlq_preload_statics` (dépôt rlq-odoo-addons), le processus maître d'Odoo dresse la liste des dossiers static avant de lancer les workers : chaque fichier n'est alors demandé qu'une fois, pour vérifier. Sans ce module, chaque fichier est demandé deux fois par worker.
+
+Chaque préchauffage est noté dans `/var/lib/odoo-warmup/runs` : `app-log-live.py` nomme ses requêtes « odoo-warmup.py » et les résume en une ligne (`--warmup-lines` pour les voir une par une).
+
 ## Options
 {{HELP}}

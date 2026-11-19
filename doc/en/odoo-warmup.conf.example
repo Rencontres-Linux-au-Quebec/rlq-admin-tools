@@ -21,9 +21,6 @@
 #LANGUAGE=auto
 # --latest : pages publiques des N derniers événements et sondages (lus avec la session d'administration LOGIN / KEY_FILE) ; 0 = aucun
 #LATEST=5
-# 1.40: seconds of py-spy profile of the Odoo processes during the warm-up (installed if missing, root;
-# summary in /var/lib/python-profile/, with the profiles of app-log-live.py --profile); 0 = none.
-#PROFILE=60
 # --links : pages liées trouvées dans les pages publiques (fiches d'événements, sondages...) à charger aussi ; 0 = aucune
 #LINKS=6
 # Administration : utilisateur Odoo DÉDIÉ (droits de lecture suffisent) et fichier contenant sa CLÉ D'API (Préférences > Sécurité du compte > Clés API ;
@@ -35,6 +32,9 @@
 #PAGES=/,/web/login,/event,/survey
 # --pages-file : fichier des pages publiques supplémentaires, un chemin par ligne (modèle : doc/odoo-warmup-pages.conf.example ; ajouter une page = ajouter une ligne)
 #PAGES_FILE=/etc/default/odoo-warmup-pages.conf
+# 1.40: seconds of py-spy profile of the Odoo processes during the warm-up (installed if missing, root;
+# summary in /var/lib/python-profile/, with the profiles of app-log-live.py --profile); 0 = none.
+#PROFILE=60
 # --repeat : passages en parallèle de chaque appel d'administration (plusieurs processus d'Odoo)
 #REPEAT=4
 # --service : unité systemd d'Odoo (--systemd-install et --systemd-remove)
@@ -45,6 +45,9 @@
 #VERBOSE=no
 # --wait : secondes d'attente qu'Odoo réponde avant de préchauffer
 #WAIT=20
+# 1.43: lanes in parallel that ask the pages again, so that several Odoo workers compile their templates (--worker-lanes);
+# default: half of the Odoo workers (the others stay free for the visitors during the warm-up); 0 = none.
+#WORKER_LANES=
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-warmup --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.

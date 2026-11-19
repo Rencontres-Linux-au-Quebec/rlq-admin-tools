@@ -189,3 +189,5 @@
 #   --ack-list               List the checked findings, then exit
 #   --ack-note TEXT          With --ack: why it is fine
 #   --unack CODE             Remove the check of a finding, then exit
+#   --profile [SECONDS]      Sample the Python of Odoo with py-spy (60 s by default), show where the time goes, then exit
+#   --warmup-lines           Every request of odoo-warmup.py one by one (default: one summary line per warm-up)
