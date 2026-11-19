@@ -3964,6 +3964,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.36.20261118.203819 - Server-wide modules of an archive never in -u
+
+- Title: a server-wide module of the archive (post_load in its manifest, such as rlq_preload_statics) is extracted and copied for the rollback, but never given to -u; the command that enables it is shown.
+- Reason: run of the administrator on 2026-11-18 20:24 in PROD (105): `--zip rlq_preload_statics.1.0.zip` added rlq_preload_statics to the modules updated in the database (« Modules : rlq_survey_report rlq_preload_statics »), although a server-wide module is never installed in a database (-u then does nothing with it, which was misleading).
+- Changes:
+  - zip_inspecter(): third column, 1 when the manifest has a post_load hook; trouver_zip(): new array ZIP_SERVEUR.
+  - trouver_modules(): a module of the archive with post_load that the database does not have installed goes into the new array MODULES_SERVEUR instead of MODULES_TROUVES; an archive with only such modules is accepted (no update in the database, extraction and restart).
+  - New function annoncer_serveur(), called by mettre_a_jour(): already in server_wide_modules: its new version is taken at the restart; rlq_preload_statics not yet there: the command nginx-hardening.sh --update --odoo-preload-statics; another one: add it to server_wide_modules.
+  - mettre_a_jour(): without a module to update in the database, a line instead of the run of Odoo.
+  - find_module_dirs(), backup_modules(): the server-wide modules are copied before the extraction too (rollback).
+  - Header: new line « Server-wide : » ; last line: every module of the run; lang/odoo-update-module.en.po.
+- Bugs fixed: none (the run of 20:24 was right, only misleading).
+- Safeguards and edge cases:
+  - Database unreadable (not root...): the module stays in -u, as before; never left out on a guess.
+  - A server-wide module that is installed in the database (state installed or to upgrade) is updated like the others.
+- Checks performed: bash -n; nginx-tools-tests/test_odoo_update_module.py (new test test_136_module_server_wide_jamais_dans_u: archive with two modules, then the module alone already in server_wide_modules; 52 tests); test_i18n (catalogue of odoo-update-module).
+- Action required: none.
+
 ### 1.35.20261118.172706 - Log of the warm-up with --restart-only
 
 - Title: with --restart-only, the warm-up writes its output in a real log file.

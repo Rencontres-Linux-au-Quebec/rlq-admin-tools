@@ -105,7 +105,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.35.20261118.172706"
+readonly SCRIPT_VERSION="1.36.20261118.203819"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -355,8 +355,10 @@ trouver_base() {
 
 # .zip archive of the modules: --zip / ZIP (file, or folder: the most recent), otherwise the most recent "PATTERN*.zip" of the CURRENT folder; none: nothing to extract.
 # A zip found without having asked for it is only a convenience; a zip REQUESTED and not found is an error.
-ZIP_FICHIER=""; ZIP_MODULES=(); ZIP_VERSIONS=(); DESTINATION=""
-zip_inspecter() {   # zip_inspecter FILE: "module<TAB>manifest version" per module of the archive; code 3 if a path leaves the destination folder
+ZIP_FICHIER=""; ZIP_MODULES=(); ZIP_VERSIONS=(); ZIP_SERVEUR=(); DESTINATION=""; MODULES_SERVEUR=()
+# zip_inspecter FILE: "module<TAB>manifest version<TAB>1 when the manifest has a post_load hook (server-wide module), else 0" per module of the
+# archive; code 3 if a path leaves the destination folder
+zip_inspecter() {
     python3 - "$1" <<'PYEOF'
 import ast, posixpath, sys, zipfile
 try:
@@ -369,10 +371,11 @@ try:
         parts = p.split("/")
         if len(parts) == 2 and parts[1] == "__manifest__.py":
             try:
-                version = str(ast.literal_eval(z.read(n).decode("utf-8", "replace")).get("version", "?"))
-            except (ValueError, SyntaxError):
-                version = "?"
-            modules[parts[0]] = version
+                manifeste = ast.literal_eval(z.read(n).decode("utf-8", "replace"))
+                version, serveur = str(manifeste.get("version", "?")), "1" if manifeste.get("post_load") else "0"
+            except (ValueError, SyntaxError, AttributeError):
+                version, serveur = "?", "0"
+            modules[parts[0]] = version + chr(9) + serveur
 except (OSError, zipfile.BadZipFile):
     sys.exit(4)
 for nom in sorted(modules):
@@ -406,7 +409,11 @@ trouver_zip() {
     if (( code == 3 )); then ko "archive refusée : $ZIP_FICHIER contient un chemin qui sort du dossier de destination (/ ou ..)"; exit 1; fi
     if (( code != 0 )); then ko "archive illisible (zip invalide ?) : $ZIP_FICHIER"; exit 1; fi
     [[ -n "$sortie" ]] || { ko "archive sans module : aucun dossier avec __manifest__.py à la racine de $ZIP_FICHIER"; exit 1; }
-    while IFS= read -r ligne; do ZIP_MODULES+=("${ligne%%$'\t'*}"); ZIP_VERSIONS+=("${ligne#*$'\t'}"); done <<< "$sortie"
+    local reste
+    while IFS= read -r ligne; do
+        ZIP_MODULES+=("${ligne%%$'\t'*}"); reste="${ligne#*$'\t'}"
+        ZIP_VERSIONS+=("${reste%%$'\t'*}"); ZIP_SERVEUR+=("${reste##*$'\t'}")
+    done <<< "$sortie"
 }
 
 # Extraction folder: --addons-dir / ADDONS_DIR; otherwise the addons_path folder which already contains one of these modules; otherwise error (never guessed at random).
@@ -526,9 +533,26 @@ trouver_modules() {
             done
         done
     done
-    for nom in ${ZIP_MODULES[@]+"${ZIP_MODULES[@]}"}; do          # the modules of the archive are updated too (even if they are not yet on disk)
+    local i etat
+    for i in ${ZIP_MODULES[@]+"${!ZIP_MODULES[@]}"}; do          # the modules of the archive are updated too (even if they are not yet on disk)
+        nom="${ZIP_MODULES[$i]}"
+        # 1.36: a server-wide module (post_load in its manifest, e.g. rlq_preload_statics) NOT installed in the database: never in -u (Odoo
+        # would do nothing with it), its code is still extracted and taken at the restart; installed: updated like the others
+        if [[ "${ZIP_SERVEUR[$i]:-0}" == "1" ]]; then
+            # database unreadable (not root...): treated like before 1.36 (in -u), never left out on a guess
+            if etat=$(pg_query "SELECT state FROM ir_module_module WHERE name = '$nom'") && [[ "$etat" != "installed" && "$etat" != "to upgrade" ]]; then
+                local -a garder=(); local x
+                for x in ${MODULES_TROUVES[@]+"${MODULES_TROUVES[@]}"}; do [[ "$x" != "$nom" ]] && garder+=("$x"); done
+                MODULES_TROUVES=(${garder[@]+"${garder[@]}"})
+                MODULES_SERVEUR+=("$nom")
+                continue
+            fi
+        fi
         case " ${MODULES_TROUVES[*]-} " in *" $nom "*) ;; *) MODULES_TROUVES+=("$nom") ;; esac
     done
+    if (( ${#MODULES_TROUVES[@]} == 0 && ${#MODULES_SERVEUR[@]} > 0 )); then
+        return 0                                               # 1.36: server-wide modules only: extraction and restart, nothing in the database
+    fi
     if (( ${#MODULES_TROUVES[@]} == 0 )); then
         ko "aucun module trouvé pour « $MODULES_MOTIFS » dans addons_path de $ODOO_CONF_UTILISEE"
         exit 1
@@ -609,9 +633,30 @@ purger_journaux() {   # keeps the 10 most recent AND everything less than LOG_KE
     done
 }
 
+# 1.36: what to say about the server-wide modules of the archive (not installed in the database: never updated by -u)
+annoncer_serveur() {
+    local nom swm
+    (( ${#MODULES_SERVEUR[@]} > 0 )) || return 0
+    swm=$(odoo_conf_valeur "$ODOO_CONF_UTILISEE" server_wide_modules 2>/dev/null || true)
+    for nom in "${MODULES_SERVEUR[@]}"; do
+        if [[ ",${swm// /}," == *",$nom,"* ]]; then
+            detail "$nom : module server-wide (jamais installé dans une base), déjà dans server_wide_modules : sa nouvelle version est prise au redémarrage"
+        elif [[ "$nom" == rlq_preload_statics ]]; then
+            attn "$nom : module server-wide (jamais installé dans une base), pas encore dans server_wide_modules : $SCRIPT_DIR/nginx-hardening.sh --update --odoo-preload-statics l'active, puis redémarrer Odoo"
+        else
+            attn "$nom : module server-wide (jamais installé dans une base), pas dans server_wide_modules de $ODOO_CONF_UTILISEE : l'y ajouter pour l'activer"
+        fi
+    done
+}
+
 mettre_a_jour() {
     local liste code=0 secondes debut
     etape "Mise à jour des modules dans la base $DB"
+    annoncer_serveur
+    if (( ${#MODULES_TROUVES[@]} == 0 )); then
+        ok "aucun module à mettre à jour dans la base : modules server-wide seulement (${MODULES_SERVEUR[*]}), code remplacé, pris au redémarrage"
+        return 0
+    fi
     liste=$(IFS=,; echo "${MODULES_TROUVES[*]}")
     local -a odoo=("$CMD_ODOO" -c "$ODOO_CONF_UTILISEE" -d "$DB" -u "$liste"
                    --stop-after-init --no-http --workers=0 --max-cron-threads=0
@@ -1323,7 +1368,7 @@ find_module_dirs() {
     local -a dossiers=()
     liste=$(odoo_conf_valeur "$ODOO_CONF_UTILISEE" addons_path 2>/dev/null || true)
     IFS=',' read -ra dossiers <<< "$liste"
-    for nom in "${MODULES_TROUVES[@]}"; do
+    for nom in ${MODULES_TROUVES[@]+"${MODULES_TROUVES[@]}"} ${MODULES_SERVEUR[@]+"${MODULES_SERVEUR[@]}"}; do      # 1.36: the server-wide ones are copied too (rollback)
         for chemin in ${dossiers[@]+"${dossiers[@]}"}; do
             chemin="${chemin#"${chemin%%[![:space:]]*}"}"; chemin="${chemin%"${chemin##*[![:space:]]}"}"
             [[ -n "$chemin" ]] || continue
@@ -1338,7 +1383,7 @@ backup_modules() {
     local stamp nom f
     local -a chemins=()
     etape "Copie des modules avant la mise à jour (base du retour arrière)"
-    for nom in "${MODULES_TROUVES[@]}"; do [[ -n "${MODULE_DIRS[$nom]:-}" ]] && chemins+=("${MODULE_DIRS[$nom]}"); done
+    for nom in ${MODULES_TROUVES[@]+"${MODULES_TROUVES[@]}"} ${MODULES_SERVEUR[@]+"${MODULES_SERVEUR[@]}"}; do [[ -n "${MODULE_DIRS[$nom]:-}" ]] && chemins+=("${MODULE_DIRS[$nom]}"); done
     if (( ${#chemins[@]} == 0 )); then detail "aucun module déjà présent sur le disque : rien à copier (nouveaux modules)"; return 0; fi
     stamp=$(date +%Y%m%d-%H%M%S)
     if (( DO_DRY_RUN )); then sim "tar -czPf $MODULES_BACKUP_DIR/modules-$DB-$stamp.tar.gz ${chemins[*]}"; return 0; fi
@@ -1505,7 +1550,8 @@ fi
 echo
 champ "Service :" "${C_BOLD}$SERVICE${C_RESET}$( (( SERVICE_DETECTE )) && printf ' (détecté)' )"
 champ "Base :" "${C_BOLD}${C_YELLOW}$DB${C_RESET}"
-if (( RESTART_ONLY )); then champ "Modules :" "${C_DIM}aucun (redémarrage seulement)${C_RESET}"; else champ "Modules :" "${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; fi
+if (( RESTART_ONLY )); then champ "Modules :" "${C_DIM}aucun (redémarrage seulement)${C_RESET}"; else champ "Modules :" "${C_CYAN}${MODULES_TROUVES[*]-}${C_RESET}"; fi
+if (( ${#MODULES_SERVEUR[@]} > 0 )); then champ "Server-wide :" "${C_CYAN}${MODULES_SERVEUR[*]}${C_RESET} ${C_DIM}(jamais installés dans la base : code remplacé, pris au redémarrage)${C_RESET}"; fi
 if (( RESTART_PG )); then champ "PostgreSQL :" "${C_BOLD}$PG_SERVICE${C_RESET} ${C_DIM}(redémarré entre l'arrêt et le démarrage d'Odoo)${C_RESET}"; fi
 if [[ -n "$ZIP_FICHIER" ]]; then champ "Archive :" "${C_BOLD}$ZIP_FICHIER${C_RESET} ${C_DIM}→ $DESTINATION${C_RESET}"
     for i in "${!ZIP_MODULES[@]}"; do champ "  ${ZIP_MODULES[$i]}" "version ${C_BOLD}${C_CYAN}${ZIP_VERSIONS[$i]}${C_RESET} ${C_DIM}(manifeste de l'archive)${C_RESET}"; done
@@ -1569,4 +1615,4 @@ if (( echecs > 0 )); then
 fi
 if (( DO_DRY_RUN )); then rollback || true; fi
 echo
-if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; else echo "${C_GREEN}✔ ${C_BOLD}mise à jour terminée${C_RESET} : ${C_CYAN}${MODULES_TROUVES[*]}${C_RESET}"; resume_durees; fi
+if (( DO_DRY_RUN )); then echo "${C_BOLD}Simulation terminée.${C_RESET}"; else echo "${C_GREEN}✔ ${C_BOLD}mise à jour terminée${C_RESET} : ${C_CYAN}${MODULES_TROUVES[*]-}${MODULES_SERVEUR[*]+ ${MODULES_SERVEUR[*]}}${C_RESET}"; resume_durees; fi
