@@ -1887,6 +1887,27 @@ class Bilan(EnvTest):
         self.assertEqual(valeurs_ligne("bbb.exemple.ca"), [0, 3, 0, 3, 3])
         self.assertEqual(valeurs_ligne("(sans"), [10, 0, 0, 15, 19])                 # the fixture lines have no Host: 10 today, 5 three days ago, 4 twenty days ago, 1 forty days ago
 
+    def test_292_visiteurs_et_requetes_par_heure(self):
+        """2.92 : --hourly : 24 lignes ; moyenne par jour sur les jours passés qui ont des journaux, aujourd'hui à part ; visiteurs = adresses
+        distinctes dans l'heure ; ce serveur exclu ; heure la plus chargée et heures calmes ; lecture seule (pas de root)."""
+        import datetime
+        mois = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        ng = lambda d: f"{d:%d}/{mois[d.month - 1]}/{d:%Y}"
+        H = lambda ip, d, h, url="/event": f'{ip} - - [{ng(d)}:{h}:15:00 -0400] "GET {url} HTTP/1.1" 200 900 "-" "Mozilla/5.0"\n'
+        T = datetime.date.today()
+        J1, J2 = T - datetime.timedelta(days=1), T - datetime.timedelta(days=2)
+        with open(self.path("nginx", "rencontres_linux_quebec_prod-access.log"), "w") as f:
+            f.writelines([H("203.0.113.1", J1, "14"), H("203.0.113.1", J1, "14"), H("203.0.113.2", J1, "14", "/web/assets/a.css"),
+                          H("203.0.113.3", J2, "14"), H("203.0.113.4", J2, "03"), H("127.0.0.1", J1, "14")])
+        rc, out, err = self.run_cmd(["python3", self.prog, "--hourly", "--days", "3", "--lang", "fr"])       # period: J-2, J-1, today
+        self.assertEqual(rc, 0, err)
+        lignes = {l.split()[0][:3]: l for l in out.splitlines() if re.match(r"^  \d{2}h", l)}
+        self.assertEqual(len(lignes), 24, out)
+        self.assertEqual(lignes["14h"].split()[1:4], ["1.5", "1.5", "2.0"])          # 2 days: visitors (2+1)/2, pages (2+1)/2, requests (3+1)/2
+        self.assertEqual(lignes["03h"].split()[1:4], ["0.5", "0.5", "0.5"])
+        self.assertIn("14h", next(l for l in out.splitlines() if "chargée" in l))
+        self.assertIn("2 jours passés", out)
+
     def test_option_days(self):
         """2.26 : --days N — période longue de N jours ; colonnes sans objet retirées ; valeur invalide refusée."""
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--days", "3"])

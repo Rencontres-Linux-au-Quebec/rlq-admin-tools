@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.91.20261112.095816"
+__version__ = "2.92.20261118.215549"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3804,7 +3804,7 @@ def collect_summary(periods):
     unreadable = []
     facts = {"ip": {}, "malveillantes": {}, "non_filtrees": {}, "non_filtrees_hotes": {}, "hotes": {}, "valides": {}, "robots": {},
              "days": {}, "jails": {}, "comptes": {}, "refus_navigateurs": {}, "refus_nav_ip": {}, "refus_robots_chemins": {},
-             "non_filtrees_jour": [], "ips_2xx": set(), "hotes_periodes": {}}
+             "non_filtrees_jour": [], "ips_2xx": set(), "hotes_periodes": {}, "heures": {}}
     cache = {}
     start30 = periods.starts[2]
 
@@ -3852,6 +3852,14 @@ def collect_summary(periods):
                         c.add("nos_programmes", idx)
                         continue
                     c.add("requetes", idx)
+                    if 2 in idx:                       # 2.92 --hourly: (day, hour) -> [requests, pages, {addresses}], whole long period
+                        cell = facts["heures"].get((d, text_line[m.end(2) + 1:m.end(2) + 3]))
+                        if cell is None:
+                            cell = facts["heures"][(d, text_line[m.end(2) + 1:m.end(2) + 3])] = [0, 0, set()]
+                        cell[0] += 1
+                        cell[2].add(ip)
+                        if method == "GET" and code[0] == "2" and not ASSET_RE.search(url):
+                            cell[1] += 1
                     if account_ips is None or ip in account_ips or in_whitelist(ip):
                         accumulate_ip(ip_stats, ip, method, url, code, d, idx, ua, request_second(text_line) if ip in (account_ips or ()) else None)
                     c.add_distinct("visiteurs", idx, ip)
@@ -4420,6 +4428,64 @@ def show_bbb_state():
     return problems
 
 
+def hourly_table(hours, today, first_day=None):
+    """2.92: [(hour, visitors, pages, requests averaged per day over the past days, then today's visitors, pages, requests)] for the 24
+    hours, and the number of past days: every day from `first_day` (start of the period, or the oldest site log if later) to yesterday,
+    a day without any line counting as 0; without first_day, the past days that have lines. Today is apart: its current hour is not over."""
+    seen = {d for d, _h in hours if d != today}
+    if first_day is not None and first_day < today:
+        past_days = [first_day + datetime.timedelta(days=k) for k in range((today - first_day).days)]
+    else:
+        past_days = sorted(seen)
+    rows = []
+    for h in range(24):
+        key = f"{h:02d}"
+        past = [hours.get((d, key)) for d in past_days]
+        past = [x for x in past if x]
+        n = len(past_days) or 1
+        now = hours.get((today, key)) or [0, 0, set()]
+        rows.append((key, sum(len(x[2]) for x in past) / n, sum(x[1] for x in past) / n, sum(x[0] for x in past) / n,
+                     len(now[2]), now[1], now[0]))
+    return rows, len(past_days)
+
+
+def show_hourly():
+    """2.92 --hourly: visitors, page views and requests per hour of the day, averaged over the past days of the period, then today; the
+    busiest and the calmest hours (a moment to restart the application). Same counting as --summary: our own programs excluded."""
+    now = datetime.datetime.now().astimezone()
+    periods = Periods(now.date())
+    _c, sources, facts, *_rest = collect_summary(periods)
+    oldest = sources["site"].oldest
+    first_day = max(periods.starts[2], oldest) if oldest else None
+    rows, days = hourly_table(facts.get("heures", {}), now.date(), first_day)
+    print(f"Visitors and requests per hour — {socket.gethostname()} — {PROFILE.get('APP_LABEL', 'Odoo')} — {now:%Y-%m-%d %H:%M %Z} — web-monitor.py v{__version__}")
+    print()
+    if days:
+        print(f"Average per day over the {days} past days, since {first_day:%Y-%m-%d} (start of the period or oldest site log); --days N to change the period ({DAYS} days)")
+    else:
+        print("No past day in the site logs: today only")
+    print("Visitor = distinct IP address in the hour; page = GET answered 2xx, without images, CSS, JS; this server's own tests excluded")
+    print()
+    top = max([r[2] for r in rows] + [1e-9])
+    width_bar = 30
+    hour_t, visitors_t, pages_t, requests_t, avg_t = TR("Hour"), TR("Visitors"), "Pages", TR("Requests"), TR("(avg.)")      # translated BEFORE padding
+    print(f"  {hour_t:<6}{visitors_t:>10}{pages_t:>10}{requests_t:>11}   |{TR('Today'):^31}|")
+    print(f"  {'':<6}{avg_t:>10}{avg_t:>10}{avg_t:>11}   |{visitors_t:>10}{pages_t:>10}{requests_t:>11}|  " + TR("Pages (avg.)"))
+    current = f"{now:%H}"
+    for hour, v, p, r, tv, tp, tr in rows:
+        bar = "█" * round(width_bar * p / top) if p else ""
+        mark = "*" if hour == current else " "
+        print(f"  {hour + 'h' + mark:<6}{v:>10.1f}{p:>10.1f}{r:>11.1f}   |{fmt(tv):>10}{fmt(tp):>10}{fmt(tr):>11}|  {bar}")
+    print("  * current hour: not over")
+    if days and any(r[3] for r in rows):
+        busiest = max(rows, key=lambda r: (r[1], r[2]))
+        calm = sorted(rows, key=lambda r: (r[1], r[2], r[3]))[:3]
+        print()
+        print(f"Busiest hour: {busiest[0]}h ({busiest[1]:.1f} visitors, {busiest[2]:.1f} pages on average)")
+        print("Calmest hours (a moment to restart the application): " + ", ".join(f"{r[0]}h ({r[1]:.1f} visitors)" for r in calm))
+    return 0
+
+
 def show_summary():
     now = datetime.datetime.now().astimezone()
     periods = Periods(now.date())
@@ -4956,7 +5022,7 @@ def main():
     parser.add_argument("--list-users", action="store_true",
                         help="List all Odoo logins (or BigBlueButton participants) in alphabetical order")
     parser.add_argument("--days", type=int, metavar="N",
-                        help="With --summary or --list-users: limit to the last N days (1 to 366; summary: 30 by default)")
+                        help="With --summary, --hourly or --list-users: limit to the last N days (1 to 366; summary: 30 by default)")
     parser.add_argument("--details", action="store_true",
                         help="With --list-users: add each account's traffic (slower to compute)")
     parser.add_argument("--table", action="store_true",
@@ -5004,6 +5070,8 @@ def main():
                         help="Do not offer to open the full report in less at the end of a pass")
     parser.add_argument("--app", metavar="NAME",
                         help="Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default")
+    parser.add_argument("--hourly", action="store_true",
+                        help="Visitors, page views and requests per hour of the day: average of the past days (--days N, 30 by default) and today; busiest and calmest hours")
     parser.add_argument("--summary", action="store_true",
                         help="Numbered summary (today, D-1, D-2, 7 days, 30 days or --days N): traffic, blocks and attacks, errors, highlights, log coverage")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each command run")
@@ -5078,14 +5146,14 @@ def main():
     # Root: required AT THE START for anything that modifies (run, bans, timer, fixes); the read modes only warn about what will be incomplete.
     user_reading = args.suspect_users or args.investigate_user              # read-only (the ban / watch offered at the end checks root itself)
     user_writing = args.ban_odoo_user or args.unban_odoo_user or args.watch_odoo_user or args.unwatch_odoo_user
-    plain_run = not (args.install_timer or args.uninstall_timer or args.apply or args.ban_recommended or user_writing or args.dry_run or args.summary
+    plain_run = not (args.install_timer or args.uninstall_timer or args.apply or args.ban_recommended or user_writing or args.dry_run or args.summary or args.hourly
                      or args.list_users or args.unban_check or args.status or user_reading)
     if plain_run and not _load_module("_config").est_root():
         # 2.88: a plain run without root becomes a --dry-run (the report, nothing changed) instead of a refusal
         eprint("Without root: --dry-run mode (nothing is changed: no run recorded, no ban, no timer, no correction); sudo web-monitor.py for a real run.")
         args.dry_run = True
     modifying = args.install_timer or args.uninstall_timer or args.apply or args.ban_recommended or user_writing or not (
-        args.dry_run or args.summary or args.list_users or args.unban_check or args.status or user_reading)
+        args.dry_run or args.summary or args.hourly or args.list_users or args.unban_check or args.status or user_reading)
     if modifying and not _load_module("_config").est_root():
         eprint("ERROR: root required (sudo) to change anything (run, bans, timer, fixes) — only --dry-run, --list-users, --status, --summary and --unban-check work without privileges.")
         return 2
@@ -5101,6 +5169,8 @@ def main():
             eprint(f"ERROR: {e}")
             return 2
         set_cms()                                      # the profile is known: BigBlueButton -> any CMS is sensitive
+    if args.hourly:
+        return show_hourly()
     if args.summary:
         return show_summary()
     internet = True if args.internet else None
