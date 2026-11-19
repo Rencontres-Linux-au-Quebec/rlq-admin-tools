@@ -2382,6 +2382,26 @@ class AppLogLive(EnvTest):
         self.assertIn("Programme : app-log-live.py v1.", T(out))
 
     # --- 1.12: presence sort, summarized accounts, colored figures, key menu ---
+    def test_199_prechauffage_resume_en_une_ligne(self):
+        """1.199 : pendant un préchauffage noté par odoo-warmup.py, les requêtes locales réussies sont résumées en UNE ligne (odoo-warmup.py) ; sa
+        page 404 reste affichée, nommée odoo-warmup.py ; un visiteur reste affiché ; --warmup-lines : chaque requête."""
+        lignes = [werkzeug("127.0.0.1", f"/en_CA/page-{n}", delta=40 - n) for n in range(6)]
+        lignes += [werkzeug("127.0.0.1", "/en_CA/survey", code=404, delta=33), werkzeug(DNS, "/event", delta=32)]
+        self.journal(lignes)
+        runs = os.path.join(self.d, "runs")
+        with open(runs, "w") as f:
+            f.write(f"{time.time() - 45:.2f} {time.time() - 30:.2f} 1\n")
+        rc, out, err = self.lancer("--no-history", env_extra={"ODOO_WARMUP_RUNS": runs})
+        texte = ANSI.sub("", out)
+        self.assertNotIn("/en_CA/page-3", texte)
+        self.assertIn("6 requêtes du préchauffage regroupées", texte, texte)
+        self.assertRegex(texte, r"odoo-warmup\.py.*/en_CA/survey")
+        self.assertIn("/event", texte)
+        rc, out, err = self.lancer("--no-history", "--warmup-lines", env_extra={"ODOO_WARMUP_RUNS": runs})
+        texte = ANSI.sub("", out)
+        self.assertIn("/en_CA/page-3", texte)
+        self.assertNotIn("regroupées", texte)
+
     def module_live(self):
         spec = importlib.util.spec_from_file_location("live_112", script_path("app-log-live.py"))
         live = importlib.util.module_from_spec(spec)
@@ -5713,3 +5733,65 @@ class AppLogLive189(unittest.TestCase):
             self.assertEqual(self.m.STYLES[cle], "", cle)
         self.assertEqual(self.m.color_code(self.m.STYLES["org"], "Videotron Ltee"), "Videotron Ltee")
         self.assertEqual(self.m.STYLES["banned"], "1;91")                 # bloqué : rouge (conservé)
+
+
+class AppLogLive199(unittest.TestCase):
+    """1.199 : les requêtes d'odoo-warmup.py (journal d'Odoo sans User-Agent) reconnues par l'heure de la ligne, dans un préchauffage noté par
+    odoo-warmup.py 1.43, ou par leur User-Agent (nginx) ; une seule ligne de résumé par préchauffage ; les erreurs restent affichées."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live199", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    ODOO = ('2026-11-18T20:32:05.150000-0500 odoo18 odoo[1]: 2026-11-18 20:32:05,150 1 INFO base werkzeug: 127.0.0.1 - - '
+            '[18/Nov/2026 20:32:05] "GET {path} HTTP/1.1" {code} - 21 0.010 {py}')
+
+    def setUp(self):
+        import tempfile
+        self.d = tempfile.mkdtemp(prefix="test-rlq-199-")
+        self.addCleanup(shutil.rmtree, self.d, True)
+        self.runs = os.path.join(self.d, "runs")
+        self.ancien = os.environ.get("ODOO_WARMUP_RUNS")
+        os.environ["ODOO_WARMUP_RUNS"] = self.runs
+        self.addCleanup(self.restaurer)
+        self.m._warmup_module = None
+
+    def restaurer(self):
+        if self.ancien is None:
+            os.environ.pop("ODOO_WARMUP_RUNS", None)
+        else:
+            os.environ["ODOO_WARMUP_RUNS"] = self.ancien
+        self.m._warmup_module = None
+
+    def ligne(self, path="/en_CA/web/login", code=200, py="0.080"):
+        return self.m.Line(self.ODOO.format(path=path, code=code, py=py))
+
+    def test_199_programme_et_resume(self):
+        m = self.m
+        L = self.ligne()
+        self.assertIsNone(m.during_warmup(L))                                            # no run written
+        self.assertNotEqual(m.local_program(L.text), "odoo-warmup.py")                     # outside a warm-up: never named so
+        with open(self.runs, "w") as f:
+            f.write(f"{L.instant - 10:.2f} {L.instant + 5:.2f} 1\n")
+        m._warmup_module = None
+        debut = m.during_warmup(L)
+        self.assertIsNotNone(debut)
+        self.assertEqual(m.local_program(L.text, True), "odoo-warmup.py")
+        self.assertEqual(m.local_program('"GET /?probe=nginx-hardening HTTP/1.1" 200', True), "nginx-hardening.sh")
+        self.assertEqual(m.local_program('127.0.0.1 "GET /event HTTP/1.1" 200 12 "-" "odoo-warmup"'), "odoo-warmup.py")
+        resume = m.WarmupSummary()
+        for path, code, py in (("/en_CA/web/login", "200", "0.080"), ("/web/login", "303", "0.001"), ("/en_CA/event", "200", "5.100")):
+            self.assertIsNone(resume.add(debut, self.ligne(path, code, py), path, code))
+        self.assertFalse(resume.finished(m.warmup_runs(), L.instant))                    # the run is not over at the time of its lines
+        self.assertTrue(resume.finished(m.warmup_runs(), L.instant + 60))
+        texte = ANSI.sub("", resume.take())
+        self.assertIn("odoo-warmup.py", texte)
+        self.assertIn("3 ", texte)
+        self.assertIn("200 x2", texte)
+        self.assertIn("/en_CA/event", texte)                                             # the slowest one
+        self.assertIsNone(resume.take())
+        autre = resume.add(debut, self.ligne(), "/", "200")
+        self.assertIsNone(autre)
+        self.assertIsNotNone(resume.add(debut + 100, self.ligne(), "/", "200"))          # another run: the summary of the previous one

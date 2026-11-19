@@ -185,8 +185,8 @@ msgstr "--report-err indisponible (apps/_rapport.py absent) — exécution norma
 msgid "events"
 msgstr "événements"
 
-msgid " » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST, PROFILE: numbers; LANGUAGE: en, fr, auto)"
-msgstr " » (clés : URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST, PROFILE : nombres ; LANGUAGE : en, fr, auto)"
+msgid " » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST, PROFILE, WORKER_LANES: numbers; LANGUAGE: en, fr, auto)"
+msgstr " » (clés : URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST, PROFILE, WORKER_LANES : nombres ; LANGUAGE : en, fr, auto)"
 
 msgid " (not public)"
 msgstr " (non public)"
@@ -400,17 +400,48 @@ msgstr "Échantillonne le Python des processus d'Odoo pendant le préchauffage, 
 msgid "; 0: none; root). Key PROFILE"
 msgstr " ; 0 : aucun ; root). Clé PROFILE"
 
-msgid "--links, --latest and --profile must be positive numbers or zero"
-msgstr "--links, --latest et --profile doivent être des nombres positifs ou zéro"
+msgid "--links, --latest, --profile and --worker-lanes must be positive numbers or zero"
+msgstr "--links, --latest, --profile et --worker-lanes doivent être des nombres positifs ou zéro"
 
-msgid "Pages in every worker ("
-msgstr "Pages dans chaque worker ("
+msgid "Pages in several workers ("
+msgstr "Pages dans plusieurs workers ("
 
 msgid " pages x "
 msgstr " pages x "
 
-msgid " workers, in parallel): "
-msgstr " workers, en parallèle) : "
+msgid " lanes in parallel): "
+msgstr " files en parallèle) : "
 
 msgid " failures, slowest "
 msgstr " échecs, la plus lente "
+
+# 1.43
+msgid "Static files: listed in advance by "
+msgstr "Fichiers statiques : listés d'avance par "
+
+msgid " (Odoo master, before the workers); "
+msgstr " (processus maître d'Odoo, avant les workers) ; "
+
+msgid " requests to check, slowest "
+msgstr " requêtes de vérification, la plus lente "
+
+msgid "  ATTENTION a static file took "
+msgstr "  ATTENTION un fichier statique a pris "
+
+msgid " did not list the folders (see the Odoo log at its start)"
+msgstr " n'a pas listé les dossiers (voir le journal d'Odoo à son démarrage)"
+
+msgid "Pages asked again by "
+msgstr "Pages redemandées par "
+
+msgid " lanes in parallel ("
+msgstr " files en parallèle ("
+
+msgid " Odoo workers; key WORKER_LANES, --worker-lanes)"
+msgstr " workers d'Odoo ; clé WORKER_LANES, --worker-lanes)"
+
+msgid "Pages asked again in several workers: none (WORKER_LANES or --worker-lanes below 2)"
+msgstr "Pages redemandées dans plusieurs workers : aucune (WORKER_LANES ou --worker-lanes sous 2)"
+
+msgid "Lanes in parallel that ask the pages again, so that several workers compile them (default: half of the Odoo workers; 0: none). Key WORKER_LANES"
+msgstr "Files en parallèle qui redemandent les pages, pour que plusieurs workers les compilent (défaut : la moitié des workers d'Odoo ; 0 : aucune). Clé WORKER_LANES"

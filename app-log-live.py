@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.198.20261118.172706"
+__version__ = "1.199.20261118.205214"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1558,12 +1558,91 @@ LOCAL_PROGRAMS = [(re.compile(r'"GET /\S*[?&]probe=nginx-hardening\S* HTTP|"HEAD
                   (re.compile(r'"(?:GET|POST) (?:/web/health|/web/webclient/version_info|/)(?:\?\S*)? HTTP'), "app-health-check.py")]
 
 
-def local_program(text):
-    """Name of the program of this server that made this local request; None if not recognized."""
-    for pattern, name in LOCAL_PROGRAMS:
+# 1.199: odoo-warmup.py. The Odoo log (werkzeug) has no User-Agent: its requests are known by the time of the line, inside one of the runs that
+# odoo-warmup.py 1.43 writes in /var/lib/odoo-warmup/runs (apps/_warmup_runs.py); through nginx, its User-Agent « odoo-warmup » is enough.
+WARMUP_NAME = "odoo-warmup.py"
+WARMUP_AGENT_RE = re.compile(r'"odoo-warmup(?:[/ ][^"]*)?"')
+_warmup_module = None
+
+
+def warmup_runs():
+    """Cached reader of the runs of odoo-warmup.py (apps/_warmup_runs.Runs), or None when the component is missing."""
+    global _warmup_module
+    if _warmup_module is None:
+        module = load_module("_warmup_runs")
+        _warmup_module = module.Runs() if module else False
+    return _warmup_module or None
+
+
+def during_warmup(L):
+    """1.199: start of the run of odoo-warmup.py during which the line L was written (its User-Agent, else its time), or None."""
+    runs = warmup_runs()
+    window = runs.during(L.instant) if runs is not None else None
+    if window is not None:
+        return window[0]
+    return -1.0 if WARMUP_AGENT_RE.search(L.text or "") else None          # an older run without its file: one summary per stream pause
+
+
+def local_program(text, warmup=False):
+    """Name of the program of this server that made this local request; None if not recognized. 1.199: `warmup` (the line falls in a run of
+    odoo-warmup.py): odoo-warmup.py, except for the probes of nginx-hardening.sh, recognized by their own page."""
+    if LOCAL_PROGRAMS[0][0].search(text):
+        return LOCAL_PROGRAMS[0][1]
+    if warmup or WARMUP_AGENT_RE.search(text):
+        return WARMUP_NAME
+    for pattern, name in LOCAL_PROGRAMS[1:]:
         if pattern.search(text):
             return name
     return None
+
+
+class WarmupSummary:
+    """1.199: the requests of a run of odoo-warmup.py (hundreds: every page asked again by several workers) summed up in ONE line instead of one
+    line each. The answers 4xx and 5xx are still shown one by one (a page of the warm-up that does not exist any more)."""
+    def __init__(self):
+        self.start = None
+        self.reset()
+
+    def reset(self):
+        self.n, self.first, self.last, self.paths, self.codes, self.slowest = 0, None, None, set(), collections.Counter(), (0.0, "")
+        self.last_time = ""                         # time of the last request (full), in front of the summary like the other lines
+
+    def add(self, start, L, path, code):
+        """Counts the line; returns the summary line of the previous run when this line belongs to another run (else None)."""
+        previous = self.line() if self.n and start != self.start else None
+        if previous is not None:
+            self.reset()
+        self.start = start
+        self.n += 1
+        self.first = self.first or (L.ts_txt[11:19] if L.ts_txt else "?")
+        self.last = L.ts_txt[11:19] if L.ts_txt else self.last
+        self.last_time = L.ts_txt or self.last_time
+        self.paths.add(path.split("?", 1)[0])
+        self.codes[code] += 1
+        seconds = request_duration(L.text)
+        if seconds is not None and seconds > self.slowest[0]:
+            self.slowest = (seconds, path)
+        return previous
+
+    def finished(self, runs, now):
+        """True when there is something to say and the run is over (no run of odoo-warmup.py at `now`, or another one)."""
+        if not self.n:
+            return False
+        window = runs.during(now) if runs is not None else None
+        return window is None or window[0] != self.start
+
+    def take(self):
+        """The summary line, and the counters emptied; None when nothing was counted."""
+        text = self.line() if self.n else None
+        self.reset()
+        return text
+
+    def line(self):
+        codes = ", ".join(f"{c} x{n}" for c, n in sorted(self.codes.items()))
+        slowest = TR(", slowest {s:.1f} s ({path})").format(s=self.slowest[0], path=self.slowest[1]) if self.slowest[1] else ""
+        return (self.last_time + " " if self.last_time else "") + color_code(STYLES["server"], WARMUP_NAME) + " " + color_code(STYLES["debug"], TR(
+            "{n} requests of the warm-up summed up ({first} to {last}): {p} different pages, answers {codes}{slowest}; --warmup-lines to see them one by one").format(
+            n=self.n, first=self.first, last=self.last, p=len(self.paths), codes=codes, slowest=slowest))
 
 
 class People:
@@ -7045,7 +7124,7 @@ def follow(cmd, people, resolver, options, output):
         res = {}
         for ip, (kind_name, text, account) in results.items():
             if kind_name == "server":                      # the local program that makes this request, according to the requested page
-                text = local_program(L.text) or text
+                text = local_program(L.text, during_warmup(L) is not None) or text
             res[ip] = render(kind_name, text, ip, options["keep_ip"], pays.get(ip), resolver.category(ip), account in options["membres"])
             if kind_name == "person":
                 stats.people.add(ip)
@@ -7455,6 +7534,35 @@ def follow(cmd, people, resolver, options, output):
             return
         write_out(["  " + TR("{n} lines written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)").format(n=count, path=path)])
 
+    warmup_summary = WarmupSummary()
+
+    def warmup_write(text):
+        if text and not output.muted:
+            output.write(text + "\n")
+            output.flush()
+
+    def warmup_flush(now):
+        """1.199: writes the summary of the requests of odoo-warmup.py once its run is over (now = None: end of the stream, always)."""
+        if now is None or warmup_summary.finished(warmup_runs(), now):
+            warmup_write(warmup_summary.take())
+
+    def warmup_condensed(L, ips, results):
+        """1.199: True when L is a request of odoo-warmup.py answered without error (counted in its summary line, not shown); --warmup-lines: never.
+        A line of another address after the end of the run writes the summary first."""
+        if options.get("warmup_lines") or not ips:
+            return False
+        ip = ips[0][0]
+        local = results.get(ip, ("",))[0] == "server" or local_address(ip)
+        start = during_warmup(L) if local else None
+        request = REQUEST_RE.search(L.text or "") if start is not None else None
+        if request is None or int(request.group(2)) >= 400:
+            if warmup_summary.n and (L.instant is None or warmup_summary.finished(warmup_runs(), L.instant)):
+                warmup_write(warmup_summary.take())
+            return False
+        stats.server.add(ip)
+        warmup_write(warmup_summary.add(start, L, request.group(1), request.group(2)))
+        return True
+
     def release_deferred(cause_text):
         """The deferred "bad query" line, written with the reason given by the line that follows it (cause_text; None: no following line)."""
         if deferred[0] is not None:
@@ -7655,7 +7763,7 @@ def follow(cmd, people, resolver, options, output):
                 except Exception:
                     g, t, account_i = "unknown", i, None
                 if g == "server":
-                    t = local_program(old_one.text) or t
+                    t = local_program(old_one.text, during_warmup(old_one) is not None) or t
                 country_future = resolver.country_future(i)
                 try:
                     country_i = country_future.result(timeout=0) if country_future is not None else None
@@ -9130,6 +9238,7 @@ def follow(cmd, people, resolver, options, output):
                 if merge_ready:
                     continue
                 release_deferred(None)
+                warmup_flush(time.time())                # 1.199: the summary of a finished warm-up, even when no other line comes
                 if state.get("consumed") or time.time() - state["errors_start"] > 15:      # 1.158: idle stream after some history (or 15 s without any line) = end of the history
                     flush_errors_history()
                 show_summary()
@@ -9207,6 +9316,8 @@ def follow(cmd, people, resolver, options, output):
             if options["hide_addons"] and L.discard_addons():
                 state["addons_hidden"] = state.get("addons_hidden", 0) + 1
                 continue
+            if warmup_condensed(L, ips, results):     # 1.199: a request of odoo-warmup.py: counted in its summary line
+                continue
             if is_failed_request(L):                 # written with the next line, which says whether the error is harmless
                 deferred[0] = (L, renderings_of(L, results, pays))
                 continue
@@ -9248,6 +9359,7 @@ def follow(cmd, people, resolver, options, output):
             visitor_report(time.time())
             check_record(time.time())
         release_deferred(None)
+        warmup_flush(None)
         finish_recording("end")
         show_summary()
         startup_status_bar()
@@ -9469,6 +9581,8 @@ def main():
     parser.add_argument("--accounts-only", action="store_true",
                         help="1.191: only the lines of the addresses from which an Odoo account logged in (history and live); lines without an address stay; "
                              "everything stays counted; g key to switch; ACCOUNTS_ONLY")
+    parser.add_argument("--warmup-lines", action="store_true",
+                        help="1.199: shows every request of odoo-warmup.py one by one (default: one summary line per warm-up; its errors are always shown)")
     parser.add_argument("--visitor-report", type=float, default=VISITOR_REPORT_DEFAULT, metavar="MIN",
                         help=f"1.191: every MIN minutes, the visitors since the last report: different addresses (Odoo accounts, team, robots, anonymous), "
                              f"pages and requests per person; %% key: at once; 0 = never (default {VISITOR_REPORT_DEFAULT:g}); VISITOR_REPORT")
@@ -9811,7 +9925,8 @@ def main():
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "agents_wanted": not args.no_user_agent, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state,
-               "hide_bots": args.hide_bots, "accounts_only": args.accounts_only, "visitor_min": args.visitor_report}          # 1.191
+               "hide_bots": args.hide_bots, "accounts_only": args.accounts_only, "visitor_min": args.visitor_report,          # 1.191
+               "warmup_lines": args.warmup_lines}                                                                                      # 1.199
     options.update({"display_host": args.display_host, "buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
                     "since": args.since_epoch, "until": args.until_epoch, "grep": grep_re,            # 1.112 filters of the stream loop
                     "countries": countries or None, "exclude_countries": unwanted_countries or None})

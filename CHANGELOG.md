@@ -478,6 +478,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.199.20261118.205214 - Requests of odoo-warmup.py named and summed up in one line
+
+- Title: the requests of a warm-up are shown as "odoo-warmup.py" instead of "this server", and summed up in one line.
+- Reason: question of the administrator on 2026-11-18 about the PROD warm-up: about 200 lines "ce serveur" (fonts, pages, redirections) hid the other lines of the restart.
+- Changes:
+  - New constants WARMUP_NAME, WARMUP_AGENT_RE; new functions warmup_runs() (cached reader of apps/_warmup_runs.py), during_warmup(L) (start of the run of odoo-warmup.py during which the line was written, by its time; or its User-Agent "odoo-warmup" for an nginx line).
+  - local_program(text, warmup=False): odoo-warmup.py during a run, except for the probes of nginx-hardening.sh (checked first, as before); renderings_of() and the reminder of a logged-in address pass during_warmup().
+  - New class WarmupSummary and functions warmup_condensed(), warmup_flush(), warmup_write() in the stream: a local request of a run answered without error is counted, not shown; one line "odoo-warmup.py N requests of the warm-up summed up (from to): P different pages, answers 200 xN, 303 xN, slowest X s (page)" when the run is over (next line after it, idle stream or end of the stream).
+  - New option --warmup-lines: every request one by one, as before. lang/app-log-live.fr.po.
+- Bugs fixed: none (display).
+- Safeguards and edge cases: the answers 4xx and 5xx of the warm-up are still shown one by one, named odoo-warmup.py (a page of the warm-up that no longer exists); a visitor during the warm-up is shown as usual; a line without an address or without a request is never summed up; without the run file (odoo-warmup.py before 1.43, or not root), only the nginx lines with its User-Agent are recognized.
+- Checks performed: nginx-tools-tests/test_app_log_live.py (new tests AppLogLive199.test_199_programme_et_resume and AppLogLive.test_199_prechauffage_resume_en_une_ligne).
+- Action required: none.
+
 ### 1.198.20261118.172706 - Profiles in one place, summary that names the cause
 
 - Title: --profile keeps every profile in /var/lib/python-profile, with the name of the server and of the program, and its summary now shows the time per module of the application and the known causes.
@@ -2938,6 +2952,23 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-warmup.py
+
+### 1.43.20261118.205214 - Lighter warm-up: static files checked once, half of the workers, runs written
+
+- Title: with rlq_preload_statics the static files are asked once each; the pages are asked again by half of the workers only; each run is written for app-log-live.py.
+- Reason: question of the administrator on 2026-11-18 20:32 in PROD (105): "why does the warm-up repeat the URL test several times, it did not do that before". The log showed 78 requests for the 3 fonts (2 x 13 workers each, all answered in 0.00 s since rlq_preload_statics) and 130 page requests (10 pages x 13 lanes), which kept the 13 workers of PROD busy for about 7 s.
+- Changes:
+  - New function preload_active(): rlq_preload_statics in --load of the Odoo command line, else in server_wide_modules of its configuration (constant PRELOAD_MODULE).
+  - warm_statics(): new argument count; with rlq_preload_statics, count = 1 (3 requests to check) and a new line "Static files: listed in advance by rlq_preload_statics ..."; a file slower than 2 s then gives an ATTENTION line (the module did not list the folders).
+  - New function worker_lanes() and key WORKER_LANES, option --worker-lanes N: lanes of warm_every_worker(), half of the workers by default (at least 2), 0 = none; new line "Pages asked again by N lanes in parallel". The line of warm_every_worker() now says "lanes".
+  - main() split: the warm-up itself is in the new function warm_up(); main() writes the start and the end of the run through the new component apps/_warmup_runs.py (1.0): one line "START END PID" in /var/lib/odoo-warmup/runs (else ~/.cache/odoo-warmup/runs; ODOO_WARMUP_RUNS for the tests), the last 20 runs kept.
+  - read_config(): WORKER_LANES read (0 accepted). lang/odoo-warmup.fr.po, doc/en and doc/fr odoo-warmup.conf.example (WORKER_LANES), doc/en and doc/fr 10-odoo-warmup.md (section "Several workers").
+- Bugs fixed:
+  - Symptom: 78 useless font requests at each warm-up. Diagnosis: the static step of 1.40 made every worker list the static folders; since rlq_preload_statics the Odoo master does it once before the fork, so the step only repeated requests answered at once. Fix: one request per file, as a check.
+  - Symptom: every worker of PROD busy during the pages step. Diagnosis: 1.41 / 1.42 opened as many lanes as workers. Fix: half of the workers by default.
+- Safeguards and edge cases: without rlq_preload_statics the static step stays as in 1.40; WORKER_LANES above the number of workers is reduced to it; a negative --worker-lanes is refused; the run file cannot be written (not root, read-only): the warm-up goes on, only app-log-live.py does not name it; a killed warm-up (END still 0, process gone) is ignored by the readers.
+- Checks performed: nginx-tools-tests/test_odoo_warmup.py (new test test_143_files_limitees_et_statiques_avec_rlq_preload_statics; the 26 tests of the module and AppLogLive199 pass).
+- Action required: none. With half of the workers, the other workers compile the templates of a page the first time a visitor asks it (about a second, once per worker and page); WORKER_LANES=13 in /etc/default/odoo-warmup.conf asks again every worker, as in 1.42. Also: set PROFILE=0 in PROD once the profile is no longer needed, and fix the pages /survey (404 in /en_CA) and the old 2025-copie event address in /etc/default/odoo-warmup-pages.conf.
 
 ### 1.42.20261118.181307 - A session per worker lane: no more « bad query » website_visitor
 
@@ -7119,6 +7150,18 @@ Earlier history was archived outside this repository when this file was created.
 - Safeguards and edge cases: no file of the distribution is modified (only files of its own, rewritten only when their content changes); --rollback keeps the packages and the AIDE database; a missing path is never put in the audit rules (augenrules would refuse the whole set); no automatic reboot unless AUTOMATIC_REBOOT=yes; on a Proxmox host only the Debian security updates are applied (the Proxmox packages are updated by hand); invalid times in the configuration are reported and the defaults kept; the mail never needs a local mail server; without root, the loaded rules are reported as not checked.
 - Checks performed: shellcheck 0.11.0 (no finding); nginx-tools-tests/test_system_hardening.py (LXC Debian 12, Proxmox Debian 13, Ubuntu 20.04 VM, unsupported system, without root, configuration, English, idempotence, rollback, AIDE baseline, daily summary with and without mail); convention and menu tests; doc/build_docs.py --check.
 - Action required from the user: none to install. To use it: sudo system-hardening.sh (check), then sudo system-hardening.sh --update on each machine, the Proxmox host included; the daily mail needs the mail settings of the suite (nginx-hardening.sh --update --mail-setup).
+
+## apps/_warmup_runs.py
+
+### 1.0.20261118.205214 - Runs of odoo-warmup.py for app-log-live.py
+
+- Title: new component that writes and reads when each warm-up started and ended.
+- Reason: the Odoo log (werkzeug) has no User-Agent, so app-log-live.py could not tell a request of odoo-warmup.py from another local request (question of the administrator on 2026-11-18 about the PROD warm-up).
+- Changes: functions runs_files(), record_start(), record_end(), runs() and class Runs (cached reader, every 2 s); one line "START END PID" per run in /var/lib/odoo-warmup/runs, else ~/.cache/odoo-warmup/runs (ODOO_WARMUP_RUNS for the tests); the last 20 runs kept; a margin of 2 s around each run.
+- Bugs fixed: none (new).
+- Safeguards and edge cases: written through a temporary file and os.replace (never a half-written file); a file that cannot be written is skipped, never an error; a run still at END 0 whose process is gone is ignored.
+- Checks performed: nginx-tools-tests/test_odoo_warmup.py test_143 and test_app_log_live.py AppLogLive199.
+- Action required: none.
 
 ## apps/_theme.py
 

@@ -21,6 +21,10 @@
 #   * 1.40: STATIC files of EVERY worker, straight to Odoo (never through nginx, whose cache serves them to the visitors): the first static file
 #     that a worker serves makes it list the static folders of every module (about 10 s with the many modules of ERPLibre). wkhtmltopdf (PDF
 #     reports, report.url = 127.0.0.1) reads its fonts that way: without this step, the first PDF of each worker waited for it.
+#   * 1.43: with the server-wide module rlq_preload_statics (Odoo master lists the static folders before the fork), the static step asks each
+#     file ONCE, as a check; the pages are asked again by at most --worker-lanes lanes in parallel (key WORKER_LANES, half of the workers by
+#     default, 0: none), so that the other workers stay free for the visitors. Each run is written in /var/lib/odoo-warmup/runs
+#     (apps/_warmup_runs.py): app-log-live.py names its requests odoo-warmup.py and sums them up in one line.
 #   * 1.40: checks that the Odoo processes really write their temporary files in memory (TMPDIR on a tmpfs, nginx-hardening.sh step 17b).
 #   * 1.40: --profile SECONDS (key PROFILE, 60 by default, 0: none): py-spy (installed if missing) samples the Odoo processes during the
 #     warm-up, without stopping them; summary of the functions that take the time, kept in /var/lib/python-profile/ (1.41: the folder of every profile).
@@ -62,7 +66,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.42.20261118.181307"
+__version__ = "1.43.20261118.205214"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -89,6 +93,7 @@ DEFAULT_SERVICE = "odoo.service"
 STATIC_FILES = ["/web/static/fonts/lato/Lato-Reg-webfont.woff", "/web/static/fonts/lato/Lato-Bol-webfont.woff", "/web/static/fonts/lato/Lato-Lig-webfont.woff"]
 WORKER_PAGES_MAX = 40                                   # 1.41: pages asked to every worker (the first ones loaded)
 STATIC_SLOW = 2.0                                       # seconds: a static file slower than this was the first one of its worker
+PRELOAD_MODULE = "rlq_preload_statics"                  # 1.43: server-wide module that lists the static folders in the Odoo master
 DEFAULT_PROFILE = 60                                    # seconds of py-spy during the warm-up (key PROFILE, --profile; 0: none)
 DEFAULT_LANGUAGES = "fr,en,es"                             # site languages warmed up for each public page (key LANGS, --site-languages)
 PAGES_FILE = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), "odoo-warmup-pages.conf")      # extra pages, one per line
@@ -170,14 +175,14 @@ def read_config(explicite=None):
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
-            m = re.fullmatch(r"(REPEAT|WAIT|LINKS|LATEST|PROFILE)\s*=\s*[\"']?(\d+)[\"']?", line)
+            m = re.fullmatch(r"(REPEAT|WAIT|LINKS|LATEST|PROFILE|WORKER_LANES)\s*=\s*[\"']?(\d+)[\"']?", line)
             v = re.fullmatch(r"(VERBOSE|DEBUG_LEVEL)\s*=\s*[\"']?(\w*)[\"']?", line)
             c = re.fullmatch(r"(LOG_KEEP_DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
             a = re.fullmatch(r"(ANONYMIZE)\s*=\s*[\"']?(\w+)[\"']?", line)
             if path in common and not (v or c or a or re.match(r"LANGUAGE\s*=", line)):
                 continue                                       # the common file defines only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE (apps/_config.py CLES_COMMUNES)
             t = re.fullmatch(r"(URL|HOST|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
-            if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST", "PROFILE")):
+            if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST", "PROFILE", "WORKER_LANES")):
                 values[m.group(1)] = int(m.group(2))
             elif v:
                 if v.group(1) == "VERBOSE" and v.group(2).lower() in ("1", "true", "yes", "oui", "on", "0", "false", "no", "non", "off"):
@@ -197,7 +202,7 @@ def read_config(explicite=None):
                 if t.group(2).strip():
                     values[t.group(1)] = t.group(2).strip()
             else:
-                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST, PROFILE: numbers; LANGUAGE: en, fr, auto)")
+                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST, PROFILE, WORKER_LANES: numbers; LANGUAGE: en, fr, auto)")
     level = values.get("DEBUG_LEVEL", 0)
     if level >= 1 and "VERBOSE" not in values:               # DEBUG_LEVEL >= 1 means VERBOSE=yes
         values["VERBOSE"] = True
@@ -421,6 +426,16 @@ def load_page(client, path, tally, assets, languages=(), loaded=None):
     return text
 
 
+def worker_lanes(workers, wanted=None):
+    """1.43: lanes of warm_every_worker: `wanted` (key WORKER_LANES, --worker-lanes; 0: none) at most `workers`, else half of the workers
+    (at least 2): the other workers stay free for the visitors who arrive during the warm-up."""
+    if workers < 2:
+        return 0
+    if wanted is not None:
+        return min(wanted, workers)
+    return max(2, workers // 2)
+
+
 def warm_every_worker(client, pages, workers):
     """1.41: each page asked `workers` times IN PARALLEL: Odoo compiles the QWeb templates of a page in each worker the first time this worker
     shows it (a cache per process); asked once, a page was ready in one worker only, and the visitors paid the compilation in the others.
@@ -466,7 +481,7 @@ def warm_public(client, pages, repetitions, tally, links_count=0, languages=(), 
             load_page(client, link, tally, assets, languages, loaded)
     if workers >= 2:
         n, failures, slowest = warm_every_worker(client, loaded, workers)
-        print(f"Pages in every worker ({min(len(loaded), WORKER_PAGES_MAX)} pages x {workers} workers, in parallel): {n} requests, {failures} failures, slowest {slowest:.1f} s")
+        print(f"Pages in several workers ({min(len(loaded), WORKER_PAGES_MAX)} pages x {workers} lanes in parallel): {n} requests, {failures} failures, slowest {slowest:.1f} s")
     if not assets:
         return 0
     for name, results in group_results(in_parallel([(a, (lambda a=a: client.request_(a))) for a in assets], 1)):
@@ -1003,12 +1018,24 @@ def odoo_workers(proc="/proc"):
     return int(valeur) if valeur and valeur.strip().isdigit() else 0
 
 
-def warm_statics(base_url, workers, repetitions, tally):
+def preload_active(proc="/proc"):
+    """1.43: True when PRELOAD_MODULE is a server-wide module of Odoo (--load of its command line, else server_wide_modules of its configuration)."""
+    for texte in commandes_odoo(proc):
+        m = re.findall(r"--load[= ](\S+)", texte)
+        if m:
+            return PRELOAD_MODULE in m[-1].split(",")
+    module = load_module("_odoo_conf")
+    chemin = module.trouver() if module else None
+    valeur = module.valeur(chemin, "server_wide_modules") if chemin else ""
+    return PRELOAD_MODULE in [v.strip() for v in valeur.split(",")]
+
+
+def warm_statics(base_url, workers, repetitions, tally, count=None):
     """1.40: each static file of STATIC_FILES asked 2 x workers times IN PARALLEL, straight to Odoo: a worker busy building its list of static
     folders (first static file it serves) leaves the next requests to the other workers, so every worker builds it now rather than for a
-    visitor or a PDF report. Returns (requests, slow ones, slowest)."""
+    visitor or a PDF report. Returns (requests, slow ones, slowest). 1.43: `count` given (1 with rlq_preload_statics): that many times only."""
     client = Client(base_url)
-    count = max(2 * workers, 2 * repetitions, 4)
+    count = count or max(2 * workers, 2 * repetitions, 4)
     jobs = [(path, (lambda path=path: client.request_(path))) for path in STATIC_FILES]
     slow, slowest, n = 0, 0.0, 0
     for name, results in group_results(in_parallel(jobs, count)):
@@ -1167,6 +1194,7 @@ def main():
     parser.add_argument("--url", default=None, metavar="URL", help="Odoo address (default: automatic detection from the Odoo configuration file and the listening Odoo processes, then http://127.0.0.1:8069 ; bypasses nginx)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
     parser.add_argument("--version", action="version", version=f"odoo-warmup.py version {__version__}")
+    parser.add_argument("--worker-lanes", type=int, default=None, metavar="N", help="Lanes in parallel that ask the pages again, so that several workers compile them (default: half of the Odoo workers; 0: none). Key WORKER_LANES")
     parser.add_argument("--wait", type=int, default=None, metavar="SECONDS", help=f"Waits for Odoo to answer for {DEFAULT_WAIT} seconds at most (default) before warming up")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help (--version prints it itself)
         print(f"odoo-warmup.py v{__version__}")
@@ -1235,10 +1263,11 @@ def main():
     links_count = args.links if args.links is not None else config.get("LINKS", DEFAULT_LINKS)
     latest = args.latest if args.latest is not None else config.get("LATEST", DEFAULT_LATEST)
     profile_seconds = args.profile if args.profile is not None else config.get("PROFILE", DEFAULT_PROFILE)
+    lanes_wanted = args.worker_lanes if args.worker_lanes is not None else config.get("WORKER_LANES")
     if repetitions < 1 or wait_seconds < 1:
         parser.error("--repeat and --wait must be positive numbers")
-    if links_count < 0 or latest < 0 or profile_seconds < 0:
-        parser.error("--links, --latest and --profile must be positive numbers or zero")
+    if links_count < 0 or latest < 0 or profile_seconds < 0 or (lanes_wanted is not None and lanes_wanted < 0):
+        parser.error("--links, --latest, --profile and --worker-lanes must be positive numbers or zero")
     if args.config:
         read_files = f"{load_module('_config').avec_date(files_read[0])} (requested by -c/--config: no other file is read)"
     else:
@@ -1272,6 +1301,19 @@ def main():
     if args.systemd_remove:
         return systemd_remove_unit(service)
     client = Client(url)
+    runs = load_module("_warmup_runs")
+    run = runs.record_start() if runs else None                 # 1.43: app-log-live.py names the requests of this run
+    try:
+        return warm_up(client, url, wait_seconds, service, profile_seconds, pages, repetitions, links_count, languages, lanes_wanted,
+                       login, key_file, database, models, latest)
+    finally:
+        if runs:
+            runs.record_end(run)
+
+
+def warm_up(client, url, wait_seconds, service, profile_seconds, pages, repetitions, links_count, languages, lanes_wanted,
+            login, key_file, database, models, latest):
+    """The warm-up itself, once the options are read (main)."""
     print(f"Waiting for Odoo ({url}, {wait_seconds} s at most)…")
     if not wait_for_odoo(client, wait_seconds):
         eprint(f"ERROR: Odoo does not answer at {url} after {wait_seconds} s (service stopped? different HTTP port: --url).")
@@ -1289,10 +1331,20 @@ def main():
         http_ports, _gevent = odoo_conf_ports()
         direct = f"http://127.0.0.1:{http_ports[0]}" if http_ports else None
     workers = odoo_workers()
-    if direct:
+    preloaded = preload_active()
+    if direct and preloaded:                                 # 1.43: listed once in the Odoo master, inherited by every worker: one request per file
+        n_static, slow_static, slowest_static = warm_statics(direct, workers, repetitions, tally, count=1)
+        print(f"Static files: listed in advance by {PRELOAD_MODULE} (Odoo master, before the workers); {n_static} requests to check, slowest {slowest_static:.1f} s")
+        if slow_static:
+            eprint(f"  ATTENTION a static file took {slowest_static:.1f} s: {PRELOAD_MODULE} did not list the folders (see the Odoo log at its start)")
+    elif direct:
         n_static, slow_static, slowest_static = warm_statics(direct, workers, repetitions, tally)
         print(f"Static files of every worker ({direct}, {workers or '?'} workers): {n_static} requests, {slow_static} slower than {STATIC_SLOW:g} s (first static file of a worker), slowest {slowest_static:.1f} s")
-    n_assets = warm_public(client, pages, repetitions, tally, links_count, languages, workers)
+    lanes = worker_lanes(workers, lanes_wanted)
+    if workers >= 2:
+        print(f"Pages asked again by {lanes} lanes in parallel ({workers} Odoo workers; key WORKER_LANES, --worker-lanes)" if lanes >= 2 else
+              "Pages asked again in several workers: none (WORKER_LANES or --worker-lanes below 2)")
+    n_assets = warm_public(client, pages, repetitions, tally, links_count, languages, lanes)
     administration = None
     if login and key_file:
         key = read_key(key_file)

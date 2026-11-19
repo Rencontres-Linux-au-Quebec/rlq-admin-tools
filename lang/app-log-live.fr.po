@@ -3612,3 +3612,13 @@ msgstr "l'application est restée inactive pendant tout le profil"
 
 msgid "Summary kept in {path} (raw samples: {raw})"
 msgstr "Résumé gardé dans {path} (échantillons bruts : {raw})"
+
+# 1.199
+msgid ", slowest {s:.1f} s ({path})"
+msgstr ", la plus lente {s:.1f} s ({path})"
+
+msgid "{n} requests of the warm-up summed up ({first} to {last}): {p} different pages, answers {codes}{slowest}; --warmup-lines to see them one by one"
+msgstr "{n} requêtes du préchauffage regroupées ({first} à {last}) : {p} pages différentes, réponses {codes}{slowest} ; --warmup-lines pour les voir une par une"
+
+msgid "1.199: shows every request of odoo-warmup.py one by one (default: one summary line per warm-up; its errors are always shown)"
+msgstr "1.199 : affiche chaque requête d'odoo-warmup.py une par une (par défaut : une ligne de résumé par préchauffage ; ses erreurs sont toujours affichées)"
