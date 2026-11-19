@@ -478,6 +478,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.200.20261119.151517 - Requests with missing parameters counted apart from the Odoo errors
+
+- Title: the warning "called ignoring args" of odoo.http and the error "Exception during request handling" that follows it are a request with missing parameters, harmless for Odoo, counted apart.
+- Reason: export of 2026-11-19: right after the reminder e-mails of an event were sent, the link scanner of an e-mail provider (Microsoft network) replayed the ticket link with a scrambled parameter (`/event/125/my_tickets?eftvfgebgvba_vef=`). Odoo raised TypeError (missing registration_ids and tickets_hash), answered 500, and the status line showed "Odoo errors 1" and a lower health, for a request that touched no data.
+- Changes: new IGNORED_ARGS_RE, REQUEST_EXCEPTION_RE, MISSING_PARAMS_WINDOW (1 s) and class MissingParams (gives "missing-params" to the WARNING and to the ERROR of the same request); main loop: emit() receives this reason; Stats: counters missing_params, missing_params_warnings, missing_params_functions, missing_params_time (snapshot and period difference too), ajouter() counts them instead of odoo_errors; health: new indicator "Requests with missing parameters (harmless for Odoo)" with the routes and the times; format_value(): note after the line and the trace in orange instead of red; advisor_facts() and the export (--export-ai): missing_params, missing_params_warnings, missing_params_functions, missing_params_times; checks of the analysis: one line when some were counted; lang/app-log-live.fr.po: 6 texts; nginx-tools-tests/test_app_log_live.py: class AppLogLive200 (3 tests).
+- Bugs fixed: symptom: "Odoo errors 1" and health 97 % -> 95 % for a link scanner; diagnosis: the ERROR of a route called without its required parameters was counted like any Odoo error; fix: recognised by the warning written just before it by the same request.
+- Safeguards and edge cases: only the logger odoo.http; the ERROR must follow the warning within 1 s, and only one ERROR per warning (a second exception is a real error); the HTTP 500 response itself is still counted in the 5xx (it is a real 500 seen by the visitor until the page is fixed: rlq-odoo-addons, rlq_website_event_success 18.0.1.1.0, PR 32); the status bar counts like the summary.
+- Checks: py_compile; tests AppLogLive200 and AppLogLive178 (12 tests [OK]); full run-all.sh delegated to the testeur agent.
+- Action required: none (update the suite in /opt/rlq-admin-tools as usual).
+
 ### 1.199.20261118.205214 - Requests of odoo-warmup.py named and summed up in one line
 
 - Title: the requests of a warm-up are shown as "odoo-warmup.py" instead of "this server", and summed up in one line.

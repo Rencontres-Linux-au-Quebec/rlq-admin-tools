@@ -3622,3 +3622,21 @@ msgstr "{n} requêtes du préchauffage regroupées ({first} à {last}) : {p} pag
 
 msgid "1.199: shows every request of odoo-warmup.py one by one (default: one summary line per warm-up; its errors are always shown)"
 msgstr "1.199 : affiche chaque requête d'odoo-warmup.py une par une (par défaut : une ligne de résumé par préchauffage ; ses erreurs sont toujours affichées)"
+
+msgid " (request with missing parameters: often an e-mail link scanner replaying a link; harmless for Odoo)"
+msgstr " (requête avec paramètres manquants : souvent le scanneur de liens d'un fournisseur de courriel qui rejoue un lien ; sans gravité pour Odoo)"
+
+msgid "Odoo called the page without its required parameters (unknown parameters dropped): often the link scanner of an e-mail provider that replays the link of an e-mail just sent, or a cut link; no data touched"
+msgstr "Odoo a appelé la page sans ses paramètres obligatoires (paramètres inconnus ignorés) : souvent le scanneur de liens d'un fournisseur de courriel qui rejoue le lien d'un courriel qui vient d'être envoyé, ou un lien coupé ; aucune donnée touchée"
+
+msgid "routes: {routes}"
+msgstr "routes : {routes}"
+
+msgid "Requests with missing parameters (harmless for Odoo): "
+msgstr "Requêtes avec paramètres manquants (sans gravité pour Odoo) : "
+
+msgid "warnings « called ignoring args »: {n}"
+msgstr "avertissements « called ignoring args » : {n}"
+
+msgid "Odoo errors: {n} ERROR / CRITICAL counted; {m} requests with missing parameters counted apart (harmless)"
+msgstr "Erreurs d'Odoo : {n} ERROR / CRITICAL comptées ; {m} requêtes avec paramètres manquants comptées à part (sans gravité)"
