@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.199.20261118.205214"
+__version__ = "1.200.20261119.151517"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2552,7 +2552,9 @@ class Formatting:
             self.offset = 0
             if "Traceback (most recent call last)" in L.text:           # start of a Python trace (following lines: the trace)
                 self.in_trace = True
-        if L.level is None and self.in_trace:                           # trace line: all in red
+        if L.level is None and self.in_trace and self.benign_ongoing == "missing-params":     # 1.200: trace of a request with missing parameters: orange
+            body = color_code(STYLES["warning"], raw(L.text))
+        elif L.level is None and self.in_trace:                         # trace line: all in red
             body = color_code(STYLES["error"], raw(L.text))
         elif L.level is None and self.benign_ongoing:                   # continuation of an error without severity: orange
             body = color_code(STYLES["warning"], raw(L.text))
@@ -2563,6 +2565,8 @@ class Formatting:
                     or self.colored_text(L.text, retained, 0, len(L.text)))
             if benign == "push-duplicate":                              # 1.178
                 body += color_code(STYLES["debug"], " (push subscription already registered: harmless, the browser keeps its subscription)")
+            elif benign == "missing-params":                            # 1.200
+                body += color_code(STYLES["debug"], TR(" (request with missing parameters: often an e-mail link scanner replaying a link; harmless for Odoo)"))
             elif benign:
                 body += color_code(STYLES["debug"], " (concurrent update conflict: Odoo retries automatically)")
             total = (float(L.odoo_times[1] or 0) + float(L.odoo_times[2] or 0)) if L.odoo_times else request_duration(L.text)     # 1.123: merged line: the Odoo times
@@ -4105,6 +4109,35 @@ UNIQUE_VIOLATION_RE = re.compile(r"duplicate key|unique constraint|UniqueViolati
 PUSH_DUPLICATE_WARNING_RE = re.compile(r"endpoint must be unique|point de terminaison doit [êe]tre unique", re.I)
 
 
+# 1.200: a web request with missing parameters. Odoo drops the unknown parameters ("<function ...> called ignoring args {...}", WARNING odoo.http) and
+# calls the route without its required ones -> TypeError "missing N required positional arguments", ERROR odoo.http "Exception during request
+# handling", error 500. Typical source: the link scanner of an e-mail provider (Microsoft Safe Links...) that replays the link of an e-mail just sent with
+# a scrambled parameter (seen on 2026-11-19: /event/125/my_tickets?eftvfgebgvba_vef=). No data is touched: harmless for Odoo, counted apart.
+IGNORED_ARGS_RE = re.compile(r"<function (\S+)> called ignoring args \{(.*)\}")
+REQUEST_EXCEPTION_RE = re.compile(r"^Exception during request handling")
+MISSING_PARAMS_WINDOW = 1.0                          # seconds between the WARNING and the ERROR of the same request (both written by the same worker at once)
+
+
+class MissingParams:
+    """1.200: "missing-params" for the WARNING "called ignoring args" of odoo.http and for the ERROR "Exception during request handling" that follows it
+    within MISSING_PARAMS_WINDOW seconds (same request: route called without its required parameters); False for any other line."""
+
+    def __init__(self):
+        self.warned = None                            # instant of the last "called ignoring args" warning
+
+    def __call__(self, L):
+        if L.level is None or L.logger != "odoo.http":
+            return False
+        t = L.instant or time.time()
+        if L.level == "WARNING" and IGNORED_ARGS_RE.search(L.text or ""):
+            self.warned = t
+            return "missing-params"
+        if L.level == "ERROR" and self.warned is not None and REQUEST_EXCEPTION_RE.search(L.text or "") and abs(t - self.warned) <= MISSING_PARAMS_WINDOW:
+            self.warned = None
+            return "missing-params"
+        return False
+
+
 def benign_reason(cause_text, query_text=""):
     """1.178: why a deferred "bad query" line is harmless, from the line that follows it (its cause): True for a retried concurrent update conflict,
     "push-duplicate" for a push subscription already registered (unique violation on mail_push_device), False otherwise (a real error)."""
@@ -5115,6 +5148,9 @@ class Stats:
         self.conflict_codes, self.failure_codes = Counter(), Counter()      # PostgreSQL code -> number
         self.push_duplicates = self.push_duplicate_warnings = 0  # 1.178: push subscriptions already registered (harmless): "bad query" lines / WARNING lines
         self.push_duplicates_time = []                           # 1.178: [first instant, last instant] of the push duplicates
+        self.missing_params = self.missing_params_warnings = 0   # 1.200: requests with missing parameters (ERROR lines) / "called ignoring args" (WARNING lines)
+        self.missing_params_functions = Counter()                # 1.200: Odoo route function -> number of "called ignoring args"
+        self.missing_params_time = []                            # 1.200: [first instant, last instant]
         self.push_instants, self.conflict_times = [], []          # 1.179: instants of each push duplicate and of each retried conflict (last 2000)
         self.ip_url = Counter()                   # 1.178: (address, page without parameters) -> requests: one address that asks the same page in a loop
         self.ip_url_codes = {}                    # 1.178: same key -> Counter of the HTTP codes
@@ -5330,6 +5366,17 @@ class Stats:
             t = L.instant or time.time()
             self.push_duplicates_time = [min(self.push_duplicates_time[0], t), max(self.push_duplicates_time[1], t)] if self.push_duplicates_time else [t, t]
             return
+        if benign == "missing-params":
+            # 1.200: request with missing parameters (link scanner, cut link): neither an Odoo error nor a failed e-mail, counted apart
+            ignored = IGNORED_ARGS_RE.search(L.text or "")
+            if ignored:
+                self.missing_params_warnings += 1
+                self.missing_params_functions[ignored.group(1).rpartition(".")[2]] += 1
+            else:
+                self.missing_params += 1
+            t = L.instant or time.time()
+            self.missing_params_time = [min(self.missing_params_time[0], t), max(self.missing_params_time[1], t)] if self.missing_params_time else [t, t]
+            return
         if L.database == "nginx" and L.level in ("WARNING", "ERROR", "CRITICAL"):
             # 1.167: a line of the nginx error log. Before, it was counted as an Odoo error and, with "Connection refused" in it (nginx could not reach
             # Odoo), as a failed e-mail: the dashboard showed "Failed e-mails: 40" while Odoo had not failed to send any.
@@ -5447,6 +5494,7 @@ class Stats:
         c.slow_first, c.first_requests = list(self.slow_first), list(self.first_requests)
         c.watched, c.watch_it = list(self.watched), list(self.watch_it)
         c.http_errors, c.odoo_errors_time = list(self.http_errors), {k: list(v) for k, v in self.odoo_errors_time.items()}
+        c.missing_params_functions, c.missing_params_time = Counter(self.missing_params_functions), list(self.missing_params_time)
         c.nginx_errors_time = {k: list(v) for k, v in self.nginx_errors_time.items()}
         c.nginx_errors_times = {k: list(v) for k, v in getattr(self, "nginx_errors_times", {}).items()}
         c.ip_url_codes = {k: Counter(v) for k, v in self.ip_url_codes.items()}
@@ -5462,6 +5510,8 @@ class Stats:
         d.mails, d.conflicts = self.mails - old.mails, self.conflicts - old.conflicts
         d.push_duplicates, d.push_duplicate_warnings = self.push_duplicates - old.push_duplicates, self.push_duplicate_warnings - old.push_duplicate_warnings
         d.final_failures = self.final_failures - old.final_failures
+        d.missing_params, d.missing_params_warnings = self.missing_params - old.missing_params, self.missing_params_warnings - old.missing_params_warnings
+        d.missing_params_functions = self.missing_params_functions - old.missing_params_functions
         d.slow_requests, d.slow_info = self.slow_requests[len(old.slow_requests):], self.slow_info[len(old.slow_info):]
         d.slow_first, d.first_requests = self.slow_first[len(old.slow_first):], self.first_requests[len(old.first_requests):]
         d.worker_starts = self.worker_starts - old.worker_starts
@@ -5692,6 +5742,16 @@ class Stats:
             indicator(0, TR("Push subscriptions already registered (harmless): ") + f"{self.push_duplicates}"
                       + (" · " + TR("warnings « endpoint must be unique »: {n}").format(n=self.push_duplicate_warnings) if self.push_duplicate_warnings else ""),
                       push_detail, (10 ** 9, 10 ** 9), self.push_duplicates)
+        if self.missing_params or self.missing_params_warnings:              # 1.200: before, counted as Odoo errors (health "problem")
+            missing_detail = [TR("Odoo called the page without its required parameters (unknown parameters dropped): often the link scanner of an e-mail "
+                                 "provider that replays the link of an e-mail just sent, or a cut link; no data touched")]
+            if self.missing_params_functions:
+                missing_detail.append(TR("routes: {routes}").format(routes=", ".join(f"{name} ×{n}" for name, n in self.missing_params_functions.most_common(5))))
+            if self.missing_params_time:
+                missing_detail.append(TR("first at {first}, last at {last}").format(first=clock_of(self.missing_params_time[0]), last=clock_of(self.missing_params_time[1])))
+            indicator(0, TR("Requests with missing parameters (harmless for Odoo): ") + f"{self.missing_params}"
+                      + (" · " + TR("warnings « called ignoring args »: {n}").format(n=self.missing_params_warnings) if self.missing_params_warnings else ""),
+                      missing_detail, (10 ** 9, 10 ** 9), self.missing_params)
         to_resend = []
         if self.mails and self.mail_detail is not None:
             try:
@@ -6013,6 +6073,8 @@ def advisor_facts(stats):
     return {"start": min(starts) if starts else stats.start, "end": time.time(), "requests": stats.requests, "lines": stats.lines,
             "requests_start": stats.first, "push_duplicates": stats.push_duplicates, "push_duplicate_warnings": stats.push_duplicate_warnings,
             "push_times": list(stats.push_duplicates_time), "hot_pairs": hot,
+            "missing_params": stats.missing_params, "missing_params_warnings": stats.missing_params_warnings,
+            "missing_params_functions": dict(stats.missing_params_functions), "missing_params_times": list(stats.missing_params_time),
             "push_after_conflict": sum(1 for t in stats.push_instants if any(0 <= t - c <= 5 for c in stats.conflict_times)), "banned_during": during,
             "known_ips": sorted(set(stats.people) | set(stats.protected_ones)),
             "errors5": dict(stats.errors[5]), "codes_by_url": codes,
@@ -6414,6 +6476,9 @@ def consistency_checks(stats, facts, details):
     if facts.get("requests_start") and facts.get("start") and facts["requests_start"] - facts["start"] > 3600:
         checks.append((True, TR("Window: the oldest line read is from {start}, the first request from {req} (older lines: nginx error log, Odoo log)").format(
             start=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["start"])), req=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["requests_start"])))))
+    if stats.missing_params or stats.missing_params_warnings:
+        checks.append((True, TR("Odoo errors: {n} ERROR / CRITICAL counted; {m} requests with missing parameters counted apart (harmless)").format(
+            n=sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), m=stats.missing_params)))
     if stats.push_duplicates or stats.push_duplicate_warnings:
         checks.append((True, TR("Odoo errors: {n} ERROR / CRITICAL counted; {p} push duplicates counted apart (harmless)").format(
             n=sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), p=stats.push_duplicates)))
@@ -7562,6 +7627,8 @@ def follow(cmd, people, resolver, options, output):
         stats.server.add(ip)
         warmup_write(warmup_summary.add(start, L, request.group(1), request.group(2)))
         return True
+
+    missing_params = MissingParams()                   # 1.200: route called without its required parameters
 
     def release_deferred(cause_text):
         """The deferred "bad query" line, written with the reason given by the line that follows it (cause_text; None: no following line)."""
@@ -8842,7 +8909,7 @@ def follow(cmd, people, resolver, options, output):
         out += [f"- {stamp(t)} · {plain(text)}" for t, text in events] or ["- " + TR("no event")]
         counters = {"requests": stats.requests, "lines": stats.lines, "errors_5xx": sum(stats.errors[5].values()), "errors_4xx": sum(stats.errors[4].values()),
                     "odoo_errors": sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), "odoo_warnings": sum(v for k, v in stats.odoo_errors.items() if k[0] == "WARNING"),
-                    "push_duplicates": stats.push_duplicates, "conflicts": stats.conflicts, "final_failures": stats.final_failures, "mails_log": stats.mails,
+                    "push_duplicates": stats.push_duplicates, "missing_params": stats.missing_params, "conflicts": stats.conflicts, "final_failures": stats.final_failures, "mails_log": stats.mails,
                     "slow_requests": len(stats.slow_requests), "suspicious": sum(stats.suspect_urls.values()), "account_forms": sum(stats.account_ips.values()),
                     "banned_seen": len(stats.banned), "banned_during": len(facts.get("banned_during") or ()), "to_ban": len(facts.get("to_ban") or ()),
                     "hot_pairs": [{"url": h["url"], "n": h["n"]} for h in facts.get("hot_pairs") or ()]}
@@ -9321,7 +9388,7 @@ def follow(cmd, people, resolver, options, output):
             if is_failed_request(L):                 # written with the next line, which says whether the error is harmless
                 deferred[0] = (L, renderings_of(L, results, pays))
                 continue
-            emit(L, renderings_of(L, results, pays), inputs=(results, pays))
+            emit(L, renderings_of(L, results, pays), benign=missing_params(L), inputs=(results, pays))       # 1.200: missing parameters
             events = []
             if ips:
                 ip = ips[0][0]                          # the client is the first address of the message

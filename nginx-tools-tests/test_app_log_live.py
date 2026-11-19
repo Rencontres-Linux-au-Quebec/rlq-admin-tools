@@ -5795,3 +5795,55 @@ class AppLogLive199(unittest.TestCase):
         autre = resume.add(debut, self.ligne(), "/", "200")
         self.assertIsNone(autre)
         self.assertIsNotNone(resume.add(debut + 100, self.ligne(), "/", "200"))          # another run: the summary of the previous one
+
+
+class AppLogLive200(unittest.TestCase):
+    """1.200 : requête Odoo appelée sans ses paramètres obligatoires (« called ignoring args » puis « Exception during request handling ») : le scanneur
+    de liens d'un fournisseur de courriel qui rejoue le lien d'un courriel envoyé, ou un lien coupé. Compté à part des erreurs d'Odoo. Données inventées."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_200", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def lignes(self, ecart=0.01):
+        avert = self.live.Line(odoo("WARNING", "prod", "odoo.http",
+                                    "<function odoo.addons.event.controllers.main.event_my_tickets> called ignoring args {'eftvfgebgvba_vef'}", delta=ecart))
+        erreur = self.live.Line(odoo("ERROR", "prod", "odoo.http", "Exception during request handling."))
+        return avert, erreur
+
+    def test_200_reconnaissance(self):
+        live = self.live
+        suivi = live.MissingParams()
+        avert, erreur = self.lignes()
+        self.assertEqual(suivi(avert), "missing-params")
+        self.assertEqual(suivi(erreur), "missing-params")
+        self.assertIs(suivi(erreur), False)                                              # a second exception without its warning: a real error
+        autre = live.Line(odoo("ERROR", "prod", "odoo.addons.web.controllers.binary", "Exception during request handling."))
+        self.assertIs(suivi(autre), False)                                               # another logger: never
+
+    def test_200_trop_loin_dans_le_temps(self):
+        suivi = self.live.MissingParams()
+        avert, erreur = self.lignes(ecart=5.0)
+        suivi(avert)
+        self.assertIs(suivi(erreur), False)                                              # 5 s later: not the same request
+
+    def test_200_hors_des_erreurs_d_odoo(self):
+        live = self.live
+        s = live.Stats(5.0)
+        avert, erreur = self.lignes()
+        s.ajouter(avert, {}, None, "missing-params")
+        s.ajouter(erreur, {}, None, "missing-params")
+        self.assertEqual((s.missing_params, s.missing_params_warnings), (1, 1))
+        self.assertEqual(s.missing_params_functions["event_my_tickets"], 1)
+        self.assertEqual(sum(s.odoo_errors.values()), 0)
+        sante = "\n".join(T(l) for l in s.health()[1])
+        self.assertIn("Erreurs d'Odoo (ERROR / CRITICAL) : aucune", sante)
+        self.assertIn("Requêtes avec paramètres manquants (sans gravité pour Odoo) : 1", sante)
+        barre = live.StatusBar()
+        barre.observe(erreur, None, 5.0, benign="missing-params")
+        self.assertEqual(barre.odoo_err, 0)
+        self.assertEqual(live.advisor_facts(s)["missing_params"], 1)
+        self.assertEqual(s.since(s.snapshot()).missing_params, 0)
