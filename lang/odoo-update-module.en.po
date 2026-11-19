@@ -1014,3 +1014,27 @@ msgstr "none (restart only)"
 
 msgid "(redémarré entre l'arrêt et le démarrage d'Odoo)"
 msgstr "(restarted between the stop and the start of Odoo)"
+
+msgid " : module server-wide (jamais installé dans une base), déjà dans server_wide_modules : sa nouvelle version est prise au redémarrage"
+msgstr ": server-wide module (never installed in a database), already in server_wide_modules: its new version is taken at the restart"
+
+msgid " : module server-wide (jamais installé dans une base), pas encore dans server_wide_modules : "
+msgstr ": server-wide module (never installed in a database), not yet in server_wide_modules: "
+
+msgid "/nginx-hardening.sh --update --odoo-preload-statics l'active, puis redémarrer Odoo"
+msgstr "/nginx-hardening.sh --update --odoo-preload-statics enables it, then restart Odoo"
+
+msgid " : module server-wide (jamais installé dans une base), pas dans server_wide_modules de "
+msgstr ": server-wide module (never installed in a database), not in server_wide_modules of "
+
+msgid " : l'y ajouter pour l'activer"
+msgstr ": add it there to enable it"
+
+msgid "aucun module à mettre à jour dans la base : modules server-wide seulement ("
+msgstr "no module to update in the database: server-wide modules only ("
+
+msgid "), code remplacé, pris au redémarrage"
+msgstr "), code replaced, taken at the restart"
+
+msgid "(jamais installés dans la base : code remplacé, pris au redémarrage)"
+msgstr "(never installed in the database: code replaced, taken at the restart)"

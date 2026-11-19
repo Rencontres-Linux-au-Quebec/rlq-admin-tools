@@ -454,6 +454,37 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertEqual(rc, 0, out + err)
         self.assertIn("versions des modules illisibles", out)
 
+    def test_136_module_server_wide_jamais_dans_u(self):
+        """1.36 : module server-wide de l'archive (post_load) non installé dans la base : décompressé, gardé dans la copie, jamais dans -u ;
+        la commande qui l'active est affichée ; archive avec ce seul module : aucune mise à jour dans la base, redémarrage quand même."""
+        chemin = os.path.join(self.d, "deux.zip")
+        with zipfile.ZipFile(chemin, "w") as z:
+            z.writestr("rlq_survey_report/__manifest__.py", "{'name': 'X', 'version': '18.0.1.101.0'}\n")
+            z.writestr("rlq_preload_statics/__manifest__.py", "{'name': 'P', 'version': '18.0.1.0.0', 'post_load': 'post_load'}\n")
+            z.writestr("rlq_preload_statics/__init__.py", "")
+        dest = os.path.join(self.d, "destination")
+        os.makedirs(dest)
+        rc, out, err = self.lancer("--zip", chemin, "--addons-dir", dest)
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(os.path.isfile(os.path.join(dest, "rlq_preload_statics", "__init__.py")))
+        odoo = [l for l in self.appels() if l.startswith("odoo ")]
+        self.assertTrue(odoo)
+        self.assertIn("rlq_survey_report", odoo[0])
+        self.assertNotIn("rlq_preload_statics", odoo[0])
+        self.assertIn("Server-wide :", out)
+        self.assertIn("nginx-hardening.sh --update --odoo-preload-statics", out)
+        os.remove(self.log)
+        seul = os.path.join(self.d, "rlq_preload_statics.1.0.zip")
+        with zipfile.ZipFile(seul, "w") as z:
+            z.writestr("rlq_preload_statics/__manifest__.py", "{'name': 'P', 'version': '18.0.1.0.0', 'post_load': 'post_load'}\n")
+        self.write("odoo/config.conf", "[options]\naddons_path = addons,custom\nhttp_port = 10000\ndb_name = False\nserver_wide_modules = base,web,rlq_preload_statics\n")
+        rc, out, err = self.lancer("--module", "rlq_preload_statics", "--zip", seul, "--addons-dir", dest)
+        self.assertEqual(rc, 0, out + err)
+        self.assertFalse([l for l in self.appels() if l.startswith("odoo ")])               # nothing in the database
+        self.assertIn("aucun module à mettre à jour dans la base", out)
+        self.assertIn("déjà dans server_wide_modules", out)
+        self.assertTrue(any(l.startswith("systemctl start") for l in self.appels()))         # restarted: the new code is taken
+
     def test_archive_decompressee_dans_le_dossier_demande(self):
         archive = self.zip_modules()
         dest = os.path.join(self.d, "destination")
