@@ -6,6 +6,7 @@ Updates Odoo modules (`rlq_*` by default) the safe way: optionally unpacks a mod
 odoo-update-module.sh --dry-run                       # service, database, modules, commands - nothing stopped
 odoo-update-module.sh --backup                        # odoo-backup.sh first; a failed backup aborts, nothing is stopped
 odoo-update-module.sh --zip ~/Downloads --addons-dir /opt/odoo/addons
+odoo-update-module.sh --zip rlq_module_a.zip --zip rlq_module_b.zip    # several archives: extracted one after the other; a module may be in one archive only
 odoo-update-module.sh --module 'rlq_*' --module website_x --timeout 3600
 ```
 

@@ -78,8 +78,8 @@
 # une écriture de l'administration d'Odoo (call_kw : web_save, action_...) terminée depuis plus de N secondes ne bloque plus la mise à jour, sauf si
 # un formulaire est de nouveau en cours de modification (onchange après elle) ; 0 = toute écriture des 5 dernières minutes bloque (comme avant 1.32)
 #WRITE_GRACE=60
-# archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »
-# du dossier courant (ex. rlq_survey_report.zip) ; no : ne rien décompresser (défaut : « MODULE*.zip » le plus récent du dossier courant)
+# archive(s) .zip des modules à décompresser avant la mise à jour (--zip, répétable) : un fichier ou un dossier (la plus récente), plusieurs séparés par des
+# espaces ; vide : la plus récente « MODULE*.zip » du dossier courant (ex. rlq_survey_report.zip) ; non : ne rien décompresser
 #ZIP=
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---

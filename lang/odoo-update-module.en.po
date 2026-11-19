@@ -393,8 +393,11 @@ msgstr "  --addons-dir DIR             folder where the modules' .zip archive is
 msgid "                               addons_path qui contient déjà ces modules"
 msgstr "                               that already holds these modules"
 
-msgid "  --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus"
-msgstr "  --zip FILE                   modules' .zip archive to unpack before the update (a file, or a folder: the newest one); default: ZIP, else the newest"
+msgid "  --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; option répétable :"
+msgstr "  --zip FILE                   modules' .zip archive to unpack before the update (a file, or a folder: the newest one); repeatable option:"
+
+msgid "                               plusieurs archives, décompressées dans l'ordre ; un module ne peut être que dans une seule ; défaut : ZIP, sinon la plus"
+msgstr "                               several archives, unpacked in order; a module can be in only one; default: ZIP, else the newest"
 
 msgid "                               récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser"
 msgstr "                               « MODULE*.zip » of the current folder; « non »: unpack nothing"
@@ -402,8 +405,23 @@ msgstr "                               « MODULE*.zip » of the current folder; 
 msgid "  ADDONS_DIR=                   dossier de décompression de l'archive .zip (vide : celui de addons_path qui contient déjà les modules)"
 msgstr "  ADDONS_DIR=                   folder to unpack the .zip archive into (empty: the addons_path folder that already holds the modules)"
 
-msgid "  ZIP=                          archive .zip des modules (fichier ou dossier ; vide : « MODULE*.zip » le plus récent du dossier courant ; non : aucune)"
-msgstr "  ZIP=                          modules' .zip archive (file or folder; empty: newest « MODULE*.zip » of the current folder; non: none)"
+msgid "  ZIP=                          archive(s) .zip des modules (fichier ou dossier, plusieurs séparés par des espaces ; vide : « MODULE*.zip » le plus récent du dossier courant ; non : aucune)"
+msgstr "  ZIP=                          modules' .zip archive(s) (file or folder, several separated by spaces; empty: newest « MODULE*.zip » of the current folder; non: none)"
+
+msgid "« non » ne se combine pas avec une autre archive (--zip ou ZIP)"
+msgstr "« non » cannot be combined with another archive (--zip or ZIP)"
+
+msgid "archive indiquée deux fois : "
+msgstr "archive given twice: "
+
+msgid "module "
+msgstr "module "
+
+msgid " présent dans deux archives ("
+msgstr " found in two archives ("
+
+msgid ") : une seule doit le contenir"
+msgstr ") : only one archive must contain it"
 
 msgid "archive introuvable : « "
 msgstr "archive not found: « "

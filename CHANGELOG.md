@@ -4018,6 +4018,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.37.20261119.181525 - --zip repeatable: several archives in one update
+
+- Title: `--zip` can be given several times, and ZIP of the configuration can hold several archives; each archive is extracted in turn and all their modules are updated by one `odoo -u`.
+- Reason: request of the administrator on 2026-11-19: with odoo-update-module.sh, one archive only could be loaded, so two modules that are delivered separately (for example rlq_website_event_success and another one) needed two runs, two stops and two restarts of Odoo.
+- Changes: odoo-update-module.sh: `--zip` appends to ZIP_ARGS (array); the first `--zip` replaces the ZIP of the configuration (CLI_ZIP, same rule as --module); trouver_zip() goes through each requested archive (a file, or a folder: most recent MODULE*.zip); new ajouter_zip() inspects one archive and adds its modules, ZIP_SOURCES records the archive of each module, ZIP_FICHIERS lists the archives; decompresser() works archive by archive (one step per archive, the modules listed under it); the summary lists each archive with its modules; the extraction step count is unchanged. Help (--zip, ZIP) and doc/fr, doc/en: 09-odoo-update-module.md and odoo-update-module.conf.example. nginx-tools-tests/test_odoo_update_module.py: 4 tests (two archives in order, same module in two archives refused, same archive twice and "non" combined refused, ZIP of the configuration with several names and replaced by the option).
+- Bugs fixed: none. Before, a second --zip replaced the first one silently (ZIP_ARG was a single value), so the first archive was never applied.
+- Safeguards and edge cases: a module in two archives is refused before anything is stopped (which one is meant?); an archive given twice is refused; "non" cannot be combined with an archive; a ZIP of the configuration that is one existing file or folder keeps working even if its path has spaces, otherwise its names are split on spaces; each archive keeps its own path check (no entry outside the destination folder); empty --zip values are ignored (default rule); bash arrays are read with "${T[@]}" (set -u safe, bash 4.4 and later).
+- Checks performed: bash -n; nginx-tools-tests/test_odoo_update_module.py (the new tests and the whole module, 56 passed); test_i18n.py: the new help, configuration and error messages added to lang/odoo-update-module.en.po (no new failure against main); test_docs.py and test_menu.py: no new failure.
+- Action required: none. To use several archives: `odoo-update-module.sh --zip first.zip --zip second.zip`, or ZIP="first.zip second.zip" in the configuration file.
+
 ### 1.36.20261118.203819 - Server-wide modules of an archive never in -u
 
 - Title: a server-wide module of the archive (post_load in its manifest, such as rlq_preload_statics) is extracted and copied for the rollback, but never given to -u; the command that enables it is shown.

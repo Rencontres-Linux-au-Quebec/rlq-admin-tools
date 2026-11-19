@@ -798,6 +798,51 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertGreater(len(a) - 1 - a[::-1].index("systemctl start erplibre_erplibre.service"), max(i for i, l in enumerate(a) if l.startswith("odoo ")))
         self.assertEqual(open(self.path("etat")).read().strip(), "active")                 # the site never stays stopped
 
+    def test_137_plusieurs_archives_par_plusieurs_zip(self):
+        """1.37 : --zip répétable : les deux archives sont décompressées l'une après l'autre, leurs modules sont mis à jour ensemble."""
+        a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))
+        b = self.zip_modules("b.zip", modules=(("rlq_nouveau_zip", "18.0.1.0.0"),))
+        rc, out, err = self.lancer("--zip", a, "--zip", b, "--addons-dir", f"{self.odoo}/custom")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Décompression de a.zip", out)
+        self.assertIn("Décompression de b.zip", out)
+        self.assertLess(out.index("Décompression de a.zip"), out.index("Décompression de b.zip"))
+        self.assertTrue(os.path.isfile(os.path.join(self.odoo, "custom", "rlq_nouveau_zip", "__manifest__.py")))
+        commande = next(l for l in self.appels() if l.startswith("odoo "))
+        self.assertIn("rlq_nouveau_zip", commande)
+        self.assertIn("rlq_survey_report", commande)
+
+    def test_137_un_module_dans_deux_archives_refuse(self):
+        a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))
+        b = self.zip_modules("b.zip", modules=(("rlq_survey_report", "18.0.1.102.0"),))
+        rc, out, err = self.lancer("--zip", a, "--zip", b, "--addons-dir", f"{self.odoo}/custom")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("rlq_survey_report présent dans deux archives", out + err)
+        self.assertFalse([l for l in self.appels() if l.startswith("odoo ")])        # nothing updated
+
+    def test_137_archive_indiquee_deux_fois_refusee_et_non_avec_autre_archive(self):
+        a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))
+        rc, out, err = self.lancer("--zip", a, "--zip", a, "--addons-dir", f"{self.odoo}/custom")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("indiquée deux fois", out + err)
+        rc, out, err = self.lancer("--zip", "non", "--zip", a, "--addons-dir", f"{self.odoo}/custom")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("ne se combine pas", out + err)
+
+    def test_137_zip_de_la_configuration_plusieurs_noms_et_option_remplace_la_configuration(self):
+        a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))
+        b = self.zip_modules("b.zip", modules=(("rlq_nouveau_zip", "18.0.1.0.0"),))
+        self.write("etc/odoo-update-module.conf", f"ZIP={a} {b}\nADDONS_DIR={self.odoo}/custom\n")
+        rc, out, err = self.lancer()
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Décompression de a.zip", out)
+        self.assertIn("Décompression de b.zip", out)
+        self.write("etc/odoo-update-module.conf", f"ZIP={a} {b}\nADDONS_DIR={self.odoo}/custom\n")
+        rc, out, err = self.lancer("--zip", b)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("Décompression de a.zip", out)                                 # the option replaces the ZIP of the configuration
+        self.assertIn("Décompression de b.zip", out)
+
     def test_aide_options_1_11_en_ordre_alphabetique(self):
         rc, out, err = self.lancer("--help")
         options = [l.split()[0] for l in out.splitlines() if l.startswith("  --") or l.startswith("  -")]

@@ -6,6 +6,7 @@ Met à jour des modules Odoo (`rlq_*` par défaut) de façon sûre : décompress
 odoo-update-module.sh --dry-run                       # service, base, modules, commandes - rien n'est arrêté
 odoo-update-module.sh --backup                        # d'abord odoo-backup.sh ; une sauvegarde en échec annule tout, rien n'est arrêté
 odoo-update-module.sh --zip ~/Téléchargements --addons-dir /opt/odoo/addons
+odoo-update-module.sh --zip rlq_module_a.zip --zip rlq_module_b.zip    # plusieurs archives : décompressées l'une après l'autre, un module ne peut être que dans une seule
 odoo-update-module.sh --module 'rlq_*' --module website_x --timeout 3600
 ```
 
