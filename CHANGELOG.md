@@ -4345,6 +4345,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx configuration (nginx/VERSION)
 
+### 1.32.20261119.175646 - Background shapes with a language prefix get the burst of the shapes (no more 429)
+
+- Motif de la demande: report of the administrator on 2026-11-19: a member signed in on the site, in English, got many 429 responses (106 in a few seconds) while loading the home page.
+- Detail des modifications: nginx/snippets/odoo/_odoo-common.conf: the location of the background shapes accepts an optional language prefix: `location ~ "^/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web_editor/shape/"` (was `^/web_editor/shape/`); comment updated. Same pattern as the rules of apple-touch-icon and web/image. nginx/VERSION. nginx-tools-tests/test_config_nginx.py: new class FormesAvecPrefixeDeLangue132 (3 tests).
+- Bugs corriges: symptom: 429 on `/en_CA/web_editor/shape/...` for a signed-in member who browses in English, nginx error log "limiting requests, excess: 60.580 by zone odoo_general"; diagnosis: the editor style sheets of a signed-in user with site-editing rights ask for about 170 shapes at once; for a language other than the default one, Odoo answers 303 to each one towards `/en_CA/web_editor/shape/...`; these addresses did not match the shape location and fell into `location /` (burst 60), in the same zone odoo_general as the 303s: the excess went up to 78; fix: the shape location also takes the prefixed addresses (burst 120).
+- Garde-fous et cas limites traites: the expression is between quotes ("{2}"); it is anchored at the start, so `/web/image/.../web_editor/shape/...` or `/x/y/web_editor/shape/` do not match; the curl burst limit (odoo_curl) and the other rules are unchanged; no security rule of securite-commune.conf catches the prefixed shapes.
+- Verifications effectuees: test_config_nginx.FormesAvecPrefixeDeLangue132 and the whole test_config_nginx module; nginx is not installed in the test environment (nginx -t not run here).
+- Action requise: sudo nginx-hardening.sh --update (installs the new _odoo-common.conf and runs nginx -t before the reload). Then a page opened in English by a signed-in editor must show no 429 on /en_CA/web_editor/shape/.
+
 ### 1.31.20261113.221334 - Links of the Odoo e-mails no longer refused (".." in the query string)
 
 - Motif de la demande: report of the administrator on 2026-11-13: the links of the e-mails sent by Odoo answered 404, for example /i?utm_source=JPOL+2026%3A+Rencontre%2E%2E%2E+%28E-mail+Marketing+...%29&utm_medium=Email. Odoo adds utm_* parameters with the title of the campaign; "Rencontre..." becomes "Rencontre%2E%2E%2E", and the rule refused any "%2e%2e" in the whole request.
