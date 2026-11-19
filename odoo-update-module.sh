@@ -61,7 +61,8 @@
 #   --version                    affiche la version et quitte
 #   --visitor-window MIN         fenêtre de comptage des visiteurs actifs, en minutes (défaut : VISITOR_WINDOW, soit 5)
 #   --wait-quiet MIN             délai fixe d'attente d'un site calme, en minutes (WAIT_QUIET) : remplace les deux délais selon le profil ; 0 = un seul contrôle
-#   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus
+#   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; option répétable :
+#                                plusieurs archives, décompressées dans l'ordre ; un module ne peut être que dans une seule ; défaut : ZIP, sinon la plus
 #                                récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser
 #
 # Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.conf s'il existe ; lue sans être
@@ -80,7 +81,7 @@
 #   ROLLBACK=oui                  retour arrière des modules après des erreurs (oui / non) ; question sur un terminal, automatique sinon
 #   RUN_USER=                     compte de la mise à jour (vide : User= du service)
 #   SERVICE=                      service systemd d'Odoo (vide : détection automatique parmi erplibre* et odoo*, sinon erplibre_erplibre.service)
-#   ZIP=                          archive .zip des modules (fichier ou dossier ; vide : « MODULE*.zip » le plus récent du dossier courant ; non : aucune)
+#   ZIP=                          archive(s) .zip des modules (fichier ou dossier, plusieurs séparés par des espaces ; vide : « MODULE*.zip » le plus récent du dossier courant ; non : aucune)
 #   WARMUP=oui                    préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py) ; non = comme --no-warmup
 #   TIMEOUT=1800                  durée maximale de la mise à jour, en secondes
 #   WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes
@@ -105,7 +106,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.36.20261118.203819"
+readonly SCRIPT_VERSION="1.37.20261119.181525"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -142,7 +143,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
-TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
+TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""; ZIP_ARGS=(); CLI_ZIP=0
 LIGHT_WRITES=""; LIGHT_WRITES_WAIT=0; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0; RESTART_ONLY=0; RESTART_PG=0; PG_SERVICE="postgresql"                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
@@ -251,7 +252,8 @@ while [[ $# -gt 0 ]]; do
         --version) echo "odoo-update-module.sh version $SCRIPT_VERSION"; exit 0 ;;
         --visitor-window) VISITOR_WINDOW="${2:-}"; CLI_WINDOW=1; shift 2 ;;
         --wait-quiet) WAIT_QUIET="${2:-}"; shift 2 ;;
-        --zip) ZIP_ARG="${2:-}"; shift 2 ;;
+        --zip) if (( CLI_ZIP == 0 )); then ZIP_ARG=""; CLI_ZIP=1; fi          # 1.37: repeatable; the first --zip replaces the ZIP of the configuration
+               ZIP_ARGS+=("${2:-}"); shift 2 ;;
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac
 done
@@ -355,7 +357,7 @@ trouver_base() {
 
 # .zip archive of the modules: --zip / ZIP (file, or folder: the most recent), otherwise the most recent "PATTERN*.zip" of the CURRENT folder; none: nothing to extract.
 # A zip found without having asked for it is only a convenience; a zip REQUESTED and not found is an error.
-ZIP_FICHIER=""; ZIP_MODULES=(); ZIP_VERSIONS=(); ZIP_SERVEUR=(); DESTINATION=""; MODULES_SERVEUR=()
+ZIP_FICHIERS=(); ZIP_MODULES=(); ZIP_VERSIONS=(); ZIP_SERVEUR=(); ZIP_SOURCES=(); DESTINATION=""; MODULES_SERVEUR=()
 # zip_inspecter FILE: "module<TAB>manifest version<TAB>1 when the manifest has a post_load hook (server-wide module), else 0" per module of the
 # archive; code 3 if a path leaves the destination folder
 zip_inspecter() {
@@ -383,44 +385,73 @@ for nom in sorted(modules):
 PYEOF
 }
 
+# 1.37: several archives (--zip repeated, or ZIP with several names separated by spaces, unless ZIP is one existing file or folder).
+# Each archive is inspected and its modules are added; a module that is in two archives is an error (which one is meant?).
 trouver_zip() {
-    local source motif cand="" f
-    local -a MOTIFS=()
+    local source motif f cand="" dossier
+    local -a MOTIFS=() SOURCES=() PROPRES=()
     read -ra MOTIFS <<< "$MODULES_MOTIFS"                      # without expanding the "*" by the shell in the current folder
-    source="$ZIP_ARG"
-    case "${source,,}" in non|no|none|off) return 0 ;; esac
-    if [[ -n "$source" && -f "$source" ]]; then cand="$source"
-    else
-        local dossier="${source:-$PWD}"
-        if [[ -n "$source" && ! -d "$source" ]]; then ko "archive introuvable : « $source » (--zip ou ZIP)"; exit 1; fi
-        for motif in "${MOTIFS[@]}"; do
-            # shellcheck disable=SC2012,SC2086,SC2231  # simple file names; pattern expansion intended
-            f=$(ls -1t "$dossier"/$motif*.zip 2>/dev/null | head -n 1 || true)
-            if [[ -n "$f" && ( -z "$cand" || "$f" -nt "$cand" ) ]]; then cand="$f"; fi
-        done
-        if [[ -z "$cand" ]]; then
-            [[ -z "$source" ]] || { ko "aucune archive « ${MODULES_MOTIFS// /, }*.zip » dans $source"; exit 1; }
-            return 0
-        fi
+    if (( ${#ZIP_ARGS[@]} > 0 )); then SOURCES=("${ZIP_ARGS[@]}")
+    elif [[ -n "$ZIP_ARG" && ( -f "$ZIP_ARG" || -d "$ZIP_ARG" ) ]]; then SOURCES=("$ZIP_ARG")
+    elif [[ -n "$ZIP_ARG" ]]; then read -ra SOURCES <<< "$ZIP_ARG"
     fi
-    ZIP_FICHIER=$(cd "$(dirname "$cand")" && pwd)/$(basename "$cand")
-    local sortie ligne code=0
-    sortie=$(zip_inspecter "$ZIP_FICHIER") || code=$?
-    if (( code == 3 )); then ko "archive refusée : $ZIP_FICHIER contient un chemin qui sort du dossier de destination (/ ou ..)"; exit 1; fi
-    if (( code != 0 )); then ko "archive illisible (zip invalide ?) : $ZIP_FICHIER"; exit 1; fi
-    [[ -n "$sortie" ]] || { ko "archive sans module : aucun dossier avec __manifest__.py à la racine de $ZIP_FICHIER"; exit 1; }
-    local reste
+    for source in "${SOURCES[@]}"; do if [[ -n "$source" ]]; then PROPRES+=("$source"); fi; done
+    SOURCES=("${PROPRES[@]}")
+    if (( ${#SOURCES[@]} == 0 )); then SOURCES=(""); fi        # nothing requested: the most recent MODULE*.zip of the current folder
+    for source in "${SOURCES[@]}"; do
+        case "${source,,}" in
+            non|no|none|off)
+                if (( ${#SOURCES[@]} > 1 )); then ko "« non » ne se combine pas avec une autre archive (--zip ou ZIP)"; exit 1; fi
+                return 0 ;;
+        esac
+        cand=""
+        if [[ -n "$source" && -f "$source" ]]; then cand="$source"
+        else
+            dossier="${source:-$PWD}"
+            if [[ -n "$source" && ! -d "$source" ]]; then ko "archive introuvable : « $source » (--zip ou ZIP)"; exit 1; fi
+            for motif in "${MOTIFS[@]}"; do
+                # shellcheck disable=SC2012,SC2086,SC2231  # simple file names; pattern expansion intended
+                f=$(ls -1t "$dossier"/$motif*.zip 2>/dev/null | head -n 1 || true)
+                if [[ -n "$f" && ( -z "$cand" || "$f" -nt "$cand" ) ]]; then cand="$f"; fi
+            done
+            if [[ -z "$cand" ]]; then
+                [[ -z "$source" ]] || { ko "aucune archive « ${MODULES_MOTIFS// /, }*.zip » dans $source"; exit 1; }
+                return 0
+            fi
+        fi
+        ajouter_zip "$cand"
+    done
+}
+
+# ajouter_zip FILE: inspects one archive and adds its modules (ZIP_MODULES, ZIP_VERSIONS, ZIP_SERVEUR, ZIP_SOURCES) and the archive (ZIP_FICHIERS).
+ajouter_zip() {
+    local fichier="$1" sortie ligne code=0 reste nom deja i
+    fichier=$(cd "$(dirname "$fichier")" && pwd)/$(basename "$fichier")
+    for deja in "${ZIP_FICHIERS[@]}"; do
+        [[ "$deja" == "$fichier" ]] && { ko "archive indiquée deux fois : $fichier"; exit 1; }
+    done
+    sortie=$(zip_inspecter "$fichier") || code=$?
+    if (( code == 3 )); then ko "archive refusée : $fichier contient un chemin qui sort du dossier de destination (/ ou ..)"; exit 1; fi
+    if (( code != 0 )); then ko "archive illisible (zip invalide ?) : $fichier"; exit 1; fi
+    [[ -n "$sortie" ]] || { ko "archive sans module : aucun dossier avec __manifest__.py à la racine de $fichier"; exit 1; }
     while IFS= read -r ligne; do
-        ZIP_MODULES+=("${ligne%%$'\t'*}"); reste="${ligne#*$'\t'}"
-        ZIP_VERSIONS+=("${reste%%$'\t'*}"); ZIP_SERVEUR+=("${reste##*$'\t'}")
+        nom="${ligne%%$'\t'*}"; reste="${ligne#*$'\t'}"
+        for i in "${!ZIP_MODULES[@]}"; do
+            if [[ "${ZIP_MODULES[$i]}" == "$nom" ]]; then
+                ko "module $nom présent dans deux archives (${ZIP_SOURCES[$i]} et $fichier) : une seule doit le contenir"; exit 1
+            fi
+        done
+        ZIP_MODULES+=("$nom")
+        ZIP_VERSIONS+=("${reste%%$'\t'*}"); ZIP_SERVEUR+=("${reste##*$'\t'}"); ZIP_SOURCES+=("$fichier")
     done <<< "$sortie"
+    ZIP_FICHIERS+=("$fichier")
 }
 
 # Extraction folder: --addons-dir / ADDONS_DIR; otherwise the addons_path folder which already contains one of these modules; otherwise error (never guessed at random).
 trouver_destination() {
     local liste chemin m
     local -a dossiers=()
-    [[ -n "$ZIP_FICHIER" ]] || return 0
+    (( ${#ZIP_FICHIERS[@]} > 0 )) || return 0
     if [[ -n "$ADDONS_DIR" ]]; then
         [[ "$ADDONS_DIR" == /* ]] || ADDONS_DIR="${ODOO_DIR:-.}/$ADDONS_DIR"
         [[ -d "$ADDONS_DIR" ]] || { ko "dossier de décompression introuvable : $ADDONS_DIR (--addons-dir ou ADDONS_DIR)"; exit 1; }
@@ -441,12 +472,17 @@ trouver_destination() {
 }
 
 decompresser() {
-    local i
-    etape "Décompression de $(basename "$ZIP_FICHIER")"
-    for i in "${!ZIP_MODULES[@]}"; do champ "${ZIP_MODULES[$i]}" "${C_CYAN}${ZIP_VERSIONS[$i]}${C_RESET} ${C_DIM}(manifeste de l'archive)${C_RESET}"; done
-    if (( DO_DRY_RUN )); then sim "décompression de $ZIP_FICHIER vers $DESTINATION (propriétaire : celui du dossier)"; return 0; fi
-    trace python3 - "$ZIP_FICHIER" "$DESTINATION"
-    if python3 - "$ZIP_FICHIER" "$DESTINATION" <<'PYEOF'
+    local i f n
+    for f in "${ZIP_FICHIERS[@]}"; do                           # 1.37: one archive after the other, in the order given
+    etape "Décompression de $(basename "$f")"
+    n=0
+    for i in "${!ZIP_MODULES[@]}"; do
+        [[ "${ZIP_SOURCES[$i]}" == "$f" ]] || continue
+        n=$((n + 1)); champ "${ZIP_MODULES[$i]}" "${C_CYAN}${ZIP_VERSIONS[$i]}${C_RESET} ${C_DIM}(manifeste de l'archive)${C_RESET}"
+    done
+    if (( DO_DRY_RUN )); then sim "décompression de $f vers $DESTINATION (propriétaire : celui du dossier)"; continue; fi
+    trace python3 - "$f" "$DESTINATION"
+    if python3 - "$f" "$DESTINATION" <<'PYEOF'
 import os, sys, zipfile
 z = zipfile.ZipFile(sys.argv[1]); dest = os.path.realpath(sys.argv[2])
 st = os.stat(dest)
@@ -463,8 +499,9 @@ if os.geteuid() == 0:                                   # les fichiers appartien
         except OSError:
             pass
 PYEOF
-    then ok "$(basename "$ZIP_FICHIER") décompressé dans ${C_BOLD}$DESTINATION${C_RESET} (${#ZIP_MODULES[@]} modules, fichiers existants remplacés)"
-    else ko "décompression de $ZIP_FICHIER dans $DESTINATION impossible (droits ? espace disque ?)"; return 1; fi
+    then ok "$(basename "$f") décompressé dans ${C_BOLD}$DESTINATION${C_RESET} ($n modules, fichiers existants remplacés)"
+    else ko "décompression de $f dans $DESTINATION impossible (droits ? espace disque ?)"; return 1; fi
+    done
 }
 
 # Versions of the installed modules, before / after (read-only in PostgreSQL, apps/_odoo_db.py --modules): the updated modules + the 10 most recently modified.
@@ -1540,7 +1577,6 @@ detecter_service
 trouver_conf
 if declare -F odoo_conf_charger >/dev/null; then odoo_conf_charger "$ODOO_CONF_UTILISEE" 2>/dev/null || true; fi
 trouver_base
-ZIP_FICHIER=""
 if (( ! RESTART_ONLY )); then                                   # 1.34: --restart-only: no archive, no module, no update command
     trouver_zip
     trouver_destination
@@ -1553,15 +1589,16 @@ champ "Base :" "${C_BOLD}${C_YELLOW}$DB${C_RESET}"
 if (( RESTART_ONLY )); then champ "Modules :" "${C_DIM}aucun (redémarrage seulement)${C_RESET}"; else champ "Modules :" "${C_CYAN}${MODULES_TROUVES[*]-}${C_RESET}"; fi
 if (( ${#MODULES_SERVEUR[@]} > 0 )); then champ "Server-wide :" "${C_CYAN}${MODULES_SERVEUR[*]}${C_RESET} ${C_DIM}(jamais installés dans la base : code remplacé, pris au redémarrage)${C_RESET}"; fi
 if (( RESTART_PG )); then champ "PostgreSQL :" "${C_BOLD}$PG_SERVICE${C_RESET} ${C_DIM}(redémarré entre l'arrêt et le démarrage d'Odoo)${C_RESET}"; fi
-if [[ -n "$ZIP_FICHIER" ]]; then champ "Archive :" "${C_BOLD}$ZIP_FICHIER${C_RESET} ${C_DIM}→ $DESTINATION${C_RESET}"
-    for i in "${!ZIP_MODULES[@]}"; do champ "  ${ZIP_MODULES[$i]}" "version ${C_BOLD}${C_CYAN}${ZIP_VERSIONS[$i]}${C_RESET} ${C_DIM}(manifeste de l'archive)${C_RESET}"; done
-fi
+for f in "${ZIP_FICHIERS[@]}"; do champ "Archive :" "${C_BOLD}$f${C_RESET} ${C_DIM}→ $DESTINATION${C_RESET}"
+    for i in "${!ZIP_MODULES[@]}"; do [[ "${ZIP_SOURCES[$i]}" == "$f" ]] || continue
+        champ "  ${ZIP_MODULES[$i]}" "version ${C_BOLD}${C_CYAN}${ZIP_VERSIONS[$i]}${C_RESET} ${C_DIM}(manifeste de l'archive)${C_RESET}"; done
+done
 champ "Compte :" "${C_DIM}${RUN_USER:-$(id -un)}${C_RESET}"
 champ "Dossier :" "${C_DIM}${ODOO_DIR:-?}${C_RESET}"
 champ "Config Odoo :" "${C_DIM}$ODOO_CONF_UTILISEE${C_RESET}"
 if (( DO_DRY_RUN )); then echo "  ${C_YELLOW}Mode simulation : rien n'est arrêté, écrit ni démarré.${C_RESET}"; fi
 ETAPES=5; if (( DO_WARMUP )); then ETAPES=6; fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
-if [[ -n "$ZIP_FICHIER" ]]; then ETAPES=$((ETAPES + 1)); fi
+if (( ${#ZIP_FICHIERS[@]} > 0 )); then ETAPES=$((ETAPES + 1)); fi
 ETAPES=$((ETAPES + 1))
 if (( RESTART_ONLY )); then                                    # 1.34: quiet site, stop, (PostgreSQL), start, (warm-up), check of the journal
     ETAPES=4; if (( RESTART_PG )); then ETAPES=5; fi; if (( DO_WARMUP )); then ETAPES=$((ETAPES + 1)); fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
@@ -1580,7 +1617,7 @@ ZIP_ECHEC=0; ETAIT_ACTIF=0
 if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]]; then ETAIT_ACTIF=1; fi
 arreter || exit 1
 verifier_odoo_a_la_main
-if [[ -n "$ZIP_FICHIER" ]]; then
+if (( ${#ZIP_FICHIERS[@]} > 0 )); then
     CODE_REPLACED=1                                          # even an interrupted extraction may have replaced files
     decompresser || { echecs=$((echecs + 1)); ZIP_ECHEC=1; }
 fi
