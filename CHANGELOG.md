@@ -4499,6 +4499,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.121.20261120.172804 - Step 9c: language prefix of the website accepted in the ignored 404
+
+- Reason for the request: on 2026-11-20 at 16:15, the jail nginx-badrequests banned 132.211.165.182 (HEC Montréal), whose user was logged in to Odoo (giahung.lieu2021@gmail.com). nginx-log-audit.sh --investigate: score 0/7, LEVER LE BANNISSEMENT. The administrator asked why another member was banned.
+- Diagnosis: same cause as 45.47.166.86 (version 2.120): the Apps menu of Odoo asks for the icon of every module listed in the database, and the modules missing on the disk answer 404. This time the user had switched the website to English: the browser also asked for 43 icons under the language prefix (/en_CA/MODULE/static/description/icon.png). The lines of 2.120 started with /MODULE/static/ and did not cover the prefix, so these 404 were still counted (40 detections between 16:04:29 and 16:15:42).
+- Changes (nginx-hardening.sh): f2b_static404_regex(): optional language prefix (/xx, /xxx, /xx_YY, for example /en_CA, /fr, /es_ES) before /MODULE/static/, /web/image, /web/assets and /website/image. nginx-tools-tests/test_badrequests_static404.py: 2 new tests (11 in all).
+- Bugs fixed: symptom: a member logged in to Odoo banned 24 h after opening the Apps menu in English; diagnosis: language prefix not covered by the ignoreregex lines of step 9c; fix: optional prefix.
+- Safeguards and edge cases: the prefix changes nothing else: still GET/HEAD and 404 only, asset extensions only under /MODULE/static/, no "..", no file name starting with a dot; /en_CA/.env, /fr/wp-login.php, /en_CA/admin/static/shell.php and /en_CA/web/static/../../etc/passwd still count (tested). A .local written by 2.120 carries the marker line: --update rewrites it and reloads the jail.
+- Checks performed: bash -n; ShellCheck; test_badrequests_static404 (11 tests, OK; the 86 icon requests of the case of 2026-11-20, with and without /en_CA, are all ignored).
+- Action required: on the Odoo PROD server: cd /opt/rlq-admin-tools && git pull, then nginx-hardening.sh --update (step 9c must say "[OK] ... ne comptent plus"; if it said nothing before, the .local of 2.120 was never written). Check: ls -l /etc/fail2ban/filter.d/nginx-badrequests.local.
+
 ### 2.120.20261120.141757 - Step 9c: 404 on static files of Odoo never counted by the jail nginx-badrequests
 
 - Reason for the request: on 2026-11-20 at 12:26, the address 45.47.166.86 (Charter Communications, a home connection in the United States) was banned 24 h by the jail nginx-badrequests. It belongs to a member logged in to Odoo. nginx-log-audit.sh --investigate gave a score of 0/7 and the verdict "lift the ban". The administrator asked why, and asked that it never happens again.

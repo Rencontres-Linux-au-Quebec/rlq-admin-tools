@@ -82,6 +82,23 @@ class Static404Ignored(unittest.TestCase):
         lignes = [ligne(f"GET /module_{i}/static/description/icon.png HTTP/2.0") for i in range(39)]
         self.assertEqual(sum(ignoree(x, self.motifs) for x in lignes), 39)
 
+    def test_prefixe_de_langue_du_site(self):
+        # 2.121: 132.211.165.182 (2026-11-20), the Apps menu after a change of language: icons asked under /en_CA/
+        for url in ("/en_CA/account_avatax_oca/static/description/icon.png", "/fr/openeducat_core/static/description/icon.png",
+                    "/es_ES/web/image/9718-5bbd03e0/x.jpg", "/en_CA/web_editor/static/src/img/x.svg", "/en/web/assets/1/abc/web.assets_frontend.min.css"):
+            with self.subTest(url=url):
+                self.assertTrue(ignoree(ligne(f"GET {url} HTTP/2.0"), self.motifs), url)
+        for req in ("GET /en_CA/.env HTTP/1.1", "GET /fr/wp-login.php HTTP/1.1", "GET /en_CA/base/static/.git/config HTTP/1.1",
+                    "GET /en_CA/web/static/../../etc/passwd HTTP/1.1", "GET /en_CA/admin/static/shell.php HTTP/1.1"):
+            with self.subTest(req=req):
+                self.assertFalse(ignoree(ligne(req), self.motifs), req)
+
+    def test_cas_du_2026_11_20_hec(self):
+        modules = [f"module_{i}" for i in range(43)]
+        lignes = [ligne(f"GET /{m}/static/description/icon.png HTTP/2.0") for m in modules]
+        lignes += [ligne(f"GET /en_CA/{m}/static/description/icon.png HTTP/2.0") for m in modules]
+        self.assertEqual(sum(ignoree(x, self.motifs) for x in lignes), 86)
+
     def test_pas_de_pourcent(self):
         # a "%" alone is an interpolation error in a fail2ban configuration file
         r = bash("f2b_static404_regex")
