@@ -3199,3 +3199,37 @@ msgstr " contains --limit-memory-hard=0 (unlimited) on a line that the running O
 
 msgid "ligne de commande de l'Odoo en marche (priorité sur odoo.conf)"
 msgstr "command line of the running Odoo (takes precedence over odoo.conf)"
+
+# 2.120 - step 9c (nginx-badrequests: 404 on static files of Odoo)
+msgid " : erreurs 404 sur les fichiers statiques d'Odoo ignorées ---"
+msgstr ": 404 errors on static files of Odoo ignored ---"
+
+msgid " non définie sur ce serveur ("
+msgstr " not defined on this server ("
+
+msgid " absent)"
+msgstr " missing)"
+
+msgid " écrit à la main, laissé tel quel ; ajoutez-y les lignes ignoreregex de l'étape 9c (voir CHANGELOG.md)."
+msgstr " written by hand, left as it is; add the ignoreregex lines of step 9c to it (see CHANGELOG.md)."
+
+msgid " : les 404 sur les fichiers statiques d'Odoo ne comptent pas ("
+msgstr ": the 404 on static files of Odoo are not counted ("
+
+msgid " : une rafale de 404 sur des fichiers statiques d'Odoo (menu Applications, images supprimées) bannit un visiteur légitime (relancer avec --update)."
+msgstr ": a burst of 404 on static files of Odoo (Apps menu, deleted images) bans a legitimate visitor (run again with --update)."
+
+msgid " : les 404 sur les fichiers statiques d'Odoo ne comptent plus ("
+msgstr ": the 404 on static files of Odoo are no longer counted ("
+
+msgid " écrit, jail rechargée)."
+msgstr " written, jail reloaded)."
+
+msgid " : fail2ban a refusé "
+msgstr ": fail2ban refused "
+
+msgid " : fichier retiré, jail inchangée (voir « journalctl -u fail2ban -n 30 »)."
+msgstr ": file removed, jail unchanged (see \"journalctl -u fail2ban -n 30\")."
+
+msgid "# 404 answered to a browser of Odoo on static files (icons of modules missing on the disk, deleted images,"
+msgstr "# 404 answered to a browser of Odoo on static files (icons of modules missing on the disk, deleted images,"
