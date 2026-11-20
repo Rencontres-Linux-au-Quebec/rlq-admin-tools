@@ -100,6 +100,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.6.20261120.095040 - Tables used by no Odoo model, export then drop, backups made inside Odoo
+
+- Reason for the request: export of odoo18, 2026-11-20: table backup_page_history_steps of 1134 MB (229 rows) in a database of 1526 MB, used by no module and copied by every backup; the administrator keeps odoo-backup.sh alone for the backups, the modules auto_backup (OCA) and auto_database_backup (Cybrosys) copied the database again every day.
+- Changes:
+  - New read-only query orphan-tables: tables of the schema public that no Odoo model (ir_model), no many2many field (ir_model_fields.relation_table) and no foreign key of another table uses, biggest first (ORPHAN_SQL).
+  - New option --export-drop-table TABLE (function export_drop_table): name checked, table present, not referenced by a foreign key, not of Odoo; PROD_PATTERN and confirmation (the name of the table typed again, or --yes); export with pg_dump -t into EXPORT_DIR (mode 700, file 600), checked (gzip -t, CREATE TABLE and COPY present); then DROP TABLE in a transaction, never CASCADE (ROLLBACK with --dry-run); the command to put it back is shown; audit log (LOG_FILE).
+  - New queries backup-crons (read), backup-crons-disable and backup-crons-enable (destructive, reversible: ir_cron.active) for the scheduled actions of the modules auto_backup and auto_database_backup (ir_model_data).
+  - New configuration key EXPORT_DIR (default /var/backups/odoo-sql-maint), in the template and doc/odoo-sql-maint.conf.example; --help: the option in alphabetical order, EXPORT_DIR among the key options; --list: wider name column.
+  - New test file nginx-tools-tests/test_odoo_sql_maint.py (5 tests; the 4 tests with PostgreSQL create a throwaway cluster with initdb, skipped without it).
+- Bugs fixed: none (new functions).
+- Safeguards and edge cases: a table of an Odoo model or of a many2many field is always refused (uninstall the module instead); a table pointed to by a foreign key is refused with the names of those tables; an export that fails or misses its CREATE TABLE or its data leaves the table in place; without a terminal and without --yes nothing is dropped; the crons are disabled, never deleted.
+- Checks performed: bash -n; ShellCheck (warning level): no message; nginx-tools-tests/test_odoo_sql_maint.py: 5 passed (PostgreSQL 16, real export, drop and restore of a table of 229 rows).
+- Action required: on odoo18, as the user that owns the database: odoo-sql-maint --database linux_meetup_7_nov_2026 --run orphan-tables, then --export-drop-table backup_page_history_steps, then --run backup-crons-disable.
+
 ### 1.5.20261114.154941 - Version shown at startup
 
 - Title: The name and the version are the first line of every run.
