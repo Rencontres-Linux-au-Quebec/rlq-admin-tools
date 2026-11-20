@@ -4100,6 +4100,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.40.20261120.185748 - E-mail addresses, times and numbers in colour in the activity report
+
+- Reason for the request: the administrator, 2026-11-20, while odoo-update-module.sh waited for a quiet site before the restart of Odoo: the e-mail addresses, the times and the numbers of the lines "site occupé" should have their own colour; the whole detail was grey.
+- Changes (odoo-update-module.sh): new function detail_vif(): like detail(), but e-mail addresses in cyan, times (HH:MM or HH:MM:SS) in green and numbers in yellow inside the dim line (one perl substitution). Used for the lines of wait_for_quiet_site() (reasons, people waited for, maximum wait) and of rapport_activite() (--check-activity). nginx-tools-tests/test_odoo_update_module.py: class DetailVif140 (3 tests).
+- Bugs fixed: none.
+- Safeguards and edge cases: an IP address (69.157.88.222), a number inside a path (/event/journee-2026-125/...) or a version (18.0.1.0.0) keeps the colour of the line; output redirected (no colour) or perl missing: the plain line, as before; the texts themselves are unchanged (translations and the tests that read them are not affected).
+- Checks performed: bash -n; ShellCheck (no warning, as before); test_odoo_update_module (all OK, 3 new).
+- Action required: none (git pull in /opt/rlq-admin-tools after merge).
+
 ### 1.39.20261119.185539 - Never cut connected users: option A, chat delays the update
 
 - Reason for the request: a member logged in to the site (reading the event pages, registering) was cut when Odoo was stopped. The wait had ended, and a read-only visit no longer blocked the update. The owner asked that connected users are never disturbed, and that a chat message also delays the update.

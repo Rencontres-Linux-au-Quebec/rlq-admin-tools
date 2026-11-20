@@ -887,5 +887,44 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertEqual([c for c in cles if c not in ("c", "h", "v")], sorted(c for c in cles if c not in ("c", "h", "v")))
 
 
+class DetailVif140(unittest.TestCase):
+    """1.40: in the activity report, e-mail addresses (cyan), times (green) and numbers (yellow) stand out of the dim detail line."""
+    COULEURS = {"C_RESET": "<R>", "C_CYAN": "<C>", "C_GREEN": "<G>", "C_YELLOW": "<Y>", "C_DIM": "<D>", "C_BOLD": "<B>"}
+
+    def vif(self, texte, couleurs=True):
+        import subprocess
+        prog = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "odoo-update-module.sh"), encoding="utf-8").read()
+        debut = prog.index("\ndetail() {") + 1
+        fin = prog.index("\n}\n", prog.index("\ndetail_vif() {")) + 3
+        env = dict(os.environ, **(self.COULEURS if couleurs else {k: "" for k in self.COULEURS}))
+        r = subprocess.run(["bash", "-c", prog[debut:fin] + '\ndetail_vif "$1"', "bash", texte], capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout.rstrip("\n")
+
+    @unittest.skipIf(shutil.which("perl") is None, "perl absent")
+    def test_courriel_heure_et_nombres(self):
+        out = self.vif("69.157.88.222 CA (Canada) · julien.touche+rencontreslinux@gmail.com (Julien T) · 57 requêtes, dernière à 18:46:04, 1 POST")
+        self.assertIn("<R><C>julien.touche+rencontreslinux@gmail.com<R><D>", out)
+        self.assertIn("<R><G>18:46:04<R><D>", out)
+        self.assertIn("<R><Y>57<R><D> requêtes", out)
+        self.assertIn("<R><Y>1<R><D> POST", out)
+        self.assertIn("69.157.88.222 CA", out)                      # an IP address keeps the colour of the line
+        self.assertTrue(out.startswith("    <D>") and out.endswith("<R>"))
+
+    @unittest.skipIf(shutil.which("perl") is None, "perl absent")
+    def test_chemins_et_versions_inchanges(self):
+        out = self.vif("· 2 écritures HTTP (POST…) dans les 5 dernières minutes, la plus récente : 18:51:50 POST /event/journee-2026-125/registration/new (72.143.215.147)")
+        self.assertIn("/event/journee-2026-125/registration/new (72.143.215.147)", out)
+        self.assertIn("<Y>2<R><D> écritures", out)
+        self.assertIn("<Y>5<R><D> dernières", out)
+        self.assertIn("<G>18:51:50<R>", out)
+        self.assertIn("version 18.0.1.0.0", self.vif("version 18.0.1.0.0"))
+        self.assertIn("<Y>60<R><D> min", self.vif("· attente maximale : 60 min (utilisateur connecté actif)"))
+
+    def test_sortie_redirigee_sans_couleur(self):
+        texte = "martial.bigras.ing@gmail.com · 6 requêtes, dernière à 18:49:28"
+        self.assertEqual(self.vif(texte, couleurs=False), "    " + texte)
+
+
 if __name__ == "__main__":
     unittest.main()
