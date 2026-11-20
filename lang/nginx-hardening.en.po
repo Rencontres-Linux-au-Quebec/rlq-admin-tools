@@ -3233,3 +3233,9 @@ msgstr ": file removed, jail unchanged (see \"journalctl -u fail2ban -n 30\")."
 
 msgid "# 404 answered to a browser of Odoo on static files (icons of modules missing on the disk, deleted images,"
 msgstr "# 404 answered to a browser of Odoo on static files (icons of modules missing on the disk, deleted images,"
+
+msgid "# bundles of a previous version), pages hidden to this visitor (unpublished, members only, /chat/ links of internal"
+msgstr "# bundles of a previous version), pages hidden to this visitor (unpublished, members only, /chat/ links of internal"
+
+msgid "# users) and 404 reached from a link of the site itself: never a probe, never counted. See CHANGELOG.md, nginx-hardening.sh 2.120-2.122."
+msgstr "# users) and 404 reached from a link of the site itself: never a probe, never counted. See CHANGELOG.md, nginx-hardening.sh 2.120-2.122."

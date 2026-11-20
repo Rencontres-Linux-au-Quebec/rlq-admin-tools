@@ -14,13 +14,18 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, "nginx-hardening.sh")
 IP = "45.47.166.86"
-UA = '"https://rencontres-linux.quebec/odoo/action-908" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:160.0) Gecko/20100101 Firefox/160.0"'
 
 
-def ligne(requete, statut=404, ip=IP):
+def ligne(requete, statut=404, ip=IP, referer="https://rencontres-linux.quebec/odoo/action-908", hote="rencontres-linux.quebec"):
     """One line of the access log (format combined_host of nginx/conf.d/odoo-global.conf)."""
-    return (f'{ip} - - [20/Nov/2026:12:26:30 -0500] "{requete}" {statut} 153 {UA} host="rencontres-linux.quebec" '
+    ua = '"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:160.0) Gecko/20100101 Firefox/160.0"'
+    return (f'{ip} - - [20/Nov/2026:12:26:30 -0500] "{requete}" {statut} 153 "{referer}" {ua} host="{hote}" '
             f'rl=512 rt=0.004 urt="0.004" us=404')
+
+
+def directe(requete, statut=404):
+    """Same line without Referer: typed address, old link of an e-mail, or a scanner."""
+    return ligne(requete, statut, referer="-")
 
 
 def fonctions(*noms):
@@ -70,17 +75,62 @@ class Static404Ignored(unittest.TestCase):
                     "GET /base/static/.env HTTP/1.1", "GET /base/static/.git/config HTTP/1.1",
                     "POST /web/image/1 HTTP/1.1", "GET /static/admin/x.png.php HTTP/1.1", "GET /cgi-bin/static/x.png HTTP/1.1"):
             with self.subTest(req=req):
-                self.assertFalse(ignoree(ligne(req), self.motifs), req)
+                self.assertFalse(ignoree(directe(req), self.motifs), req)
 
     def test_autres_statuts_comptent(self):
         for statut in (400, 403, 444, 405):
             with self.subTest(statut=statut):
-                self.assertFalse(ignoree(ligne("GET /account/static/description/icon.png HTTP/2.0", statut), self.motifs))
+                self.assertFalse(ignoree(directe("GET /account/static/description/icon.png HTTP/2.0", statut), self.motifs))
 
     def test_cas_du_2026_11_20(self):
         # 39 icons answered 404 within one second: none is counted any more
         lignes = [ligne(f"GET /module_{i}/static/description/icon.png HTTP/2.0") for i in range(39)]
         self.assertEqual(sum(ignoree(x, self.motifs) for x in lignes), 39)
+
+    def test_prefixe_de_langue_du_site(self):
+        # 2.121: 132.211.165.182 (2026-11-20), the Apps menu after a change of language: icons asked under /en_CA/
+        for url in ("/en_CA/account_avatax_oca/static/description/icon.png", "/fr/openeducat_core/static/description/icon.png",
+                    "/es_ES/web/image/9718-5bbd03e0/x.jpg", "/en_CA/web_editor/static/src/img/x.svg", "/en/web/assets/1/abc/web.assets_frontend.min.css"):
+            with self.subTest(url=url):
+                self.assertTrue(ignoree(ligne(f"GET {url} HTTP/2.0"), self.motifs), url)
+        for req in ("GET /en_CA/.env HTTP/1.1", "GET /fr/wp-login.php HTTP/1.1", "GET /en_CA/base/static/.git/config HTTP/1.1",
+                    "GET /en_CA/web/static/../../etc/passwd HTTP/1.1", "GET /en_CA/admin/static/shell.php HTTP/1.1"):
+            with self.subTest(req=req):
+                self.assertFalse(ignoree(directe(req), self.motifs), req)
+
+    def test_cas_du_2026_11_20_hec(self):
+        modules = [f"module_{i}" for i in range(43)]
+        lignes = [ligne(f"GET /{m}/static/description/icon.png HTTP/2.0") for m in modules]
+        lignes += [ligne(f"GET /en_CA/{m}/static/description/icon.png HTTP/2.0") for m in modules]
+        self.assertEqual(sum(ignoree(x, self.motifs) for x in lignes), 86)
+
+    def test_pages_cachees_d_odoo(self):
+        # 2.122: 404 answered to a visitor who may not see the page (not published, members only, internal users only)
+        for url in ("/chat/80/T7kyKvEKT5", "/chat/128/syTPEribmg", "/discuss/channel/12", "/en_CA/event/open-house-on-linux-2026-25",
+                    "/event/journee-portes-ouvertes-sur-linux-2026-125/track/reprendre-le-controle-154", "/event/diner-linux-123/register",
+                    "/es/shop/sponsors-conferences-7", "/blog/nouvelles-1/post-12", "/my/tickets", "/odoo/action-908", "/slides/cours-3",
+                    "/survey/start/abc?answer_token=x"):
+            with self.subTest(url=url):
+                self.assertTrue(ignoree(directe(f"GET {url} HTTP/2.0"), self.motifs), url)
+        for req in ("GET /chat/../../etc/passwd HTTP/1.1", "GET /event/.env HTTP/1.1", "GET /events.php HTTP/1.1", "GET /mysql/admin HTTP/1.1",
+                    "GET /shopping-cart.bak HTTP/1.1", "POST /chat/80/x HTTP/1.1"):
+            with self.subTest(req=req):
+                self.assertFalse(ignoree(directe(req), self.motifs), req)
+
+    def test_lien_du_site_lui_meme(self):
+        # an unpublished page linked from a published one (Referer on the same host as the request)
+        self.assertTrue(ignoree(ligne("GET /plan-commandite HTTP/2.0", referer="https://rencontres-linux.quebec/a-propos"), self.motifs))
+        self.assertTrue(ignoree(ligne("GET /prix-de-presence HTTP/2.0", referer="https://rencontres-linux.quebec"), self.motifs))
+        self.assertTrue(ignoree(ligne("GET /en_CA/prix-de-presence HTTP/2.0", referer="http://rencontres-linux.quebec/en_CA/"), self.motifs))
+        # without Referer, from another site, or a Referer naming another host: still counted
+        self.assertFalse(ignoree(directe("GET /plan-commandite HTTP/2.0"), self.motifs))
+        self.assertFalse(ignoree(ligne("GET /some/page HTTP/1.1", referer="https://scanner.example.net/"), self.motifs))
+        self.assertFalse(ignoree(ligne("GET /some/page HTTP/1.1", referer="https://rencontres-linux.quebec.evil.net/"), self.motifs))
+        self.assertFalse(ignoree(ligne("GET /x HTTP/1.1", referer="https://www.rencontres-linux.quebec/"), self.motifs))   # other host name
+        # never "..", a dot file, or another status
+        self.assertFalse(ignoree(ligne("GET /../../etc/passwd HTTP/1.1"), self.motifs))
+        self.assertFalse(ignoree(ligne("GET /.git/config HTTP/1.1"), self.motifs))
+        self.assertFalse(ignoree(ligne("GET / HTTP/1.1", statut=403), self.motifs))
 
     def test_pas_de_pourcent(self):
         # a "%" alone is an interpolation error in a fail2ban configuration file
