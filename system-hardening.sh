@@ -52,7 +52,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: the real system commands stay out of reach.)
 export PATH
 
-readonly SCRIPT_VERSION="1.2.20261112.082236"
+readonly SCRIPT_VERSION="1.3.20261120.094840"
 readonly SCRIPT_NAME="system-hardening"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -633,6 +633,10 @@ aide_content() {
     echo '!/home/[^/]+/\.local/share/Odoo'
     echo '!/opt/odoo/\.local/share/Odoo'
     echo '!/home/[^/]+/\.cache'
+    # 1.3: the object stores of git (.git/objects, and the bare mirrors project.git/objects of repo) under the Odoo sources: packs of several GB read
+    # again every night (2026-11-20, 105 and 104: 7.9, 4.2, 3.8 GB...), while the checked-out files, .git/config and .git/hooks stay watched
+    echo '!/opt/.*\.git/objects'
+    echo '!/home/[^/]+/.*\.git/objects'
     while IFS= read -r p; do
         [[ -n "$p" ]] && printf '!%s\n' "$(aide_escape "$p")"
     done < <(odoo_data_dirs)
@@ -753,7 +757,9 @@ aide_apply() {
     title "3. AIDE"
     if (( DO_AIDE == 0 )); then skip "$(t "désactivé (AIDE=no)" "disabled (AIDE=no)")"; return 0; fi
     pkg_install aide || return 0
+    local excl_changed=0
     if write_if_changed "$AIDE_FILE" "$(aide_content)" 644; then
+        excl_changed=1
         pass "$(t "exclusions écrites :" "exclusions written:") $AIDE_FILE"
     else
         pass "$(t "exclusions déjà à jour :" "exclusions already up to date:") $AIDE_FILE"
@@ -771,9 +777,14 @@ aide_apply() {
     if have systemctl && systemd_running && systemctl list-unit-files dailyaidecheck.timer >/dev/null 2>&1; then
         run systemctl enable --now dailyaidecheck.timer >/dev/null 2>&1 || true
     fi
-    if [[ -f "$AIDE_DB_DIR/aide.db" || -f "$AIDE_DB_DIR/aide.db.gz" ]] && (( sums_changed == 1 )); then
+    if [[ -f "$AIDE_DB_DIR/aide.db" || -f "$AIDE_DB_DIR/aide.db.gz" ]] && (( sums_changed == 1 || excl_changed == 1 )); then
         # The old baseline holds the old checksums: every file would be reported as changed. It is created again with the new ones.
-        warn "$(t "les condensés ont changé : la base de référence est recréée (lire d'abord le dernier rapport d'AIDE :" "the checksums changed: the baseline is created again (read the last AIDE report first:") $AIDE_LOG)"
+        # 1.3: same after a change of the exclusions: the entries now excluded would be reported as removed at every daily check.
+        if (( sums_changed == 1 )); then
+            warn "$(t "les condensés ont changé : la base de référence est recréée (lire d'abord le dernier rapport d'AIDE :" "the checksums changed: the baseline is created again (read the last AIDE report first:") $AIDE_LOG)"
+        else
+            warn "$(t "les exclusions ont changé : la base de référence est recréée (lire d'abord le dernier rapport d'AIDE :" "the exclusions changed: the baseline is created again (read the last AIDE report first:") $AIDE_LOG)"
+        fi
         for f in "$AIDE_DB_DIR"/aide.db "$AIDE_DB_DIR"/aide.db.gz; do
             if [[ -f "$f" ]]; then mv -f -- "$f" "$f.previous"; fi
         done
