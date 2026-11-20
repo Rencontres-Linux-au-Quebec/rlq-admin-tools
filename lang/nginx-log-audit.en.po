@@ -3272,3 +3272,28 @@ msgstr "robot (no sign of a person)"
 
 msgid "robot confirmé"
 msgstr "confirmed robot"
+
+# 2.99 - refusals of the security rules of nginx, forged browser User-Agent
+msgid " Refusées par les règles de sécurité de nginx : "
+msgstr " Refused by the security rules of nginx: "
+
+msgid " requêtes (blocked-probes.log : rien de ce qu'Odoo sert ne tombe sous ces règles)"
+msgstr " requests (blocked-probes.log: nothing that Odoo serves falls under these rules)"
+
+msgid " requêtes refusées par les règles de sécurité de nginx (blocked-probes.log)"
+msgstr " requests refused by the security rules of nginx (blocked-probes.log)"
+
+msgid "User-Agent de navigateur falsifié ("
+msgstr "forged browser User-Agent ("
+
+msgid " requêtes : "
+msgstr " requests: "
+
+msgid " User-Agent de navigateur falsifié : "
+msgstr " Forged browser User-Agent: "
+
+msgid " requêtes, fautes de frappe "
+msgstr " requests, misspellings "
+
+msgid " (un navigateur réel n'écorche jamais son propre nom ; script qui imite un navigateur)"
+msgstr " (a real browser never misspells its own name; a script imitating a browser)"

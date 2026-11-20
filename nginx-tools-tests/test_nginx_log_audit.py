@@ -1597,6 +1597,41 @@ class ChkNginxLogs279(ChkNginxLogs278):
         self.assertEqual(champs[4], "0")                                        # fifth field: fail2ban bans (none here)
         self.assertEqual(champs[5], "3")                                        # 2.85: sixth field: score of the investigation
 
+    def test_299_scanner_cache_php_et_user_agent_ecorche(self):
+        """2.99 : 167.172.73.52 (2026-11-20) : 5 sondes //images/images/cache.php refusées par nginx, User-Agent « Mozlila ... Bulid ... Moblie ».
+        Avant : 0 fichier sensible, « il se nomme dans son User-Agent : Mozlila », score 1/7 et verdict LEVER LE BANNISSEMENT."""
+        ip = "11.196.59.85"
+        ua = ("Mozlila/5.0 (Linux; Android 7.0; SM-G892A Bulid/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
+              "Chrome/60.0.3112.107 Moblie Safari/537.36")
+        pages = ["//cgi-bin/cgi-bin/cgi-bin/cgi-bin/cache.php", "//images/images/cache.php", "//images/images/images/images/images/images/cache.php",
+                 "//images/images/images/images/images/images/images/cache.php", "//images/images/images/images/images/images/images/images/cache.php"]
+        with open(os.path.join(self.logs, "blocked-probes.log"), "w") as f:
+            f.writelines(f'{ip} - - [20/Nov/2026:00:00:{33 + i:02d} -0500] "GET {p} HTTP/1.1" 404 146 "-" "{ua}" host="www.exemple.org"\n'
+                         for i, p in enumerate(pages))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertRegex(out, r"\[✓\] Recherche de fichiers sensibles : 5 requêtes")
+        self.assertIn("[✓] Refusées par les règles de sécurité de nginx : 5 requêtes", out)
+        self.assertIn("[✓] User-Agent de navigateur falsifié : 5 requêtes, fautes de frappe Mozlila, Bulid, Moblie", out)
+        self.assertNotIn("il se nomme dans son User-Agent", out)
+        self.assertNotIn("LEVER LE BANNISSEMENT", out)
+        self.assertIn("Score 3/7 : bannissement recommandé.", out)
+        self.assertIn("Verdict : BANNIR", out)
+
+    def test_299_navigateurs_reels_sans_faute(self):
+        """Les User-Agents de vrais navigateurs ne sont jamais vus comme falsifiés ; une page Odoo ordinaire n'est pas un script serveur."""
+        ip = "11.196.59.85"
+        uas = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:160.0) Gecko/20100101 Firefox/160.0",
+               "Mozilla/5.0 (Linux; Android 14; SM-S918B Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
+               "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"]
+        for i, ua in enumerate(uas * 2):
+            self.add(acc(ip, "20/Nov/2026", f"10:00:{i:02d}", "/event", 200, ua))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("falsifié", out)
+        self.assertIn("Recherche de fichiers sensibles : 0 requêtes", out)
+        self.assertIn("Refusées par les règles de sécurité de nginx : 0 requêtes", out)
+
 
 class ChkNginxLogs282(ChkNginxLogs274):
     """2.82 : une adresse bloquée SEULEMENT par la liste CrowdSec n'a pas de levée recommandée sur la seule foi de l'absence de trace locale ; si un
