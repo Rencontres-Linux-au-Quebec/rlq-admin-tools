@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.200.20261119.151517"
+__version__ = "1.201.20261119.191631"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2033,6 +2033,7 @@ PROGRAM_CODES = (("CUR", re.compile(r"\bcurl\b", re.I)), ("PYT", re.compile(r"py
                  ("NOD", re.compile(r"\bnode\b|axios|node-fetch|undici", re.I)), ("RUB", re.compile(r"\bruby\b", re.I)),
                  ("PER", re.compile(r"libwww-perl|\bperl\b", re.I)))
 BOT_UA_RE = re.compile(r"(?<![a-z])(?!cubot)[a-z]*(?:bot|crawler|spider)(?![a-z])|crawl|slurp|externalhit|webindexer|bingpreview|nvidia", re.I)       # 1.159: a robot that gives its name
+NGINX_TAB_STOP = 8                                                  # 1.183: width of the tab stops that separate the request from the referer (nginx lines)
 NGINX_AGENT_RE = re.compile(r'"[^"]*" "([^"]*)"')                  # 1.133: after the request and the size of an nginx line: the referer, then the User-Agent
 OS_BLANK = "   "
 OS_COLORS = {"LIN": "32", "AND": "36", "BOT": "35", **{code: "1;33" for code, _ in PROGRAM_CODES}}                             # 1.136: LIN in green, AND in cyan
@@ -2484,7 +2485,9 @@ class Formatting:
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
         tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]))            # 1.144: the sitemap tag of a 404 goes at the END of the line
-        return before + block + "   " + rl_column + os_column + " " + request_data + tail + tag
+        head = before + block + "   " + rl_column + os_column + " " + request_data
+        stop = NGINX_TAB_STOP - display_width(head) % NGINX_TAB_STOP          # 1.183: a tab before the referer: spaces up to the next tab stop (1 to 8)
+        return head + " " * stop + tail.lstrip(" ") + tag
 
     def account_form_repeated(self, text):
         """1.174: True when the address of the line asked the password reset / sign-up forms MORE than ACCOUNT_FORM_ALERT_N times (this request included)."""
