@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.202.20261119.225129"
+__version__ = "1.203.20261120.082600"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5191,7 +5191,7 @@ IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counte
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -5223,6 +5223,7 @@ class Stats:
         self.mail_detail = None                      # function () -> lines: recipients of the failed e-mails to resend (set by follow(), reads PostgreSQL)
         self.par_ip, self.names = Counter(), {}
         self.by_name = Counter()                                                  # identified name (DNS column, person, team, server…) -> requests; bare addresses not counted
+        self.local_names = Counter()                                              # 1.203: (address of this server, program that made the request) -> requests
         self.suspect_ips, self.suspect_urls = Counter(), Counter()
         self.account_ips, self.account_urls = Counter(), Counter()                 # 1.157: requests to the password reset and sign-up forms, per address and per page
         self.list_404 = False                                                      # --not-found: the summary lists ALL the 404 pages
@@ -5500,8 +5501,14 @@ class Stats:
         if L.instant and (self.first is None or L.instant < self.first):
             self.first = L.instant
         self.par_ip[ip] += 1
-        self.names.setdefault(ip, ANSI_RE.sub("", renderings[ip][0]) if ip in renderings else ip)
-        if ip != "?" and self.names[ip] != ip:                                     # identified: a name, not the bare address (kept in step with --dns-max)
+        current = ANSI_RE.sub("", renderings[ip][0]) if ip in renderings else ip
+        self.names.setdefault(ip, current)
+        if ip != "?" and (ip in self.server or local_address(ip)) and current != ip:
+            # 1.203: an address of this server is used by several programs (app-health-check.py, nginx-hardening.sh, odoo-warmup.py...): each request
+            # is counted for the program that made it, not for the first one seen from this address
+            self.local_names[(ip, current)] += 1
+            self.by_name[current] += 1
+        elif ip != "?" and self.names[ip] != ip:                                   # identified: a name, not the bare address (kept in step with --dns-max)
             self.by_name[self.names[ip]] += 1
         url, code = r.group(1), int(r.group(2))
         if ROBOTS_FILES_RE.match(url.split("?", 1)[0]):
@@ -5636,6 +5643,11 @@ class Stats:
 
     def who(self, ip):
         name = self.names.get(ip, ip)
+        programs = [(n, c) for (i, n), c in self.local_names.most_common() if i == ip and c > 0] if self.local_names else []
+        if len(programs) > 1:                                                      # 1.203: several programs of this server behind one address
+            name = " + ".join(f"{n} ×{c}" for n, c in programs[:3]) + (f" + {len(programs) - 3}" if len(programs) > 3 else "")
+        elif programs:
+            name = programs[0][0]
         return name if name == ip else f"{name} [{ip}]"
 
     def who_country(self, ip):
@@ -8829,7 +8841,7 @@ def follow(cmd, people, resolver, options, output):
                 lines.append(TR("odoo.conf: the running Odoo uses the values of the file (no change since the start)"))
         params = details.get("params") or {}
         if params:
-            lines.append(TR("Odoo system parameters: ") + " · ".join(f"{k}={v}" + ("" if is_set else " " + TR("(not set: Odoo default)")) for k, (v, is_set) in params.items()
+            lines.append(TR("Odoo system parameters: ") + " · ".join(raw(f"{k}={v}") + ("" if is_set else " " + TR("(not set: Odoo default)")) for k, (v, is_set) in params.items()
                                                               if is_set or k.startswith("mail.")))
         try:
             info = {}
@@ -8981,26 +8993,26 @@ def follow(cmd, people, resolver, options, output):
                      "COALESCE(to_char(lastcall, 'YYYY-MM-DD HH24:MI'), '-') FROM ir_cron WHERE active ORDER BY nextcall LIMIT 60")):
                 rows = db_rows(sql)
                 if rows:
-                    odoo += [label] + [plain("  " + " | ".join(r)) for r in rows[:120]]
+                    odoo += [label] + [plain("  " + " | ".join(raw(str(c)) for c in r)) for r in rows[:120]]      # 1.203: values of the database never translated
             section(TR("Odoo database (users, attachments, e-mails, modules, scheduled actions)"), odoo, code=True)
             code, text = lancer(["nginx", "-T"], 20)
             if text:
                 wanted = re.findall(r"^\s*((?:proxy_cache_path|proxy_cache|proxy_cache_valid|proxy_cache_use_stale|limit_req_zone|limit_req|limit_conn_zone|limit_conn|worker_processes|"
                                     r"worker_connections|keepalive_timeout|proxy_read_timeout|proxy_buffering|gzip|open_file_cache)\s[^;]*);", text, re.M)
-                section(TR("nginx: cache, limits and workers (nginx -T, each directive once)"), [plain(l[:200]) for l in list(OrderedDict.fromkeys(" ".join(w.split()) for w in wanted))[:40]], code=True)
+                section(TR("nginx: cache, limits and workers (nginx -T, each directive once)"), [plain(raw(l[:200])) for l in list(OrderedDict.fromkeys(" ".join(w.split()) for w in wanted))[:40]], code=True)
             code, text = lancer(["ps", "-eo", "pid,pcpu,pmem,rss,etime,args", "--sort=-rss"], 10)
             if text:
-                section(TR("Processes that use the most memory"), [plain(l[:180]) for l in text.splitlines()[:14]], code=True)
+                section(TR("Processes that use the most memory"), [plain(raw(l[:180])) for l in text.splitlines()[:14]], code=True)
         per_ip = Counter(stats.par_ip) if isinstance(getattr(stats, "par_ip", None), Counter) else Counter()
         if not per_ip:
             for (ip, _url), n in stats.ip_url.items():
                 per_ip[ip] += n
         section(TR("Busiest addresses with their User-Agent"),
-                [plain(f"{stats.who_country(ip)} ×{n} · {(stats.agents.get(ip) or '-')[:110]}") for ip, n in per_ip.most_common(20)])
+                [plain(f"{stats.who_country(ip)} ×{n} · " + raw((stats.agents.get(ip) or '-')[:110])) for ip, n in per_ip.most_common(20)])
         agents = Counter()
         for ip, agent in stats.agents.items():
             agents[agent[:110]] += 1
-        section(TR("User-Agents by number of addresses"), [plain(f"×{n} · {agent or '-'}") for agent, n in agents.most_common(20)])
+        section(TR("User-Agents by number of addresses"), [plain(f"×{n} · " + raw(agent or '-')) for agent, n in agents.most_common(20)])
         return out
 
     def export_ai(module, facts, details, analysis_lines, batch):

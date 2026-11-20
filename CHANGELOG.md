@@ -478,6 +478,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.203.20261120.082600 - Data of the export never translated; addresses of this server counted per program
+
+- Reason for the request: exports of 2026-11-20 (odoo18, odoo-dev): the French translation changed data. The User-Agent "python-requests/2.31" was written "python-requêtes/2.31", the Odoo parameter "mail.default.from" became "mail.default.depuis" and the scheduled action "Base VAT: Sync updates from IAP VIES" became "Sync updates depuis IAP VIES". The requests of this server were also counted for the first program seen from the address: 127.0.0.1 was "nginx-hardening.sh x1419" one day and "app-health-check.py x416" the next, for the same mix of probes.
+- Changes:
+  - export_ai(): the rows of the Odoo database section (users, attachments, e-mails, modules, scheduled actions), the nginx -T directives, the process list and the User-Agents (busiest addresses, User-Agents by number of addresses) are marked with raw(): translate_protected() never translates them.
+  - environment_lines(): each "key=value" of the Odoo system parameters marked with raw().
+  - Stats: new counter local_names ((address, program) -> requests, in COUNTERS: snapshots and periods follow it); ajouter() counts each request of an address of this server (loopback or Stats.server) for the program named by its rendering, and by_name the same way; who() shows "program x N + program x M [address]" when several programs used the address.
+  - nginx-tools-tests/test_app_log_live.py: class AppLogLive203 (2 tests).
+- Bugs fixed:
+  - symptom: data changed in the export sent for verification; diagnosis: the lines of the export go through the translator of apps/_i18n.py, which replaces whole words ("requests", "from") even inside a User-Agent, a dotted key or the name of an Odoo record; fix: these values are marked as data (raw()), the labels stay translated.
+  - symptom: one program credited with all the local requests of an address; diagnosis: Stats.names.setdefault() keeps the first rendering of the address; fix: per-program counts for the addresses of this server.
+- Safeguards and edge cases: only the addresses of this server get per-program counts (a person or a DNS name resolved later keeps one name); a period (Ctrl-T) shows only its own programs; apps/_i18n.py is not changed (shared by every program).
+- Checks performed: py_compile; tests AppLogLive203 (2), AppLogLive202 (3) and the "requests by name" test: [OK]; nginx-tools-tests/test_app_log_live.py: 323 tests, 315 passed, 8 failed: the same 8 as on main before this change (console output, Ctrl+C summary, key menus); test_i18n.py and test_conventions.py: the same failures as on main, none about app-log-live.py.
+- Action required: none (update the suite in /opt/rlq-admin-tools as usual).
+
 ### 1.202.20261119.225129 - Business refusals shown to the user counted apart from the Odoo errors
 
 - Reason for the request: log of 2026-11-19 19:41:25: archiving the contact of an active user (José R) raised `odoo.exceptions.RedirectWarning` ("Vous ne pouvez pas archiver les contacts liés à un utilisateur actif"). Odoo showed the message and a "Go to users" button, rolled the transaction back and answered 200, but the status line said "erreurs Odoo 1" and the health went down for a refusal that is not a failure.
