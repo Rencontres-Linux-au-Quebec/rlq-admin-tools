@@ -206,6 +206,24 @@ class SystemHardening(EnvTest):
         self.assertIn("07:30:00", self.lire(self.fichier("SYSTEM_HARDENING_SYSTEMD_DIR", "system-hardening-notify.timer")))   # invalid time: default kept
         self.assertIn("!/opt/sauvegardes", self.lire(self.fichier("SYSTEM_HARDENING_AIDE_DIR", "99_rlq_exclusions")))
 
+    def test_13_git_objects_exclus_et_nouvelle_base_quand_les_exclusions_changent(self):
+        """1.3 : les .git/objects des sources (packs de plusieurs Go relus chaque nuit) sont exclus d'AIDE ; quand les exclusions changent, la base de
+        référence est recréée (sinon chaque vérification quotidienne listerait les fichiers maintenant exclus comme retirés)."""
+        self.machine("debian12", "lxc")
+        rc, out, err = self.lancer("--update")
+        self.assertEqual(rc, 0, out + err)
+        aide = self.lire(self.fichier("SYSTEM_HARDENING_AIDE_DIR", "99_rlq_exclusions"))
+        self.assertIn("!/opt/.*\\.git/objects", aide)
+        self.assertIn("!/home/[^/]+/.*\\.git/objects", aide)
+        self.assertNotIn("!/etc", aide.replace("!/etc/pve", ""))                      # /etc (etckeeper included) stays watched
+        rc, out, err = self.lancer("--update")
+        self.assertNotIn("les exclusions ont changé", out)                             # nothing changed: the baseline is kept
+        self.write("etc-default-vide/system-hardening.conf", "AIDE_EXCLUDE=/opt/sauvegardes\n")
+        rc, out, err = self.lancer("--update")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("les exclusions ont changé : la base de référence est recréée", out)
+        self.assertTrue(os.path.exists(self.fichier("SYSTEM_HARDENING_AIDE_DB", "aide.db.previous")))
+
     def test_anglais(self):
         self.machine("debian12", "lxc")
         rc, out, err = self.lancer("--lang", "en")

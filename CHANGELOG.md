@@ -7264,6 +7264,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## system-hardening.sh
 
+### 1.3.20261120.094840 - AIDE: git object stores of the sources excluded, baseline created again when the exclusions change
+
+- Reason for the request: host-perf-audit.py on proxmox1, night of 2026-11-20: AIDE in the containers 105 and 104 read again every night the git packs of the Odoo sources (7.9, 4.2, 2.6 GB in 105; 3.8, 1.8, 1.2 GB in 104), one of the main causes of the disk waits of the night on the SATA disks.
+- Changes: aide_content(): two exclusions "!/opt/.*\\.git/objects" and "!/home/[^/]+/.*\\.git/objects" (the .git/objects of a checkout and the bare mirrors project.git/objects of repo); aide_apply(): new variable excl_changed, the baseline is created again when the exclusions file changed (the old one is kept as aide.db.previous), as after a change of the checksums; doc/en and doc/fr/19-system-hardening.md; nginx-tools-tests/test_system_hardening.py: test_13_git_objects_exclus_et_nouvelle_base_quand_les_exclusions_changent.
+- Bugs fixed: symptom: several GB read by AIDE every night; diagnosis: only the filestore, the data_dir and .cache of the Odoo installations were excluded; fix: the object stores of git are excluded, the checked-out files stay watched.
+- Safeguards and edge cases: .git/config and .git/hooks (where a hostile change would run code) and every checked-out file stay watched; /etc (etckeeper included) is not touched; without a change of the exclusions the baseline is kept; the warning asks to read the last AIDE report before the new baseline.
+- Checks performed: bash -n; ShellCheck (warning level): no message; nginx-tools-tests/test_system_hardening.py: 17 passed, 1 skipped.
+- Action required: system-hardening.sh --update in each container (or host-perf-audit.py --guest-run): the baseline is created again once (5 to 30 minutes).
+
 ### 1.2.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
