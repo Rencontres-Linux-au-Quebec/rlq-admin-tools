@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.203.20261120.082600"
+__version__ = "1.204.20261120.110230"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2560,6 +2560,9 @@ class Formatting:
         elif L.level is None and benign == "user-refusal":            # 1.202: last line of the trace: a business refusal, not an Odoo failure
             body = (color_code(STYLES["warning"], raw(L.text))
                     + color_code(STYLES["debug"], TR(" (business refusal shown to the user: the action was refused and rolled back; not an Odoo error)")))
+        elif L.level is None and benign == "hidden-conflict":         # 1.204: the cause of the error: a concurrent update conflict
+            body = (color_code(STYLES["warning"], raw(L.text))
+                    + color_code(STYLES["debug"], TR(" (update conflict during the display of a page, not retried by Odoo 18: harmless, not counted as an Odoo error)")))
         elif L.level is None and self.in_trace:                         # trace line: all in red
             body = color_code(STYLES["error"], raw(L.text))
         elif L.level is None and self.benign_ongoing:                   # continuation of an error without severity: orange
@@ -4191,6 +4194,32 @@ class UserRefusal:
         return False
 
 
+# 1.204: a concurrent update conflict inside the RENDERING of a page (odoo18 2026-11-20 10:50: website.layout -> _get_livechat_channel_info ->
+# website.visitor._update_visitor_timezone, two pages of the same visitor at the same time). In a t-nocache block, Odoo 18 wraps the
+# SerializationFailure in an UnboundLocalError then a QWebException: service/model.py retrying() no longer recognizes it and Odoo logs an ERROR
+# "Exception during request handling" instead of retrying it silently. The cause is the conflict, harmless (no data written, the visitor reloads
+# or has already left: 499); its line in the trace moves the ERROR out of the Odoo errors.
+HIDDEN_CONFLICT_RE = re.compile(r"psycopg2\.errors\.SerializationFailure\b|\bcould not serialize access due to concurrent update\b")
+
+
+class HiddenConflict:
+    """1.204: "hidden-conflict" for the first line of a concurrent update conflict (SerializationFailure) inside the trace of an ERROR "Exception
+    during request handling" of odoo.http; False otherwise. Never undone: the conflict is the cause, the chained exceptions are its consequences."""
+
+    def __init__(self):
+        self.pending = self.matched = False
+
+    def __call__(self, L):
+        if L.level is not None:                       # new structured entry: the previous trace is over
+            self.pending = L.level in ("ERROR", "CRITICAL") and L.logger == "odoo.http" and bool(REQUEST_EXCEPTION_RE.search(L.text or ""))
+            self.matched = False
+            return False
+        if self.pending and not self.matched and HIDDEN_CONFLICT_RE.search(L.text or ""):
+            self.matched = True
+            return "hidden-conflict"
+        return False
+
+
 def benign_reason(cause_text, query_text=""):
     """1.178: why a deferred "bad query" line is harmless, from the line that follows it (its cause): True for a retried concurrent update conflict,
     "push-duplicate" for a push subscription already registered (unique violation on mail_push_device), False otherwise (a real error)."""
@@ -5209,6 +5238,8 @@ class Stats:
         self.user_refusal_time = []                              # 1.202: [first instant, last instant]
         self.request_error_key = None                            # 1.202: key of the last ERROR "Exception during request handling" counted
         self.refusal_last = None                                 # 1.202: (key, exception, message, instant) of the last move, to undo it
+        self.hidden_conflicts = 0                                # 1.204: concurrent update conflicts inside the rendering of a page, out of the Odoo errors
+        self.hidden_conflict_time = []                           # 1.204: [first instant, last instant]
         self.push_instants, self.conflict_times = [], []          # 1.179: instants of each push duplicate and of each retried conflict (last 2000)
         self.ip_url = Counter()                   # 1.178: (address, page without parameters) -> requests: one address that asks the same page in a loop
         self.ip_url_codes = {}                    # 1.178: same key -> Counter of the HTTP codes
@@ -5419,6 +5450,20 @@ class Stats:
         self.user_refusal_time = [min(self.user_refusal_time[0], t), max(self.user_refusal_time[1], t)] if self.user_refusal_time else [t, t]
         self.refusal_last = (key, kind, message, t)
 
+    def move_hidden_conflict(self, L):
+        """1.204: the last ERROR "Exception during request handling" counted came from a concurrent update conflict inside the rendering of a page:
+        moved from the Odoo errors to hidden_conflicts (one move per ERROR line)."""
+        key = self.request_error_key
+        if key is None or self.odoo_errors.get(key, 0) <= 0:
+            return
+        self.request_error_key = None
+        self.odoo_errors[key] -= 1
+        if self.odoo_errors[key] <= 0:
+            del self.odoo_errors[key]
+        t = L.instant or time.time()
+        self.hidden_conflicts += 1
+        self.hidden_conflict_time = [min(self.hidden_conflict_time[0], t), max(self.hidden_conflict_time[1], t)] if self.hidden_conflict_time else [t, t]
+
     def count_conflict(self, L):
         """Odoo transaction retries, counted for ANY line read (even hidden by --min or --only): retried conflicts and final failures, apart from the errors."""
         m = RETRIED_CONFLICT_RE.search(L.text or "")
@@ -5458,6 +5503,9 @@ class Stats:
             return
         if benign in ("user-refusal", "user-refusal-revert"):
             self.move_refusal(L, undo=benign == "user-refusal-revert")       # 1.202: business refusal: out of the Odoo errors
+            return
+        if benign == "hidden-conflict":
+            self.move_hidden_conflict(L)                                      # 1.204: conflict inside the rendering of a page
             return
         if benign == "missing-params":
             # 1.200: request with missing parameters (link scanner, cut link): neither an Odoo error nor a failed e-mail, counted apart
@@ -5597,6 +5645,7 @@ class Stats:
         c.http_errors, c.odoo_errors_time = list(self.http_errors), {k: list(v) for k, v in self.odoo_errors_time.items()}
         c.missing_params_functions, c.missing_params_time = Counter(self.missing_params_functions), list(self.missing_params_time)
         c.user_refusal_time = list(self.user_refusal_time)                      # 1.202
+        c.hidden_conflict_time = list(self.hidden_conflict_time)                # 1.204
         c.nginx_errors_time = {k: list(v) for k, v in self.nginx_errors_time.items()}
         c.nginx_errors_times = {k: list(v) for k, v in getattr(self, "nginx_errors_times", {}).items()}
         c.ip_url_codes = {k: Counter(v) for k, v in self.ip_url_codes.items()}
@@ -5615,6 +5664,7 @@ class Stats:
         d.missing_params, d.missing_params_warnings = self.missing_params - old.missing_params, self.missing_params_warnings - old.missing_params_warnings
         d.missing_params_functions = self.missing_params_functions - old.missing_params_functions
         d.user_refusals = self.user_refusals - old.user_refusals                 # 1.202
+        d.hidden_conflicts = self.hidden_conflicts - old.hidden_conflicts         # 1.204
         d.slow_requests, d.slow_info = self.slow_requests[len(old.slow_requests):], self.slow_info[len(old.slow_info):]
         d.slow_first, d.first_requests = self.slow_first[len(old.slow_first):], self.first_requests[len(old.first_requests):]
         d.worker_starts = self.worker_starts - old.worker_starts
@@ -5868,6 +5918,14 @@ class Stats:
             indicator(0, TR("Business refusals shown to the user (not Odoo errors): ") + f"{self.user_refusals}"
                       + " · " + ", ".join(f"{kind} ×{n}" for kind, n in self.user_refusal_kinds.most_common()),
                       refusal_detail, (10 ** 9, 10 ** 9), self.user_refusals)
+        if self.hidden_conflicts:                                             # 1.204: before, counted as Odoo errors (health "problem")
+            conflict_detail = [TR("two requests of the same visitor changed the same record at the same time, during the display of a page; Odoo 18 "
+                                  "logs it as an error instead of retrying it (bug of the rendering of t-nocache blocks): no data written, the visitor "
+                                  "reloads the page or had already left it (499)")]
+            if self.hidden_conflict_time:
+                conflict_detail.append(TR("first at {first}, last at {last}").format(first=clock_of(self.hidden_conflict_time[0]), last=clock_of(self.hidden_conflict_time[1])))
+            indicator(0, TR("Update conflicts inside the display of a page (not retried by Odoo, harmless): ") + f"{self.hidden_conflicts}",
+                      conflict_detail, (10 ** 9, 10 ** 9), self.hidden_conflicts)
         to_resend = []
         if self.mails and self.mail_detail is not None:
             try:
@@ -6194,6 +6252,7 @@ def advisor_facts(stats):
             "user_refusals": stats.user_refusals, "user_refusal_kinds": dict(stats.user_refusal_kinds),          # 1.202
             "user_refusal_messages": [{"kind": k, "message": m, "n": n} for (k, m), n in stats.user_refusal_messages.most_common(10)],
             "user_refusal_times": list(stats.user_refusal_time),
+            "hidden_conflicts": stats.hidden_conflicts, "hidden_conflict_times": list(stats.hidden_conflict_time),      # 1.204
             "push_after_conflict": sum(1 for t in stats.push_instants if any(0 <= t - c <= 5 for c in stats.conflict_times)), "banned_during": during,
             "known_ips": sorted(set(stats.people) | set(stats.protected_ones)),
             "errors5": dict(stats.errors[5]), "codes_by_url": codes,
@@ -6601,6 +6660,9 @@ def consistency_checks(stats, facts, details):
     if stats.push_duplicates or stats.push_duplicate_warnings:
         checks.append((True, TR("Odoo errors: {n} ERROR / CRITICAL counted; {p} push duplicates counted apart (harmless)").format(
             n=sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), p=stats.push_duplicates)))
+    if stats.hidden_conflicts:                                                 # 1.204
+        checks.append((True, TR("Odoo errors: {n} ERROR / CRITICAL counted; {c} update conflicts inside the display of a page counted apart (not Odoo errors)").format(
+            n=sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), c=stats.hidden_conflicts)))
     if stats.user_refusals:                                                    # 1.202
         checks.append((True, TR("Odoo errors: {n} ERROR / CRITICAL counted; {r} business refusals shown to the user counted apart (not Odoo errors)").format(
             n=sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), r=stats.user_refusals)))
@@ -6732,6 +6794,7 @@ class StatusBar:
     def reset(self):
         self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
         self.refusals = 0                                # 1.202: business refusals shown to the user, moved out of odoo_err
+        self.hidden_conflicts = 0                        # 1.204: update conflicts inside the display of a page, moved out of odoo_err
         self.request_err = self.refusal_moved = False    # 1.202: the last ERROR counted is "Exception during request handling"; it was moved
         self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
@@ -6756,6 +6819,8 @@ class StatusBar:
             self.odoo_err, self.refusals, self.request_err, self.refusal_moved = self.odoo_err - 1, self.refusals + 1, False, True
         elif benign == "user-refusal-revert" and self.refusal_moved:                 # 1.202: chained trace, a real error after all
             self.odoo_err, self.refusals, self.refusal_moved = self.odoo_err + 1, self.refusals - 1, False
+        elif benign == "hidden-conflict" and self.request_err and self.odoo_err > 0:  # 1.204: conflict inside the display of a page
+            self.odoo_err, self.hidden_conflicts, self.request_err = self.odoo_err - 1, self.hidden_conflicts + 1, False
         if L.level is not None:
             self.request_err = self.refusal_moved = False
         if L.level in ("ERROR", "CRITICAL") and L.database != "nginx" and not benign:
@@ -6817,6 +6882,8 @@ class StatusBar:
         ]
         if self.refusals:                                     # 1.202: shown only when there is one, never coloured as a problem
             groups.append([(TR("refusals shown to the user") + " ", None), (f"{self.refusals}", None)])
+        if self.hidden_conflicts:                             # 1.204: same rule
+            groups.append([(TR("conflicts in a page") + " ", None), (f"{self.hidden_conflicts}", None)])
         if users is not None:
             groups.append([(TR("Odoo users") + " ", None), (f"{users}", None)])
         groups.append([(TR("per port") + " ", None), ((" · ".join(f"{p}: {n}" for p, n in sorted(self.ports.items())) if self.ports else TR("no port data")), None)])      # 1.121
@@ -7763,11 +7830,12 @@ def follow(cmd, people, resolver, options, output):
 
     missing_params = MissingParams()                   # 1.200: route called without its required parameters
     user_refusal = UserRefusal()                       # 1.202: business refusal (RedirectWarning...) logged as an ERROR with its trace
+    hidden_conflict = HiddenConflict()                 # 1.204: update conflict inside the rendering of a page, logged as an ERROR
 
     def benign_of(L):
         """1.200 / 1.202: both classifiers see every line (each keeps its own state); the first reason found wins."""
-        missing, refusal = missing_params(L), user_refusal(L)
-        return missing or refusal
+        missing, refusal, conflict = missing_params(L), user_refusal(L), hidden_conflict(L)
+        return missing or refusal or conflict
 
     def release_deferred(cause_text):
         """The deferred "bad query" line, written with the reason given by the line that follows it (cause_text; None: no following line)."""
@@ -9048,7 +9116,7 @@ def follow(cmd, people, resolver, options, output):
         out += [f"- {stamp(t)} · {plain(text)}" for t, text in events] or ["- " + TR("no event")]
         counters = {"requests": stats.requests, "lines": stats.lines, "errors_5xx": sum(stats.errors[5].values()), "errors_4xx": sum(stats.errors[4].values()),
                     "odoo_errors": sum(v for k, v in stats.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")), "odoo_warnings": sum(v for k, v in stats.odoo_errors.items() if k[0] == "WARNING"),
-                    "push_duplicates": stats.push_duplicates, "missing_params": stats.missing_params, "user_refusals": stats.user_refusals, "conflicts": stats.conflicts, "final_failures": stats.final_failures, "mails_log": stats.mails,
+                    "push_duplicates": stats.push_duplicates, "missing_params": stats.missing_params, "user_refusals": stats.user_refusals, "hidden_conflicts": stats.hidden_conflicts, "conflicts": stats.conflicts, "final_failures": stats.final_failures, "mails_log": stats.mails,
                     "slow_requests": len(stats.slow_requests), "suspicious": sum(stats.suspect_urls.values()), "account_forms": sum(stats.account_ips.values()),
                     "banned_seen": len(stats.banned), "banned_during": len(facts.get("banned_during") or ()), "to_ban": len(facts.get("to_ban") or ()),
                     "hot_pairs": [{"url": h["url"], "n": h["n"]} for h in facts.get("hot_pairs") or ()]}

@@ -3655,3 +3655,18 @@ msgstr "refus affichés à l'utilisateur"
 
 msgid " (business refusal shown to the user: the action was refused and rolled back; not an Odoo error)"
 msgstr " (refus métier affiché à l'utilisateur : l'action a été refusée et annulée ; pas une erreur d'Odoo)"
+
+msgid "two requests of the same visitor changed the same record at the same time, during the display of a page; Odoo 18 logs it as an error instead of retrying it (bug of the rendering of t-nocache blocks): no data written, the visitor reloads the page or had already left it (499)"
+msgstr "deux requêtes du même visiteur ont modifié la même fiche en même temps, pendant l'affichage d'une page ; Odoo 18 l'écrit en erreur au lieu de la réessayer (défaut de l'affichage des blocs t-nocache) : aucune donnée écrite, le visiteur recharge la page ou l'avait déjà quittée (499)"
+
+msgid "Update conflicts inside the display of a page (not retried by Odoo, harmless): "
+msgstr "Conflits de mise à jour pendant l'affichage d'une page (non réessayés par Odoo, sans gravité) : "
+
+msgid "Odoo errors: {n} ERROR / CRITICAL counted; {c} update conflicts inside the display of a page counted apart (not Odoo errors)"
+msgstr "Erreurs d'Odoo : {n} ERROR / CRITICAL comptées ; {c} conflits de mise à jour pendant l'affichage d'une page comptés à part (pas des erreurs d'Odoo)"
+
+msgid "conflicts in a page"
+msgstr "conflits dans une page"
+
+msgid " (update conflict during the display of a page, not retried by Odoo 18: harmless, not counted as an Odoo error)"
+msgstr " (conflit de mise à jour pendant l'affichage d'une page, non réessayé par Odoo 18 : sans gravité, pas compté comme erreur d'Odoo)"
