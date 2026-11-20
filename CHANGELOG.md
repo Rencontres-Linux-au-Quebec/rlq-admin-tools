@@ -4499,6 +4499,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.122.20261120.180244 - Step 9c: pages hidden to the visitor and links of the site itself no longer counted
+
+- Reason for the request: the administrator, 2026-11-20, after reading the 404 still counted by nginx-badrequests: some pages answer 404 because the visitor must be signed in to see them, or because they are temporarily unpublished; the /chat/ pages are visible only to the internal users of Odoo (not to anonymous or portal users). These visitors must not be penalised.
+- Changes (nginx-hardening.sh): f2b_static404_regex(): two more ignoreregex lines.
+  - GET or HEAD answered 404 on a route of Odoo whose content can be hidden from a visitor, with or without language prefix: /chat, /discuss, /event, /shop, /blog, /forum, /slides, /survey, /my, /odoo, /mail, /calendar, /appointment, /jobs, /profile.
+  - GET or HEAD answered 404 when the Referer names the same host as the request (field host= of the log format combined_host): a link followed inside the site (an unpublished page linked from a published one, a page reserved to signed-in members).
+  - Comment of the generated .local file updated. lang/nginx-hardening.en.po. nginx-tools-tests/test_badrequests_static404.py: 2 new tests (13 in all); the tests of probes now use lines without Referer.
+- Bugs fixed: symptom: 404 of /chat/80/..., /chat/128/..., /en_CA/event/..., /es/shop/..., /plan-commandite counted by the jail (fail2ban-regex of 2026-11-20 on the production log); diagnosis: Odoo answers 404 to a visitor who may not see a page, the filter counts every 404; fix: these 404 are ignored.
+- Safeguards and edge cases:
+  - Still GET and HEAD only, 404 only (403 and the other statuses still count), never ".." nor a name starting with a dot; /events.php, /mysql/admin, /shopping-cart.bak, POST /chat/... still count (tested).
+  - The Referer must name exactly the host of the request: a Referer of another site, of a look-alike name (rencontres-linux.quebec.evil.net) or none at all still counts. A page reached without Referer (typed address, old link of an e-mail) still counts, one hit at a time: the jail bans at 10 hits in 60 s.
+  - The other jails (nginx-sqli, nginx-blocked-probes, nginx-sensitive-files, nginx-catchall) are not changed: a dangerous request is still caught by them, Referer or not.
+- Checks performed: bash -n; ShellCheck; test_badrequests_static404 (13 tests, OK); test_i18n: no new untranslated message.
+- Action required: after merge, on the Odoo PROD server: cd /opt/rlq-admin-tools && git pull, then nginx-hardening.sh --update; check with: fail2ban-regex /var/log/nginx/rencontres_linux_quebec_prod-access.log nginx-badrequests (the "Ignored" count goes up).
+
 ### 2.121.20261120.172804 - Step 9c: language prefix of the website accepted in the ignored 404
 
 - Reason for the request: on 2026-11-20 at 16:15, the jail nginx-badrequests banned 132.211.165.182 (HEC Montréal), whose user was logged in to Odoo (giahung.lieu2021@gmail.com). nginx-log-audit.sh --investigate: score 0/7, LEVER LE BANNISSEMENT. The administrator asked why another member was banned.
