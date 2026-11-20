@@ -492,6 +492,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.204.20261120.110230 - Update conflicts inside the display of a page counted apart from the Odoo errors
+
+- Reason for the request: odoo18, 2026-11-20 10:50: two ERROR "Exception during request handling" counted as Odoo errors ("erreurs Odoo 2") for a visitor on a phone redirected three times to /es/web/login. Each page runs website.layout -> website._get_livechat_channel_info() -> website.visitor._update_visitor_timezone(); two pages of the same visitor updated the same website_visitor row at the same time: SerializationFailure. In the t-nocache block, Odoo 18 wraps it in an UnboundLocalError then a QWebException, so service/model.py retrying() does not retry it and logs it with its whole trace. Both requests were already abandoned by the phone (499), no data was written.
+- Changes:
+  - New HIDDEN_CONFLICT_RE and class HiddenConflict: "hidden-conflict" for the first line "psycopg2.errors.SerializationFailure" (or "could not serialize access due to concurrent update") of the trace of an ERROR "Exception during request handling" of odoo.http.
+  - benign_of(): the third classifier; Stats: counters hidden_conflicts and hidden_conflict_time (snapshot and period difference), new move_hidden_conflict() (one move per ERROR line, through request_error_key of 1.202); ajouter() uses it.
+  - Health: new indicator "Update conflicts inside the display of a page (not retried by Odoo, harmless)" with the explanation and the times; StatusBar.observe(): the same move, group "conflicts in a page" shown only when there is one, never coloured as a problem; format_value(): the conflict line of the trace in orange with a note.
+  - advisor_facts(): hidden_conflicts, hidden_conflict_times; export (--export-ai): counter hidden_conflicts and a line of the consistency checks.
+  - lang/app-log-live.fr.po: 5 texts; nginx-tools-tests/test_app_log_live.py: class AppLogLive204 (2 tests).
+- Bugs fixed: symptom: "erreurs Odoo 2" and a lower health for two harmless conflicts; diagnosis: the conflict is hidden behind the exceptions of the rendering, only the ERROR line and the final QWebException were seen; fix: the SerializationFailure in the trace moves the ERROR already counted out of the Odoo errors.
+- Safeguards and edge cases: only the logger odoo.http and only the trace of an "Exception during request handling"; never undone by the chained exceptions (they are consequences of the conflict); a trace without SerializationFailure stays an Odoo error; a 5xx answer stays counted in the HTTP 5xx; the red ERROR line and the beep (--chime) are already written when the cause is known: the conflict line of the trace says it.
+- Checks performed: py_compile; tests AppLogLive204 (2), AppLogLive203 (2), AppLogLive202 (3): [OK]; nginx-tools-tests/test_app_log_live.py: 325 tests, 317 passed, 8 failed: the same 8 as on main before this change (console output, Ctrl+C summary, key menus); test_i18n.py and test_conventions.py: the same failures as on main, none about app-log-live.py.
+- Action required: none (update the suite in /opt/rlq-admin-tools as usual).
+
 ### 1.203.20261120.082600 - Data of the export never translated; addresses of this server counted per program
 
 - Reason for the request: exports of 2026-11-20 (odoo18, odoo-dev): the French translation changed data. The User-Agent "python-requests/2.31" was written "python-requêtes/2.31", the Odoo parameter "mail.default.from" became "mail.default.depuis" and the scheduled action "Base VAT: Sync updates from IAP VIES" became "Sync updates depuis IAP VIES". The requests of this server were also counted for the first program seen from the address: 127.0.0.1 was "nginx-hardening.sh x1419" one day and "app-health-check.py x416" the next, for the same mix of probes.

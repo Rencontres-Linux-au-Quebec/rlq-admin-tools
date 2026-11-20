@@ -5955,3 +5955,57 @@ class AppLogLive203(unittest.TestCase):
         st2.ajouter(acc("/"), {"198.51.100.7": ("odoo.exemple.ca", [], False, None)}, None)
         self.assertEqual(st2.local_names, live.Counter())                                     # another address: unchanged
 
+
+class AppLogLive204(unittest.TestCase):
+    """1.204 : conflit de mise à jour caché dans l'affichage d'une page (Odoo 18, bloc t-nocache) : sorti des erreurs d'Odoo. Trace réduite d'après
+    celle vue sur odoo18 le 2026-11-20 10:50 (website.layout -> _get_livechat_channel_info -> _update_visitor_timezone), données inventées."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_204", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def trace(self, *textes):
+        return [self.live.Line(f"{ts()} odoo18 odoo[502385]: {t}") for t in textes]
+
+    def lignes(self, cause="psycopg2.errors.SerializationFailure: could not serialize access due to concurrent update"):
+        erreur = self.live.Line(odoo("ERROR", "prod", "odoo.http", "Exception during request handling."))
+        return [erreur] + self.trace(
+            "Traceback (most recent call last):",
+            '  File "/opt/odoo/odoo/addons/website/models/website_visitor.py", line 369, in _update_visitor_timezone',
+            cause,
+            "During handling of the above exception, another exception occurred:",
+            "UnboundLocalError: cannot access local variable 'template' where it is not associated with a value",
+            "The above exception was the direct cause of the following exception:",
+            "odoo.addons.base.models.ir_qweb.QWebException: Error while render the template",
+            "Template: website.layout")
+
+    def jouer(self, lignes):
+        live = self.live
+        s, barre, suivi = live.Stats(5.0), live.StatusBar(), live.HiddenConflict()
+        for L in lignes:
+            benin = suivi(L)
+            s.ajouter(L, {}, None, benin)
+            barre.observe(L, None, 5.0, benign=benin)
+        return s, barre
+
+    def test_204_conflit_cache_hors_des_erreurs(self):
+        s, barre = self.jouer(self.lignes())
+        self.assertEqual((sum(s.odoo_errors.values()), s.hidden_conflicts), (0, 1))
+        self.assertEqual((barre.odoo_err, barre.hidden_conflicts), (0, 1))
+        sante = "\n".join(T(l) for l in s.health()[1])
+        self.assertIn("Erreurs d'Odoo (ERROR / CRITICAL) : aucune", sante)
+        self.assertIn("Conflits de mise à jour pendant l'affichage d'une page (non réessayés par Odoo, sans gravité) : 1", sante)
+        self.assertEqual(self.live.advisor_facts(s)["hidden_conflicts"], 1)
+        self.assertEqual(s.since(s.snapshot()).hidden_conflicts, 0)
+
+    def test_204_vraie_erreur_inchangee(self):
+        s, barre = self.jouer(self.lignes(cause="KeyError: 'res_model'"))
+        self.assertEqual((sum(s.odoo_errors.values()), s.hidden_conflicts), (1, 0))      # no conflict in the trace: a real error
+        self.assertEqual(barre.odoo_err, 1)
+        suivi = self.live.HiddenConflict()                                                  # another logger: never
+        autre = [self.live.Line(odoo("ERROR", "prod", "odoo.sql_db", "bad query: UPDATE x"))] + self.lignes()[1:]
+        self.assertNotIn("hidden-conflict", [suivi(L) for L in autre])
+
