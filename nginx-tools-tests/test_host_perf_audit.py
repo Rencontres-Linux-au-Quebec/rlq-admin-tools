@@ -830,6 +830,29 @@ print(json.dumps({{"exitcode": p.returncode, "exited": 1, "out-data": p.stdout.d
         m.ssd_answer(m.Findings(), [], 16.0, 6.0, faits, [ligne[:8] + (12.5, 40)], out)
         self.assertIn("Guest that waited most for the disk: 430 bbb30.dev (12.5 % of its time)", "\n".join(out))
 
+    def test_128_attentes_concentrees_la_nuit(self):
+        """1.28 : 8 h de mesure, attentes du disque dans 2 heures (sauvegarde, AIDE), les autres heures calmes : « pas pour toute la journée », pas OUI."""
+        m = charger("hpa_128", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        faits = {"disks": {"sda": {"kind": "HDD"}}}
+        debut = 1795200000 - 1795200000 % 3600
+        samples = []
+        for h in range(8):
+            for i in range(60):
+                samples.append({"wall": debut + h * 3600 + i * 60, "psi": {"io": {"some": 25.0 if h in (1, 4) else 1.0, "full": 0}}})
+        taches = [(debut + 3600 + 600, debut + 3600 + 2400, "vzdump", "105", "OK")]
+        out = []
+        m.ssd_answer(m.Findings(), [], 7.0, 7.0, faits, [], out, samples=samples, tasks=taches)
+        texte = "\n".join(out)
+        self.assertIn("NOT FOR THE WHOLE DAY", texte)
+        self.assertNotIn("YES:", texte)
+        self.assertIn("the other hours 1.0 % on average", texte)
+        self.assertIn("Proxmox tasks in those hours: vzdump 105", texte)
+        # the same waits spread over every hour: still YES
+        partout = [dict(r, psi={"io": {"some": 7.0, "full": 0}}) for r in samples]
+        out = []
+        m.ssd_answer(m.Findings(), [], 7.0, 7.0, faits, [], out, samples=partout, tasks=taches)
+        self.assertIn("YES:", "\n".join(out))
+
     def test_anglais_et_aide(self):
         rc, out, err = self.run_cmd(["python3", self.prog, "--duration", "5", "--interval", "2", "--lang", "en", "--no-guests"], timeout=60)
         self.assertEqual(rc, 0, out + err)

@@ -2336,6 +2336,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.28.20261120.082620 - SSD verdict: waits concentrated in a few hours are not a whole day
+
+- Reason for the request: proxmox1, 2026-11-20, measurement of 8 h at night: "ARE SSD DISKS JUSTIFIED? YES" (disk wait 7.1 %) while the afternoon before gave "NO" (0.7 %). The waits came from the backup of guest 105, the integrity checks (AIDE) and the dumps of the databases, at hours when the sites were not used (Odoo PROD waited 0.2 % of its time).
+- Changes:
+  - New functions wait_hours() (disk wait PSI io some per hour of the local clock, hours with 5 samples or more) and concentrated_waits() (the worst quarter of the hours, its share of the whole wait, the average of the other hours).
+  - ssd_answer(): new arguments samples and tasks; when the YES conditions are met but 60 % or more of the wait is in the worst quarter of the hours and the other hours stay under IO_PSI_WARN, the answer is "NOT FOR THE WHOLE DAY" with those hours, the Proxmox tasks that ran in them and what to do (compare with the slow hours of the sites, move or lighten the work of those hours).
+  - report(): passes the samples and recent_tasks(days=3).
+  - lang/host-perf-audit.fr.po: 6 texts; nginx-tools-tests/test_host_perf_audit.py: test_128_attentes_concentrees_la_nuit.
+- Bugs fixed: symptom: a YES for SSD drawn from a night of backups; diagnosis: the verdict used the average of the whole measurement; fix: the distribution per hour is taken into account.
+- Safeguards and edge cases: measurements under 3 hours and calls without samples (older callers, tests) keep the previous answer; waits spread over the hours still give YES; the verdict of the disks (VERDICT section) is unchanged.
+- Checks performed: py_compile; test_128 and test_aucun_invite_n_attend: [OK]; French text checked.
+- Action required: none.
+
 ### 1.27.20261118.114500 - --io-latency on a recent kernel: libbpf-tools first, failures reported
 
 - Title: filetop and biolatency of libbpf-tools are used first (no compilation, no kernel headers); a failure of filetop or biolatency is reported instead of "no file read or written"; the compilation failure of bcc on a kernel newer than itself is explained.
