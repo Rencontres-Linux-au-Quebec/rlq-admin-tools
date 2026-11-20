@@ -7345,6 +7345,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_advisor.py
 
+### 1.18.20261120.082630 - Odoo errors over before the last start: information
+
+- Reason for the request: export of odoo-dev, 2026-11-20 06:47: "[problem] Odoo ERROR: OperationalError [recurring: 3 analyses in a row]" for 58 errors of 2026-11-19 12:55 (PostgreSQL stopped), 18 h earlier, while Odoo had started again at 13:02 and nothing happened since: every analysis of a 24 h window read the same event again.
+- Changes: rule_odoo_errors(): when the last occurrence is more than RESOLVED_AFTER (1 h) old, the service started again after it and runs now, the severity becomes information, the title ends with "(over)" and a line of evidence gives the age and the time of the start; lang/_advisor.fr.po: 2 texts; nginx-tools-tests/test_advisor.py: test_118_erreur_terminee_apres_redemarrage.
+- Bugs fixed: symptom: a past event shown as a problem that goes on; diagnosis: the severity looked only at the count; fix: the same rule as the interruptions of nginx (rule_nginx_upstream, 1.7).
+- Safeguards and edge cases: CRITICAL keeps its severity; no start after the last occurrence, a stopped service or an occurrence of less than 1 h: unchanged; the identifier of the finding is unchanged (history kept).
+- Checks performed: py_compile; nginx-tools-tests/test_advisor.py: 76 tests [OK].
+- Action required: none.
+
 ### 1.17.20261114.163844 - Redirects followed, verdict of nginx-log-audit.sh, disk almost full
 
 - Title: A page that works through a redirect is no longer a dead link, an address that nginx-log-audit.sh would refuse is no longer "to ban", and a disk almost full is a finding.
