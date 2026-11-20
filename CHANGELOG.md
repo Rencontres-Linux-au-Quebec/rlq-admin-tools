@@ -4458,6 +4458,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.119.20261120.082610 - Step 6 and 7: options of the running Odoo read in its real command line
+
+- Reason for the request: reports of 2026-11-19 (odoo-dev 104 and odoo18 105): "[FAIL] limit_memory_hard actuel = 0 (illimité) - source : run.sh" and "[FAIL] run.sh contient encore --limit-memory-hard=0" on both servers, while the running odoo-bin had no --limit-memory-hard at all (ps) and used the 2048 MB of odoo.conf (snapshot of the running values).
+- Changes:
+  - New function odoo_main_cmdline() (main odoo-bin process of the service, read in its cgroup; NGINX_HARDENING_PROC_ROOT / NGINX_HARDENING_CGROUP_ROOT for the tests).
+  - New variables run_options_lines and run_options_source: the real command line when it can be read, else the lines of run.sh as before; used for --max-cron-threads, --limit-memory-hard, --limit-memory-soft and the gevent limits (step 6). The values may also be written "--option N".
+  - Step 7: --limit-memory-hard=0 found in run.sh but absent from the running command line: [ATTN] (line without effect now, to remove) instead of [FAIL].
+  - lang/nginx-hardening.en.po: 2 texts; nginx-tools-tests/test_nginx_hardening.py: test_2119_ligne_de_commande_reelle.
+- Bugs fixed: symptom: two false failures on each Odoo server; diagnosis: the "production line" of run.sh was guessed in its text (every line that is neither commented nor --log-level=test), and run.sh holds other invocations that the service never runs; fix: the command line of the running process is the reference.
+- Safeguards and edge cases: Odoo stopped or process unreadable: the old reading of run.sh; ExecStart without run.sh: unchanged; the checks of the text of run.sh (exec, ORIGIN_CONFIG_PATH) still read run.sh.
+- Checks performed: bash -n; tests 2119, 285, 286: [OK].
+- Action required: none (the next --update gives the real values).
+
 ### 2.118.20261118.195309 - Step 17c: installed modules read in every database of Odoo
 
 - Title: step 17c finds the installed modules when Odoo runs without -d and db_name = False.

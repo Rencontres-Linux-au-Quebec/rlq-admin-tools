@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.118.20261118.195309"
+readonly SCRIPT_VERSION="2.119.20261120.082610"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2515,6 +2515,28 @@ if [[ -z "$ODOO_CONF" ]]; then
     ODOO_CONF="/etc/odoo/odoo.conf"  # repli pour affichage, meme si rien n'a ete trouve
 fi
 
+# odoo_main_cmdline SERVICE (2.119): command line of the main Odoo process of the service (an odoo-bin process whose parent is not an Odoo process,
+# read in the cgroup of the service), arguments separated by spaces; nothing when unreadable (service stopped, no permission).
+# NGINX_HARDENING_PROC_ROOT / NGINX_HARDENING_CGROUP_ROOT: test folders.
+odoo_main_cmdline() {
+    local service="$1" proc="${NGINX_HARDENING_PROC_ROOT:-/proc}" cgroot="${NGINX_HARDENING_CGROUP_ROOT:-/sys/fs/cgroup}" group pid main="" ligne
+    local -A parent=() cmd=()
+    group=$(run systemctl show "$service" -p ControlGroup --value 2>/dev/null) || return 0
+    [[ -n "$group" && -r "$cgroot$group/cgroup.procs" ]] || return 0
+    while read -r pid; do
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        ligne=$(tr '\0' ' ' < "$proc/$pid/cmdline" 2>/dev/null) || continue
+        printf '%s' "$ligne" | grep -qE 'odoo(-bin)?( |$)' || continue
+        cmd[$pid]="${ligne% }"
+        parent[$pid]=$(awk '/^PPid:/{print $2}' "$proc/$pid/status" 2>/dev/null)
+    done < "$cgroot$group/cgroup.procs"
+    for pid in "${!parent[@]}"; do
+        if [[ -z "${parent[${parent[$pid]:-x}]+o}" ]]; then main=$pid; break; fi
+    done
+    [[ -n "$main" ]] && printf '%s' "${cmd[$main]}"
+    return 0
+}
+
 # --- Resolution of the real startup script (run.sh) via the systemd unit - used by steps 6 AND 7.
 # "systemctl cat" fusionne les eventuels drop-ins (sinon un reglage ajoute via override serait invisible). Fait
 # UNE SEULE FOIS ici : un flag --limit-memory-hard passe en ligne de commande dans run.sh a PRIORITE sur la
@@ -2543,6 +2565,19 @@ if [[ -n "$odoo_service" ]]; then
             # entierement le diagnostic de l'etape 6 malgre une vraie ligne de production correcte juste au-dessus.
             run_script_prod_lines=$(grep -v -- "--log-level=test" "$run_script" | grep -vE '^\s*#') || true
         fi
+    fi
+fi
+# 2.119: the options of the RUNNING Odoo come from its real command line when it can be read. run.sh may hold several invocations (a branch of
+# another mode: debug, migration...) that the systemd service never runs: guessing the "production line" in the text gave limit_memory_hard = 0 on
+# the DEV and the PROD (2026-11-19) while the running odoo-bin had no --limit-memory-hard at all and used odoo.conf (2048 MB).
+run_options_lines="$run_script_prod_lines"
+run_options_source="$run_script (ligne de commande, priorité sur odoo.conf)"
+running_cmdline=""
+if [[ -n "$odoo_service" ]]; then
+    running_cmdline=$(odoo_main_cmdline "$odoo_service")
+    if [[ -n "$running_cmdline" ]]; then
+        run_options_lines="$running_cmdline"
+        run_options_source="ligne de commande de l'Odoo en marche (priorité sur odoo.conf)"
     fi
 fi
 
@@ -2615,8 +2650,8 @@ else
         # with the load: work_mem, autovacuum, the backup), so at least 15 % of the memory is kept for it, and 10 % (at least 512 MB) as a margin.
         # Same rule as the memory risk of app-log-live.py (z key, --advise): both programs give the same figures.
         cron_threads="$ODOO_CRON_OVERRIDE"
-        if [[ -z "$cron_threads" && -n "$run_script_prod_lines" ]]; then
-            cron_threads=$(printf '%s' "$run_script_prod_lines" | grep -oE -- '--max-cron-threads[= ][0-9]+' | tail -1 | grep -oE '[0-9]+$') || true
+        if [[ -z "$cron_threads" && -n "$run_options_lines" ]]; then
+            cron_threads=$(printf '%s' "$run_options_lines" | grep -oE -- '--max-cron-threads[= ][0-9]+' | tail -1 | grep -oE '[0-9]+$') || true
         fi
         if [[ -z "$cron_threads" && -r "$ODOO_CONF" ]]; then
             cron_threads=$(grep -E "^\s*max_cron_threads\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
@@ -2707,14 +2742,14 @@ else
             warn "Mémoire presque épuisée maintenant : ${mem_dispo_mb} $U_MEM disponibles sur ${total_ram_mb} $U_MEM (moins de 15 %). Ajouter de la mémoire (Proxmox : mémoire du conteneur) ou baisser workers."
         fi
 
-        if [[ -r "$ODOO_CONF" ]] || [[ -n "$run_script_prod_lines" ]]; then
+        if [[ -r "$ODOO_CONF" ]] || [[ -n "$run_options_lines" ]]; then
             # Priorite : un --limit-memory-hard=N en ligne de commande dans run.sh (branche production) l'emporte
             # ALWAYS the value of odoo.conf, Odoo side - so we look for it here first.
             current_hard=""
             current_hard_source=""
-            if [[ -n "$run_script_prod_lines" ]]; then
-                current_hard=$(printf '%s' "$run_script_prod_lines" | grep -oE -- '--limit-memory-hard=[0-9]+' | tail -1 | sed -E 's/.*=//') || true
-                [[ -n "$current_hard" ]] && current_hard_source="$run_script (ligne de commande, priorité sur odoo.conf)"
+            if [[ -n "$run_options_lines" ]]; then
+                current_hard=$(printf '%s' "$run_options_lines" | grep -oE -- '--limit-memory-hard[= ][0-9]+' | tail -1 | sed -E 's/.*[= ]//') || true
+                [[ -n "$current_hard" ]] && current_hard_source="$run_options_source"
             fi
             if [[ -z "$current_hard" && -r "$ODOO_CONF" ]]; then
                 current_hard=$(grep -E "^\s*limit_memory_hard\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
@@ -2738,8 +2773,8 @@ else
             # limit it restarts, cutting every discussion for a few seconds.
             gevent_valeur() {
                 local cle="$1" v=""
-                if [[ -n "$run_script_prod_lines" ]]; then
-                    v=$(printf '%s' "$run_script_prod_lines" | grep -oE -- "--${cle//_/-}=[0-9]+" | tail -1 | sed -E 's/.*=//') || true
+                if [[ -n "$run_options_lines" ]]; then
+                    v=$(printf '%s' "$run_options_lines" | grep -oE -- "--${cle//_/-}[= ][0-9]+" | tail -1 | sed -E 's/.*[= ]//') || true
                 fi
                 if [[ -z "$v" && -r "$ODOO_CONF" ]]; then
                     v=$(grep -E "^\s*${cle}\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
@@ -2755,9 +2790,9 @@ else
             fi
             # 2.85: limit_memory_soft under the virtual memory of a worker at rest: every worker is recycled at birth (loop)
             current_soft=""; current_soft_source=""
-            if [[ -n "$run_script_prod_lines" ]]; then
-                current_soft=$(printf '%s' "$run_script_prod_lines" | grep -oE -- '--limit-memory-soft=[0-9]+' | tail -1 | sed -E 's/.*=//') || true
-                [[ -n "$current_soft" ]] && current_soft_source="$run_script (ligne de commande, priorité sur odoo.conf)"
+            if [[ -n "$run_options_lines" ]]; then
+                current_soft=$(printf '%s' "$run_options_lines" | grep -oE -- '--limit-memory-soft[= ][0-9]+' | tail -1 | sed -E 's/.*[= ]//') || true
+                [[ -n "$current_soft" ]] && current_soft_source="$run_options_source"
             fi
             if [[ -z "$current_soft" && -r "$ODOO_CONF" ]]; then
                 current_soft=$(grep -E "^\s*limit_memory_soft\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
@@ -2828,7 +2863,12 @@ else
         fi
 
         if printf '%s' "$run_script_prod_lines" | grep_q -E -- "--limit-memory-hard=0\b"; then
-            fail "$run_script contient encore --limit-memory-hard=0 (illimité) sur la ligne de production — voir l'étape 6 pour une valeur suggérée."
+            if [[ -z "$running_cmdline" ]] || printf '%s' "$running_cmdline" | grep_q -E -- "--limit-memory-hard[= ]0\b"; then
+                fail "$run_script contient encore --limit-memory-hard=0 (illimité) sur la ligne de production — voir l'étape 6 pour une valeur suggérée."
+            else
+                # 2.119: the running Odoo does not have it: a line of another branch of run.sh, without effect now
+                warn "$run_script contient --limit-memory-hard=0 (illimité) sur une ligne que l'Odoo en marche n'utilise pas (sa vraie ligne de commande n'a pas cette option) : sans effet maintenant, à retirer pour qu'elle ne serve jamais."
+            fi
         fi
     else
         warn "Impossible de lire le script de démarrage réel (${run_script:-introuvable}) pour vérifier exec/coquilles connues."
