@@ -1321,3 +1321,9 @@ msgstr "trouver ce qui prend la place : du -xh --max-depth=2 POINT_DE_MONTAGE | 
 
 msgid "in a Proxmox container, the disk can be enlarged from the host without stopping it: pct resize ID MOUNT +10G (host-perf-audit.py on the host names it)"
 msgstr "dans un conteneur Proxmox, le disque s'agrandit depuis l'hôte sans l'arrêter : pct resize ID MONTAGE +10G (host-perf-audit.py sur l'hôte le nomme)"
+
+msgid "Over: last occurrence {span} ago; Odoo started again on {when} and runs now, none since"
+msgstr "Terminé : dernière occurrence il y a {span} ; Odoo a redémarré le {when} et tourne maintenant, aucune depuis"
+
+msgid "(over)"
+msgstr "(terminé)"

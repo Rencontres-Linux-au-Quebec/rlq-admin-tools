@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.17.20261114.163844"
+__version__ = "1.18.20261120.082630"
 
 LOGIN_PATH_RE = re.compile(r"^/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/login\b")      # 1.17: the sign-in page of Odoo (with or without a language prefix)
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
@@ -991,8 +991,21 @@ class Analyzer:
                     severity, cause = INFO, tr("the same exception as the HTTP 5xx made by this server itself (tests): no visitor was affected")
                     advice = [tr("nothing to do")]
             title = parsed["exception"].rsplit(".", 1)[-1] if parsed else _cut(message, 90)
+            # 1.18: over. The last occurrence is more than RESOLVED_AFTER old and the service started again after it, and is running now: an event of
+            # the past that every analysis of the window reads again (odoo-dev 2026-11-19 12:55: PostgreSQL stopped, 58 errors, « recurring: 3
+            # analyses in a row » and « problem » the next morning while nothing happened since). Not a problem that goes on: information.
+            last, over = e.get("last") or 0, ""
+            service = details.get("service") or {}
+            state = service.get("state") or ""
+            started = [t for t, text in service.get("events") or () if t > last and re.search(r"\bStarted\b", text)]
+            now = facts.get("end") or time.time()
+            if last and level != "CRITICAL" and now - last > RESOLVED_AFTER and started and state.startswith("active") and severity > INFO:
+                severity = INFO
+                evidence.append(tr("Over: last occurrence {span} ago; Odoo started again on {when} and runs now, none since").format(
+                    span=_span(now - last), when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(min(started)))))
+                over = " " + tr("(over)")
             fid = "odoo:" + logger + ":" + (parsed["exception"] if parsed else re.sub(r"\s+", " ", message)[:80])
-            self.add(fid, severity, tr("Odoo {level}: {message}").format(level=level, message=raw(title)), n, evidence, cause, advice)
+            self.add(fid, severity, tr("Odoo {level}: {message}").format(level=level, message=raw(title)) + over, n, evidence, cause, advice)
 
     # --- conflicts ---------------------------------------------------------------------------------------------------------------
     def rule_conflicts(self, facts, details):

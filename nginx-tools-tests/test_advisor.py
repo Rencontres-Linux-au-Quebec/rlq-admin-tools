@@ -281,6 +281,22 @@ class Regles(unittest.TestCase):
         self.assertEqual(crit["severity"], ADV.PROBLEM)
         self.assertTrue(any("key E" in a for a in crit["advice"]))               # trace introuvable : touche E
 
+    def test_118_erreur_terminee_apres_redemarrage(self):
+        """1.18 : erreurs d'Odoo dont la dernière date de plus d'une heure, Odoo redémarré depuis et en marche : information, marquées terminées."""
+        maintenant = time.time()
+        vieille = dict(erreur("ERROR", "odoo.service.server", "Worker (N) Exception occurred, exiting...", 55), last=maintenant - 18 * 3600)
+        service = {"state": "active (running)", "events": [(maintenant - 17.9 * 3600, "Started erplibre.service - ERPLibre odoo 18.")]}
+        f = par_id(ADV.analyze(faits(odoo_errors=[vieille], end=maintenant), {"service": service}))
+        carte = f["odoo:odoo.service.server:Worker (N) Exception occurred, exiting..."]
+        self.assertEqual(carte["severity"], ADV.INFO)
+        self.assertTrue(any(x.startswith("Over: last occurrence") for x in carte["evidence"]))
+        # still going (no start after the last one) or recent: unchanged
+        f = par_id(ADV.analyze(faits(odoo_errors=[vieille], end=maintenant), {"service": dict(service, events=[(maintenant - 20 * 3600, "Started x")])}))
+        self.assertEqual(f["odoo:odoo.service.server:Worker (N) Exception occurred, exiting..."]["severity"], ADV.PROBLEM)
+        recente = dict(vieille, last=maintenant - 600)
+        f = par_id(ADV.analyze(faits(odoo_errors=[recente], end=maintenant), {"service": dict(service, events=[(maintenant - 300, "Started x")])}))
+        self.assertEqual(f["odoo:odoo.service.server:Worker (N) Exception occurred, exiting..."]["severity"], ADV.PROBLEM)
+
     def test_conflits_courriels_lenteurs_bannissements_formulaires_latence(self):
         slow_sql = [{"total": 6, "url": "/shop", "ip": "x", "t_sql": 5.0, "t_py": 1.0} for _ in range(5)]
         f = par_id(ADV.analyze(faits(final_failures=3, failure_codes={"40001": 3}, conflicts=60, mails=1,
