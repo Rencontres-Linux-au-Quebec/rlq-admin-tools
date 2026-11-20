@@ -5912,3 +5912,46 @@ class AppLogLive202(unittest.TestCase):
         self.assertEqual((sum(s.odoo_errors.values()), s.user_refusals), (1, 0))      # the refusal was not the final exception: a real error
         self.assertEqual((barre.odoo_err, barre.refusals), (1, 0))
         self.assertEqual(sum(s.user_refusal_kinds.values()), 0)
+
+
+class AppLogLive203(unittest.TestCase):
+    """1.203 : données jamais traduites dans l'export (--export-ai) ; adresses de ce serveur comptées pour chaque programme. Données inventées."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_203", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def test_203_donnees_protegees(self):
+        live = self.live
+        self.assertEqual(live.TR("requests"), "requêtes")                               # the catalogue translates the word...
+        ligne = "×4 · " + live.raw("python-requests/2.31") + " · " + live.raw("mail.default.from=admin@exemple.org")
+        self.assertEqual(live.translate_protected(ligne), "×4 · python-requests/2.31 · mail.default.from=admin@exemple.org")   # ...never the data
+        cron = "  " + " | ".join(live.raw(c) for c in ("Base VAT: Sync updates from IAP VIES", "1 days"))
+        self.assertEqual(live.translate_protected(cron), "  Base VAT: Sync updates from IAP VIES | 1 days")
+        src = open(script_path("app-log-live.py"), encoding="utf-8").read()
+        self.assertTrue('raw(f"{k}={v}")' in src)                                           # system parameters of Odoo in the export
+        self.assertTrue("+ raw(agent or '-')" in src)                                       # User-Agents of the export
+
+    def test_203_plusieurs_programmes_du_serveur(self):
+        live = self.live
+        st = live.Stats(5.0)
+
+        def acc(url):
+            return live.Line(f'127.0.0.1 - - [23/Oct/2026:10:00:00 -0400] "GET {url} HTTP/1.1" 200 1234 "-" "python-requests/2.31"')
+
+        for name, n in (("app-health-check.py", 3), ("nginx-hardening.sh", 2)):
+            for _ in range(n):
+                st.ajouter(acc("/"), {"127.0.0.1": (name, [], False, None)}, None)
+        self.assertEqual(st.who("127.0.0.1"), "app-health-check.py ×3 + nginx-hardening.sh ×2 [127.0.0.1]")
+        self.assertEqual(dict(st.by_name), {"app-health-check.py": 3, "nginx-hardening.sh": 2})
+        before = st.snapshot()
+        st.ajouter(acc("/"), {"127.0.0.1": ("nginx-hardening.sh", [], False, None)}, None)
+        d = st.since(before)
+        self.assertEqual(d.who("127.0.0.1"), "nginx-hardening.sh [127.0.0.1]")              # a period only shows its own requests
+        st2 = live.Stats(5.0)
+        st2.ajouter(acc("/"), {"198.51.100.7": ("odoo.exemple.ca", [], False, None)}, None)
+        self.assertEqual(st2.local_names, live.Counter())                                     # another address: unchanged
+
