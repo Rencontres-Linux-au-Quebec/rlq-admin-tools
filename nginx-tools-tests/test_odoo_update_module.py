@@ -4,6 +4,7 @@ ENVIRONNEMENT = "odoo"
 import datetime
 import getpass
 import os
+import re
 import shutil
 import tarfile
 import unittest
@@ -109,22 +110,43 @@ class OdooUpdateModule(EnvTest):
         return self._epoch("2026-11-09 19:01:00 UTC")
 
     def test_226_bus_et_discussion_ne_bloquent_pas(self):
-        """1.26: POST /bus/has_missed_notifications (sondage du bus) n'est pas une écriture ; la discussion en direct est une écriture légère : comme les
-        visiteurs, elle n'annule pas la mise à jour (cas réel du 2026-11-09 : mise à jour annulée par /bus/has_missed_notifications)."""
+        """1.26 : POST /bus/has_missed_notifications (sondage du bus) n'est pas une écriture : le site reste calme.
+        1.39 : la discussion (écriture légère) retarde la mise à jour, et elle est annulée si elle continue ; LIGHT_WRITES_WAIT=no : simple note."""
         maintenant = self._journal_post("/bus/has_missed_notifications", "/websocket", "/bus/im_status")
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
         self.assertEqual(rc, 0, out + err)
         maintenant = self._journal_post("/im_livechat/get_session", "/mail/message/post", "/discuss/channel/notify_typing")
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
-        self.assertEqual(rc, 0, out + err)                     # 1.32: LIGHT_WRITES_WAIT=no (default): a note only
-        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES_WAIT=yes\n")
-        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
-        self.assertEqual(rc, 3, out + err)
+        self.assertEqual(rc, 3, out + err)                     # 1.39: LIGHT_WRITES_WAIT=yes (default): the chat delays the update
         self.assertIn("écritures légères", out)
         self.assertNotIn("écritures HTTP (POST", out)
         rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("ANNULÉE", out)                           # still busy at the end of the wait: cancelled, nothing stopped
+        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES_WAIT=no\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)                     # 1.32: LIGHT_WRITES_WAIT=no: a note only
+        rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=maintenant)
         self.assertNotIn("ANNULÉE", out, out + err)
-        self.assertIn("mise à jour permise", out)
+        self.assertIn("site calme", out)
+
+    def test_139_utilisateur_connecte_qui_lit_n_est_jamais_coupe(self):
+        """1.39 (option A) : un membre connecté qui navigue (GET, POST de lecture) retarde la mise à jour ; à la fin de l'attente elle est
+        ANNULÉE, rien n'est arrêté. Un visiteur anonyme qui lit ne la retarde pas."""
+        self.journal_nginx(["198.51.100.7"])
+        self.env["ODOO_UPDATE_MODULE_PG_AS"] = self.pg_connectes(["198.51.100.7"])
+        rc, out, err = self.lancer("--check-activity")
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("1 visiteurs actifs (connectés à Odoo ou en écriture)", out)
+        self.assertIn("leur session n'est pas coupée", out)
+        rc, out, err = self.lancer("--wait-quiet", "0")
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("ANNULÉE", out)
+        self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())
+        self.journal_nginx(["198.51.100.8"])                   # anonymous visitor only: not waited for
+        self.env["ODOO_UPDATE_MODULE_PG_AS"] = self.pg_connectes([])
+        rc, out, err = self.lancer("--check-activity")
+        self.assertEqual(rc, 0, out + err)
 
     def test_226_vraie_ecriture_bloque_toujours_et_light_writes(self):
         maintenant = self._journal_post("/survey/submit/abc/def", "/bus/has_missed_notifications")
@@ -733,7 +755,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
     def test_site_calme_aucune_attente_et_wait_quiet_0(self):
         self.journal_nginx(["198.51.100.1"])
         rc, out, err = self.lancer()
-        self.assertIn("site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de 3", out)
+        self.assertIn("site calme : aucune écriture HTTP ni en base, aucun utilisateur connecté actif", out)
         rc, out, err = self.lancer("--wait-quiet", "0")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("attente maximale : 0 min", out)   # a single check, no wait
@@ -811,6 +833,19 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         commande = next(l for l in self.appels() if l.startswith("odoo "))
         self.assertIn("rlq_nouveau_zip", commande)
         self.assertIn("rlq_survey_report", commande)
+
+    def test_138_compteur_d_etapes_avec_plusieurs_archives(self):
+        """1.38 : le total d'étapes compte une étape par archive : la dernière étape affichée est [N/N], jamais [N+1/N]."""
+        a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))
+        b = self.zip_modules("b.zip", modules=(("rlq_nouveau_zip", "18.0.1.0.0"),))
+        rc, out, err = self.lancer("--zip", a, "--zip", b, "--addons-dir", f"{self.odoo}/custom")
+        self.assertEqual(rc, 0, out + err)
+        etapes = [int(m.group(1)) for m in re.finditer(r"\[(\d+)/(\d+)\]", re.sub(r"\x1b\[[0-9;]*m", "", out))]
+        totaux = {int(m.group(2)) for m in re.finditer(r"\[(\d+)/(\d+)\]", re.sub(r"\x1b\[[0-9;]*m", "", out))}
+        self.assertEqual(len(totaux), 1, out)
+        total = totaux.pop()
+        self.assertLessEqual(max(etapes), total, out)
+        self.assertEqual(max(etapes), total, out)
 
     def test_137_un_module_dans_deux_archives_refuse(self):
         a = self.zip_modules("a.zip", modules=(("rlq_survey_report", "18.0.1.101.0"),))

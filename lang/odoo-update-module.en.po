@@ -543,8 +543,8 @@ msgstr " (detected)"
 msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
 msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"
 
-msgid "  --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les dernières VISITOR_WINDOW minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3"
-msgstr " "
+msgid "  --busy-visitors N            sans effet depuis 1.39 : tout utilisateur connecté actif retarde la mise à jour ; conservé pour compatibilité (BUSY_VISITORS)"
+msgstr "  --busy-visitors N            no effect since 1.39: any connected active user delays the update; kept for compatibility (BUSY_VISITORS)"
 
 msgid "  --no-rollback                jamais de retour arrière automatique (clé ROLLBACK=non) ; sinon, après des erreurs (mise à jour, démarrage, journal du service),"
 msgstr "  --no-rollback                never an automatic rollback (key ROLLBACK=no); otherwise, after errors (update, start, service log),"
@@ -555,8 +555,8 @@ msgstr "                               the modules are put back in their previou
 msgid "                               au bout du délai, la mise à jour se fait quand même"
 msgstr "                               after that delay, the update runs anyway"
 
-msgid "  BUSY_VISITORS=3               site occupé à partir de ce nombre de visiteurs actifs (fenêtre VISITOR_WINDOW, robots exclus)"
-msgstr " "
+msgid "  BUSY_VISITORS=3               sans effet depuis 1.39 (tout utilisateur connecté actif retarde la mise à jour) ; conservé pour compatibilité"
+msgstr "  BUSY_VISITORS=3               no effect since 1.39 (any connected active user delays the update); kept for compatibility"
 
 msgid "  MODULES_BACKUP_DIR=/var/backups/odoo-update-module   copies des modules AVANT la mise à jour (.tar.gz, les 10 dernières gardées) : base du retour arrière"
 msgstr "  MODULES_BACKUP_DIR=/var/backups/odoo-update-module   copies of the modules BEFORE the update (.tar.gz, the last 10 kept): basis of the rollback"
@@ -705,11 +705,11 @@ msgstr "site busy:"
 msgid "site occupé (base "
 msgstr "site busy (database "
 
-msgid "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de "
-msgstr "quiet site: no HTTP write nor database write, active visitors below the threshold of "
+msgid "site calme : aucune écriture HTTP ni en base, aucun utilisateur connecté actif"
+msgstr "quiet site: no HTTP write nor database write, no connected active user"
 
-msgid ") : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de "
-msgstr ") : no HTTP write nor database write, active visitors below the threshold of "
+msgid ") : aucune écriture HTTP ni en base, aucun utilisateur connecté actif"
+msgstr ") : no HTTP write nor database write, no connected active user"
 
 
 msgid "  --visitor-window MIN         fenêtre de comptage des visiteurs actifs, en minutes (défaut : VISITOR_WINDOW, soit 5)"
@@ -778,6 +778,9 @@ msgstr "). Run again later. --force-busy never overrides a write."
 msgid "] site occupé :"
 msgstr "] site busy:"
 
+msgid " dernières minutes : leur session n'est pas coupée"
+msgstr " last minutes: their session is not cut"
+
 msgid "  --wait-quiet MIN             délai fixe d'attente d'un site calme, en minutes (WAIT_QUIET) : remplace les deux délais selon le profil ; 0 = un seul contrôle"
 msgstr "  --wait-quiet MIN             fixed wait for a quiet site, in minutes (WAIT_QUIET): replaces both delays by profile; 0 = a single check"
 
@@ -829,8 +832,8 @@ msgstr " min, wait anonymous "
 msgid "  Changer les paramètres (seuil, fenêtre, attentes) ? [o/N] "
 msgstr "  Change the settings (threshold, window, waits)? [y/N] "
 
-msgid "Attente d'un site calme (occupé dès "
-msgstr "Waiting for a quiet site (busy from "
+msgid "Attente d'un site calme (occupé dès un utilisateur connecté actif, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
+msgstr "Waiting for a quiet site (busy from a connected active user, or from an HTTP write, a session or a PostgreSQL lock, or a database write)"
 
 msgid "attente maximale : "
 msgstr "maximum wait: "
@@ -862,8 +865,8 @@ msgstr ""
 msgid "|Mettre à jour le ou les modules (configuration)|Update the modules (configuration)|1"
 msgstr ""
 
-msgid " écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : "
-msgstr " light writes (chat, presence, visitor tracking: nothing lost if Odoo stops for a minute), the most recent: "
+msgid " écritures légères (discussion, présence, suivi des visiteurs), la plus récente : "
+msgstr " light writes (chat, presence, visitor tracking), the most recent: "
 
 msgid " requêtes POST en lecture seule ignorées (connexion, vérifications, sondes : aucune donnée modifiée), la plus récente : "
 msgstr " read-only POST requests ignored (sign-in, checks, probes: no data changed), the most recent: "
@@ -892,8 +895,8 @@ msgstr " · logged in to Odoo, last activity at "
 msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
 msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"
 
-msgid "  LIGHT_WRITES_WAIT=non         attendre aussi pendant les écritures légères (oui / non ; non : simple note, elles ne retardent plus la mise à jour)"
-msgstr "  LIGHT_WRITES_WAIT=no          also wait during light writes (yes / no; no: a note only, they no longer delay the update)"
+msgid "  LIGHT_WRITES_WAIT=oui         une écriture légère (discussion, présence) retarde la mise à jour ; si elle continue, la mise à jour est annulée (oui / non ; non : simple note)"
+msgstr "  LIGHT_WRITES_WAIT=yes         a light write (chat, presence) delays the update; if it goes on, the update is cancelled (yes / no; no: a note only)"
 
 msgid "  WRITE_GRACE=60                une écriture de l'administration d'Odoo (call_kw) terminée depuis plus de N secondes ne bloque plus, sauf si un formulaire"
 msgstr "  WRITE_GRACE=60                a write of the Odoo administration (call_kw) over for more than N seconds no longer blocks, unless a form"

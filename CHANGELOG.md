@@ -4044,6 +4044,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.39.20261119.185539 - Never cut connected users: option A, chat delays the update
+
+- Reason for the request: a member logged in to the site (reading the event pages, registering) was cut when Odoo was stopped. The wait had ended, and a read-only visit no longer blocked the update. The owner asked that connected users are never disturbed, and that a chat message also delays the update.
+- Changes:
+  - `site_reasons()`: any user logged in to Odoo and active in the last `VISITOR_WINDOW` minutes (or writing) gives a "W" reason: the update waits, and is cancelled at the end of the wait. The old threshold `BUSY_VISITORS` (3 visitors) no longer applies to connected users: `BUSY_VISITORS` (option `--busy-visitors`) has no effect since 1.39 and is kept for compatibility.
+  - `active_visitors()` (Python, ACTIVITY_PY): prints two numbers: all counted visitors, then those logged in to Odoo. Only the second one delays the update on its own, so a write older than `WRITE_GRACE` still does not block.
+  - `LIGHT_WRITES_WAIT` default changed from `no` to `yes`: a chat message or a presence write is a "W" reason (it is cancelled at the end of the wait if it goes on). `LIGHT_WRITES_WAIT=no` restores the note.
+  - Unchanged: anonymous visitors who only read do not delay the update; POST reads (sign-in, probes) are ignored; the wait lengths (`WAIT_CONNECTED`, `WAIT_CONNECTED_LOW`, ...).
+  - Messages: the "site calme" line and the wait line now say "aucun utilisateur connecté actif" (no connected active user) in place of the visitor threshold; the catalogue `lang/odoo-update-module.en.po` is updated.
+  - Help, configuration examples (fr/en) and documentation (fr/en 09) updated.
+- Bugs fixed: symptom: a logged-in member cut during the update. Diagnosis: the wait ends after 3 minutes for low activity (`WAIT_CONNECTED_LOW`), then only reads remain, and reads were allowed. Fix: connected users are never allowed through; at the end of the wait the update is cancelled and nothing is stopped.
+- Safeguards and edge cases: unknown database state ("?") still counts every address as connected (never blind); a write older than `WRITE_GRACE` does not block (two-number count); `--force-busy` still never passes over a write.
+- Checks performed: `bash -n`; nginx-tools-tests/test_odoo_update_module.py: 58 passed (one new test `test_139_utilisateur_connecte_qui_lit_n_est_jamais_coupe`; tests of the chat and of the 1.32 grace updated to the new rule); test_i18n.py: no new failure against main.
+- Action required: the owner should check the wait lengths: a connected user who is still active gets a 3-minute wait (`WAIT_CONNECTED_LOW=3`) and then the update is cancelled and must be run again. Raise `WAIT_CONNECTED_LOW` in the configuration if that is too short.
+
+### 1.38.20261119.184342 - Step counter with several --zip archives
+
+- Reason for the request: with several `--zip` archives the progress showed step 11/8: the total of steps counted one decompression step for the whole run, but one step is printed for each archive.
+- Changes: `ETAPES` now adds one step per archive (`${#ZIP_FICHIERS[@]}`) instead of one. `SCRIPT_VERSION` 1.38. Test `test_138_compteur_d_etapes_avec_plusieurs_archives` added to `nginx-tools-tests/test_odoo_update_module.py` (which also gets the `import re` it needs).
+- Bugs fixed: symptom: "[11/8]" with two archives. Diagnosis: `ETAPES` was incremented by 1 for the decompression, `decompresser()` calls `etape()` once per archive. Fix: the total counts the archives.
+- Safeguards and edge cases: no archive, one archive (total unchanged: one step), restart-only (no decompression, count unchanged).
+- Checks performed: `bash -n`; nginx-tools-tests/test_odoo_update_module.py: 57 passed.
+- Action required: none.
+
 ### 1.37.20261119.181525 - --zip repeatable: several archives in one update
 
 - Title: `--zip` can be given several times, and ZIP of the configuration can hold several archives; each archive is extracted in turn and all their modules are updated by one `odoo -u`.
