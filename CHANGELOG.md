@@ -478,6 +478,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.201.20261119.191631 - Tab before the referer in nginx lines
+
+- Reason for the request: the nginx part of the lines (request, referer, agent) was one long run of text, hard to read when there is a lot of information.
+- Changes: `aligned_nginx_request()` puts the referer at the next tab stop, after the request (spaces up to a multiple of 8 columns, `NGINX_TAB_STOP = 8`). The width is computed without the colour codes (`display_width()`). `__version__` 1.201.
+- Choice: spaces aligned on the 8-column tab stops, not a raw tab character: a raw tab would be expanded differently by each terminal and would break the width computations of the program (columns, truncation, file output).
+- Bugs fixed: none.
+- Safeguards and edge cases: a line whose request is already at a tab stop gets 8 spaces (never zero, so the referer is never stuck to the request); the separator spaces are removed from the rest of the line so the referer does not start with a double space; the line is not changed when it is not an nginx request.
+- Checks performed: rendering of nginx request lines (short and long URLs, referer `https://www.RLQ/event`): the referer starts on a column multiple of 8. nginx-tools-tests/test_app_log_live.py: 310 passed, 8 failed. The same 8 failed before this change (310 passed, 8 failed on the code of 1.200, noted in the 1.200 entry); they test the console output, the Ctrl+C summary and a source text that this change does not touch.
+- Action required: none.
+
 ### 1.200.20261119.151517 - Requests with missing parameters counted apart from the Odoo errors
 
 - Title: the warning "called ignoring args" of odoo.http and the error "Exception during request handling" that follows it are a request with missing parameters, harmless for Odoo, counted apart.
