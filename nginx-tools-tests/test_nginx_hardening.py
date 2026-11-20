@@ -1138,6 +1138,34 @@ class SuggestionMemoire282(unittest.TestCase):
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.split()
         self.assertEqual(out, ["659", "418", "3"])           # workers 101-103 (the main process and run.sh left out), median 659 MB
 
+    def test_2119_ligne_de_commande_reelle(self):
+        """2.119 : odoo_main_cmdline lit la ligne de commande du processus principal d'Odoo (cgroup du service) ; run.sh et les workers sont écartés."""
+        d = tempfile.mkdtemp(prefix="test-rlq-cmdline-")
+        self.addCleanup(shutil.rmtree, d, True)
+        os.makedirs(os.path.join(d, "cg", "system.slice", "erplibre.service"))
+        procs = {104: (1, b"bash\0./run.sh\0"), 100: (104, b"python3\0./odoo18.0/odoo/odoo-bin\0-c\0./config.conf\0-d\0prod\0"),
+                 101: (100, b"python3\0./odoo18.0/odoo/odoo-bin\0-c\0./config.conf\0-d\0prod\0"),
+                 102: (100, b"python3\0./odoo18.0/odoo/odoo-bin\0gevent\0-c\0./config.conf\0")}
+        for pid, (ppid, cmd) in procs.items():
+            os.makedirs(os.path.join(d, "proc", str(pid)))
+            with open(os.path.join(d, "proc", str(pid), "cmdline"), "wb") as f:
+                f.write(cmd)
+            with open(os.path.join(d, "proc", str(pid), "status"), "w") as f:
+                f.write(f"Name:\tpython3\nPPid:\t{ppid}\n")
+        with open(os.path.join(d, "cg", "system.slice", "erplibre.service", "cgroup.procs"), "w") as f:
+            f.write("\n".join(str(p) for p in procs) + "\n")
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        debut = src.index("odoo_main_cmdline() {")
+        fonction = src[debut:src.index("\n}\n", debut) + 3]
+        script = (f"run() {{ echo /system.slice/erplibre.service; }}\nNGINX_HARDENING_PROC_ROOT={d}/proc NGINX_HARDENING_CGROUP_ROOT={d}/cg\n"
+                  f"export NGINX_HARDENING_PROC_ROOT NGINX_HARDENING_CGROUP_ROOT\n{fonction}\nodoo_main_cmdline erplibre.service\n")
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
+        self.assertEqual(out, "python3 ./odoo18.0/odoo/odoo-bin -c ./config.conf -d prod")      # no --limit-memory-hard: odoo.conf applies
+        # the dead line of run.sh is only a warning when the running Odoo does not have the option
+        self.assertIn("sur une ligne que l'Odoo en marche n'utilise pas", src)
+        self.assertIn('run_options_lines="$running_cmdline"', src)
+
     def test_286_ram_a_ajouter_et_gevent(self):
         """2.86 : RAM à ajouter pour garder les workers à limit_memory_hard 1536 Mo (PROD : 16 Go -> 24 Go, soit 8 Go) ; contrôle des limites de gevent."""
         with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:

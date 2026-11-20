@@ -3193,3 +3193,9 @@ msgstr ") but not in server_wide_modules: "
 
 msgid "/nginx-hardening.sh --update --odoo-preload-statics l'ajoute, puis redémarrer Odoo."
 msgstr "/nginx-hardening.sh --update --odoo-preload-statics adds it, then restart Odoo."
+
+msgid " contient --limit-memory-hard=0 (illimité) sur une ligne que l'Odoo en marche n'utilise pas (sa vraie ligne de commande n'a pas cette option) : sans effet maintenant, à retirer pour qu'elle ne serve jamais."
+msgstr " contains --limit-memory-hard=0 (unlimited) on a line that the running Odoo does not use (its real command line does not have this option): no effect now, to be removed so that it is never used."
+
+msgid "ligne de commande de l'Odoo en marche (priorité sur odoo.conf)"
+msgstr "command line of the running Odoo (takes precedence over odoo.conf)"
