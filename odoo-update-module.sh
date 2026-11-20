@@ -27,7 +27,7 @@
 #                                addons_path qui contient déjà ces modules
 #   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
 #   --backup                     sauvegarder la base avant (odoo-backup.sh --db BASE) ; échec = abandon, rien n'est arrêté
-#   --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les dernières VISITOR_WINDOW minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3
+#   --busy-visitors N            sans effet depuis 1.39 : tout utilisateur connecté actif retarde la mise à jour ; conservé pour compatibilité (BUSY_VISITORS)
 #   --changelog                  affiche le journal des modifications
 #   --check-activity             état du site maintenant (visiteurs, écritures HTTP, base PostgreSQL) sans rien changer : 0 = calme, 3 = occupé
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis
@@ -69,7 +69,7 @@
 # exécutée ; la ligne de commande l'emporte sur les fichiers) :
 #   ADDONS_DIR=                   dossier de décompression de l'archive .zip (vide : celui de addons_path qui contient déjà les modules)
 #   BACKUP=non                    sauvegarder avant (oui / non)
-#   BUSY_VISITORS=3               site occupé à partir de ce nombre de visiteurs actifs (fenêtre VISITOR_WINDOW, robots exclus)
+#   BUSY_VISITORS=3               sans effet depuis 1.39 (tout utilisateur connecté actif retarde la mise à jour) ; conservé pour compatibilité
 #   VISITOR_WINDOW=5              fenêtre de comptage des visiteurs actifs, en minutes
 #   COMMAND=                      commande d'Odoo (vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
 #   DATABASE=                     base (vide : « -d » du service, sinon db_name d'Odoo)
@@ -92,7 +92,7 @@
 #   WAIT_ANONYMOUS=30             attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs
 #   WAIT_ANONYMOUS_LOW=2          idem si l'activité est faible
 #   LIGHT_WRITES=                 écritures HTTP légères en plus (expression régulière des adresses, sans le « / » du début) : comme les visiteurs, elles n'annulent pas la mise à jour
-#   LIGHT_WRITES_WAIT=non         attendre aussi pendant les écritures légères (oui / non ; non : simple note, elles ne retardent plus la mise à jour)
+#   LIGHT_WRITES_WAIT=oui         une écriture légère (discussion, présence) retarde la mise à jour ; si elle continue, la mise à jour est annulée (oui / non ; non : simple note)
 #   READ_REQUESTS=                requêtes POST en lecture seule en plus (expression régulière des adresses, sans le « / » du début) : ignorées, elles ne retardent ni n'annulent la mise à jour
 #   LOW_REQUESTS=10               activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
 #   CONNECTED_WINDOW=15           un utilisateur connecté compte s'il a été actif dans les N dernières minutes (session encore valide ignorée)
@@ -106,7 +106,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.38.20261119.184342"
+readonly SCRIPT_VERSION="1.39.20261119.185539"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -144,7 +144,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""; ZIP_ARGS=(); CLI_ZIP=0
-LIGHT_WRITES=""; LIGHT_WRITES_WAIT=0; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0; RESTART_ONLY=0; RESTART_PG=0; PG_SERVICE="postgresql"                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+LIGHT_WRITES=""; LIGHT_WRITES_WAIT=1; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0; RESTART_ONLY=0; RESTART_PG=0; PG_SERVICE="postgresql"                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -956,7 +956,10 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
             continue
         if (now - t).total_seconds() <= float(sys.argv[2]):
             seen.setdefault(m.group(1), set()).add(request_kind(m.group(3), m.group(4)))
-print(len(counted_visitors(seen, connected_addresses(os.environ.get("WHO_DEVICES", "?")))) if readable else "?")
+conn = connected_addresses(os.environ.get("WHO_DEVICES", "?"))
+counted = counted_visitors(seen, conn)
+# 1.39: two numbers: all the counted visitors, then those logged in to Odoo (only they delay the update on their own: a write older than WRITE_GRACE does not)
+print(len(counted), len([a for a in counted if conn is None or a in conn])) if readable else print("? ?")
 PYEOF
 }
 
@@ -1171,11 +1174,12 @@ PYEOF
 # 1.29: "N|text" = a note (read-only POST requests ignored): never a reason, shown by site_reasons_who only when the site is busy.
 site_reasons() {
     local visiteurs w_sortie w_nombre dbv s l d
-    visiteurs=$(active_visitors "$(( VISITOR_WINDOW * 60 ))" "${1-?}" 2>/dev/null || echo "?")
+    local connectes
+    read -r visiteurs connectes <<< "$(active_visitors "$(( VISITOR_WINDOW * 60 ))" "${1-?}" 2>/dev/null || echo "? ?")"
     if [[ "$visiteurs" == "?" ]]; then
         printf 'W|%s\n' "journaux d'accès de nginx illisibles dans $NGINX_LOG_DIR"
-    elif (( visiteurs >= BUSY_VISITORS )); then
-        printf 'R|%s\n' "$visiteurs visiteurs actifs (connectés à Odoo ou en écriture) dans les $VISITOR_WINDOW dernières minutes (seuil : $BUSY_VISITORS)"
+    elif (( connectes >= 1 )); then       # 1.39 (option A): any user logged in to Odoo active in the window delays the update, and is never cut
+        printf 'W|%s\n' "$visiteurs visiteurs actifs (connectés à Odoo ou en écriture) dans les $VISITOR_WINDOW dernières minutes : leur session n'est pas coupée"
     fi
     w_sortie=$(nginx_writes 2>/dev/null || echo "?")
     w_nombre=$(head -n 1 <<< "$w_sortie")
@@ -1194,8 +1198,8 @@ site_reasons() {
             printf 'N|%s\n' "$w_finies écritures terminées depuis plus de ${WRITE_GRACE} s (enregistrées, aucun formulaire ouvert après), la plus récente : $(grep '^F ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
         fi
         if (( ${w_legeres:-0} > 0 )); then    # 1.26: chat, presence, visitor tracking: like visitors, they do not cancel the update
-            # 1.32: LIGHT_WRITES_WAIT=no (default): a note only, they no longer delay the update
-            printf '%s|%s\n' "$( (( LIGHT_WRITES_WAIT )) && echo R || echo N)" "$w_legeres écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : $(grep '^L ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
+            # 1.39: LIGHT_WRITES_WAIT=yes (default): a chat message or a presence write delays the update; if it goes on, the update is cancelled (never cut)
+            printf '%s|%s\n' "$( (( LIGHT_WRITES_WAIT )) && echo W || echo N)" "$w_legeres écritures légères (discussion, présence, suivi des visiteurs), la plus récente : $(grep '^L ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
         fi
         if (( ${w_lues:-0} > 0 )); then       # 1.29: read-only POST (sign-in, access checks, probes): a note, never a reason
             printf 'N|%s\n' "$w_lues requêtes POST en lecture seule ignorées (connexion, vérifications, sondes : aucune donnée modifiée), la plus récente : $(grep '^D ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
@@ -1355,11 +1359,11 @@ wait_for_quiet_site() {
     local debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}" ask_every="${ODOO_UPDATE_MODULE_ASK_EVERY:-300}"
     local prochaine=$(( SECONDS + ask_every )) raisons ecritures resume r stamp precedentes=""
     attente_maximale
-    etape "Attente d'un site calme (occupé dès ${BUSY_VISITORS} visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
+    etape "Attente d'un site calme (occupé dès un utilisateur connecté actif, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
     detail "attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
     while :; do
         raisons=$(site_reasons_who)
-        if [[ -z "$raisons" ]]; then ok "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
+        if [[ -z "$raisons" ]]; then ok "site calme : aucune écriture HTTP ni en base, aucun utilisateur connecté actif"; return 0; fi
         ecritures=$(grep '^W|' <<< "$raisons" || true)
         resume=$(grep -v '^I|' <<< "$raisons" | cut -d'|' -f2- | paste -sd ';' -)
         attente_maximale
@@ -1392,7 +1396,7 @@ wait_for_quiet_site() {
 rapport_activite() {     # --check-activity: state of the site now, changes nothing. Exit 0 = calm, 3 = busy
     local raisons
     raisons=$(site_reasons_who)
-    if [[ -z "$raisons" ]]; then ok "site calme (base $DB) : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
+    if [[ -z "$raisons" ]]; then ok "site calme (base $DB) : aucune écriture HTTP ni en base, aucun utilisateur connecté actif"; return 0; fi
     echo "  ${C_YELLOW}site occupé (base $DB) :${C_RESET}"
     while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail "${r#I|}"; else detail "· ${r#*|}"; fi; done <<< "$raisons"     # 1.27: without the tag
     return 3

@@ -14,7 +14,7 @@
 #ANONYMIZE=no
 # sauvegarder la base avant (--backup)
 #BACKUP=no
-# --busy-visitors: site busy from N active visitors (requests in the last VISITOR_WINDOW minutes, robots excluded)
+# no effect since 1.39: any connected active user delays the update (kept for compatibility)
 #BUSY_VISITORS=3
 # commande d'Odoo ; vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin (défaut : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
 #COMMAND=
@@ -30,8 +30,8 @@
 # light HTTP writes in addition to chat, presence and visitor tracking (regular expression of the addresses,
 # without the first "/", e.g. my_module/ping|other/heartbeat): like visitors, they do not cancel the update
 #LIGHT_WRITES=
-# also wait during light writes (chat, presence, visitor tracking): yes / no; no (default): a note only, they no longer delay the update
-#LIGHT_WRITES_WAIT=no
+# a light write (chat, presence, visitor tracking) delays the update; if it goes on, the update is cancelled: yes (default) / no (a note only)
+#LIGHT_WRITES_WAIT=yes
 # low activity: fewer than N requests (robots excluded) in the VISITOR_WINDOW window
 #LOW_REQUESTS=10
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)

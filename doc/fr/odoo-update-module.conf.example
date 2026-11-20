@@ -14,7 +14,7 @@
 #ANONYMIZE=no
 # sauvegarder la base avant (--backup)
 #BACKUP=no
-# --busy-visitors : site occupé à partir de N visiteurs actifs (requête dans les dernières VISITOR_WINDOW minutes, robots exclus)
+# sans effet depuis 1.39 : tout utilisateur connecté actif retarde la mise à jour (conservé pour compatibilité)
 #BUSY_VISITORS=3
 # commande d'Odoo ; vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin (défaut : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
 #COMMAND=
@@ -30,8 +30,8 @@
 # écritures HTTP légères en plus de la discussion, de la présence et du suivi des visiteurs (expression régulière des adresses,
 # sans le « / » du début, ex. : my_module/ping|other/heartbeat) : comme les visiteurs, elles n'annulent pas la mise à jour
 #LIGHT_WRITES=
-# attendre aussi pendant les écritures légères (discussion, présence, suivi des visiteurs) : yes / no ; no (défaut) : simple note, elles ne retardent plus la mise à jour
-#LIGHT_WRITES_WAIT=no
+# une écriture légère (discussion, présence, suivi des visiteurs) retarde la mise à jour ; si elle continue, la mise à jour est annulée : yes (défaut) / no (simple note)
+#LIGHT_WRITES_WAIT=yes
 # activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
 #LOW_REQUESTS=10
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)
