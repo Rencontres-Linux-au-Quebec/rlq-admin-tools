@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.5.20261114.154941"
+__version__="1.6.20261120.095040"
 
 set -u
 set -o pipefail
@@ -42,6 +42,8 @@ DIALOG_BIN="dialog"
 LOG_FILE=""
 UI_LANG=""
 PROD_PATTERN="prod"    # regex: destructive runs on matching database names need --yes
+EXPORT_DIR="/var/backups/odoo-sql-maint"   # 1.6: exports made by --export-drop-table (mode 700)
+DROP_TABLE=""
 
 CONFIG_FILES_READ=()
 CONFIG_OVERRIDE=""
@@ -121,6 +123,32 @@ MSG_EN[config_created]="Config file created: %s (set PG_DATABASE before use)."
 MSG_FR[config_created]="Fichier de config cree : %s (renseignez PG_DATABASE avant usage)."
 MSG_EN[config_create_fail]="Cannot create config file: %s"
 MSG_FR[config_create_fail]="Impossible de creer le fichier de config : %s"
+MSG_EN[no_pg_dump]="pg_dump is required (apt install postgresql-client)."
+MSG_FR[no_pg_dump]="pg_dump est requis (apt install postgresql-client)."
+MSG_EN[bad_table]="Invalid table name: %s (lower-case letters, digits and _ only)."
+MSG_FR[bad_table]="Nom de table invalide : %s (minuscules, chiffres et _ seulement)."
+MSG_EN[no_table]="Table %s not found in the schema public of '%s'."
+MSG_FR[no_table]="Table %s introuvable dans le schema public de '%s'."
+MSG_EN[odoo_table]="Refused: %s belongs to Odoo (table of a model or of a many2many field). Never drop it by hand: uninstall the module instead."
+MSG_FR[odoo_table]="Refuse : %s appartient a Odoo (table d'un modele ou d'un champ many2many). Ne jamais la supprimer a la main : desinstaller le module."
+MSG_EN[referenced]="Refused: other tables point to %s (foreign keys: %s). Drop or change them first."
+MSG_FR[referenced]="Refuse : d'autres tables pointent vers %s (cles etrangeres : %s). Les supprimer ou les changer d'abord."
+MSG_EN[table_info]="Table %s of '%s': %s, about %s rows, no Odoo model uses it."
+MSG_FR[table_info]="Table %s de '%s' : %s, environ %s lignes, aucun modele d'Odoo ne l'utilise."
+MSG_EN[confirm_drop]="Type the name of the table to export it to %s and then DROP it: "
+MSG_FR[confirm_drop]="Tapez le nom de la table pour l'exporter dans %s puis la supprimer (DROP) : "
+MSG_EN[exporting]="Export: %s ..."
+MSG_FR[exporting]="Export : %s ..."
+MSG_EN[export_fail]="Export failed or incomplete (%s): the table is NOT dropped."
+MSG_FR[export_fail]="Export rate ou incomplet (%s) : la table n'est PAS supprimee."
+MSG_EN[export_ok]="Export checked: %s (%s, gzip valid, CREATE TABLE and data present)."
+MSG_FR[export_ok]="Export verifie : %s (%s, gzip valide, CREATE TABLE et donnees presents)."
+MSG_EN[dropped]="Table %s dropped. To put it back: gunzip -c %s | psql -d %s"
+MSG_FR[dropped]="Table %s supprimee. Pour la remettre : gunzip -c %s | psql -d %s"
+MSG_EN[dry_drop]="Dry run: the export is kept, the DROP was rolled back (table %s still there)."
+MSG_FR[dry_drop]="Simulation : l'export est garde, le DROP a ete annule (table %s toujours la)."
+MSG_EN[drop_fail]="DROP refused by PostgreSQL (another table depends on it?): see the output above. The export is kept: %s"
+MSG_FR[drop_fail]="DROP refuse par PostgreSQL (une autre table en depend ?) : voir la sortie ci-dessus. L'export est garde : %s"
 MSG_EN[no_tty]="The menu needs an interactive terminal (cannot open /dev/tty). Run it from a terminal (ssh -t), or use --run NAME."
 MSG_FR[no_tty]="Le menu demande un terminal interactif (/dev/tty inaccessible). Lancez-le depuis un terminal (ssh -t), ou utilisez --run NAME."
 
@@ -140,7 +168,7 @@ t() {  # t KEY [printf-args...]
 # ---------- query catalog (add new queries here) ----------
 # Each query needs: an entry in QUERY_NAMES, Q_SQL, Q_DESC_EN, Q_DESC_FR,
 # and Q_DESTRUCTIVE=1 if it deletes or changes data.
-QUERY_NAMES=(connection-test vapid-status push-count push-purge vapid-neutralize)
+QUERY_NAMES=(connection-test vapid-status push-count push-purge vapid-neutralize orphan-tables backup-crons backup-crons-disable backup-crons-enable)
 declare -A Q_SQL Q_DESC_EN Q_DESC_FR Q_DESTRUCTIVE
 
 Q_SQL[connection-test]="SELECT version();"
@@ -164,6 +192,34 @@ Q_SQL[vapid-neutralize]="DELETE FROM ir_config_parameter WHERE key IN ('mail.web
 Q_DESC_EN[vapid-neutralize]="Delete VAPID keys (Odoo regenerates them when needed)"
 Q_DESC_FR[vapid-neutralize]="Supprimer les cles VAPID (Odoo les regenere au besoin)"
 Q_DESTRUCTIVE[vapid-neutralize]=1
+
+# 1.6: tables of the schema public that no Odoo model and no many2many field uses (copies made by hand, leftovers of an uninstalled module),
+# the biggest first. They are copied by every backup of the database; --export-drop-table NAME exports one then drops it.
+ORPHAN_SQL="SELECT c.relname AS table_name, pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size, GREATEST(c.reltuples, 0)::bigint AS rows_estimate \
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
+WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') \
+AND c.relname NOT IN (SELECT replace(model, '.', '_') FROM ir_model) \
+AND c.relname NOT IN (SELECT relation_table FROM ir_model_fields WHERE relation_table IS NOT NULL) \
+AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.confrelid = c.oid AND k.conrelid <> c.oid)"
+Q_SQL[orphan-tables]="${ORPHAN_SQL} ORDER BY pg_total_relation_size(c.oid) DESC LIMIT 40;"
+Q_DESC_EN[orphan-tables]="Tables used by no Odoo model (hand-made copies, leftovers), biggest first"
+Q_DESC_FR[orphan-tables]="Tables qu'aucun modele d'Odoo n'utilise (copies faites a la main, restes), les plus grosses d'abord"
+
+# 1.6: scheduled actions of the backup modules made inside Odoo (auto_backup of the OCA, auto_database_backup of Cybrosys). When the backups
+# are made by odoo-backup.sh, they copy the database again every day: disabled (active = false, reversible), never deleted.
+BACKUP_CRONS="SELECT c.id FROM ir_cron c JOIN ir_model_data d ON d.model = 'ir.cron' AND d.res_id = c.id WHERE d.module IN ('auto_backup', 'auto_database_backup')"
+Q_SQL[backup-crons]="SELECT c.id, c.cron_name::text AS cron_name, c.active, d.module, c.interval_number || ' ' || c.interval_type AS every, c.nextcall FROM ir_cron c \
+JOIN ir_model_data d ON d.model = 'ir.cron' AND d.res_id = c.id WHERE d.module IN ('auto_backup', 'auto_database_backup') ORDER BY c.id;"
+Q_DESC_EN[backup-crons]="Scheduled backups made inside Odoo (modules auto_backup, auto_database_backup)"
+Q_DESC_FR[backup-crons]="Sauvegardes planifiees faites dans Odoo (modules auto_backup, auto_database_backup)"
+Q_SQL[backup-crons-disable]="UPDATE ir_cron SET active = false WHERE id IN (${BACKUP_CRONS}) RETURNING id, cron_name::text AS cron_name, active;"
+Q_DESC_EN[backup-crons-disable]="Disable the backups made inside Odoo (odoo-backup.sh makes them; reversible)"
+Q_DESC_FR[backup-crons-disable]="Desactiver les sauvegardes faites dans Odoo (odoo-backup.sh les fait ; reversible)"
+Q_DESTRUCTIVE[backup-crons-disable]=1
+Q_SQL[backup-crons-enable]="UPDATE ir_cron SET active = true WHERE id IN (${BACKUP_CRONS}) RETURNING id, cron_name::text AS cron_name, active;"
+Q_DESC_EN[backup-crons-enable]="Enable again the backups made inside Odoo"
+Q_DESC_FR[backup-crons-enable]="Reactiver les sauvegardes faites dans Odoo"
+Q_DESTRUCTIVE[backup-crons-enable]=1
 
 # ---------- helpers ----------
 cleanup_temp() {
@@ -217,7 +273,7 @@ load_config_file() {  # load_config_file PATH
     value="${value#\"}"
     value="${value%\"}"
     case "$key" in
-      PG_HOST|PG_PORT|PG_USER|PG_DATABASE|DIALOG_BIN|LOG_FILE|PROD_PATTERN|UI_LANG)
+      PG_HOST|PG_PORT|PG_USER|PG_DATABASE|DIALOG_BIN|EXPORT_DIR|LOG_FILE|PROD_PATTERN|UI_LANG)
         printf -v "$key" '%s' "$value"
         ;;
     esac
@@ -255,6 +311,9 @@ UI_LANG=
 
 # Menu program (dialog) / Programme du menu (dialog)
 DIALOG_BIN=dialog
+
+# Folder of the exports made by --export-drop-table (created with mode 700) / Dossier des exports de --export-drop-table (cree en mode 700)
+EXPORT_DIR=/var/backups/odoo-sql-maint
 TEMPLATE
 }
 
@@ -411,6 +470,65 @@ execute_query() {
   return 1
 }
 
+# export_drop_table NAME (1.6): checks that no Odoo model uses the table, exports it with pg_dump into EXPORT_DIR (gzip checked, CREATE TABLE and
+# data present), then drops it in a transaction (ROLLBACK with --dry-run). Never CASCADE: a table another one depends on is refused by PostgreSQL.
+# Returns 0 when done, 1 on failure, 4 when refused or cancelled.
+export_drop_table() {
+  local table="$1" info size rows file answer="" rc
+  if [[ -z "$PG_DATABASE" ]]; then printf '%s\n' "$(t no_db)" >&2; return 4; fi
+  if [[ ! "$PG_DATABASE" =~ ^[A-Za-z0-9_.-]+$ ]]; then printf '%s\n' "$(t bad_db "$PG_DATABASE")" >&2; return 4; fi
+  if [[ ! "$table" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; then printf '%s%s%s\n' "$C_ERR" "$(t bad_table "$table")" "$C_RST" >&2; return 4; fi
+  if ! command -v pg_dump >/dev/null 2>&1; then printf '%s\n' "$(t no_pg_dump)" >&2; return 3; fi
+  if [[ -z "$(psql "${PSQL_ARGS[@]}" -At -c "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = '$table'" 2>/dev/null)" ]]; then
+    printf '%s%s%s\n' "$C_ERR" "$(t no_table "$table" "$PG_DATABASE")" "$C_RST" >&2
+    return 4
+  fi
+  info="$(psql "${PSQL_ARGS[@]}" -At -c "SELECT string_agg(DISTINCT k.conrelid::regclass::text, ', ') FROM pg_constraint k
+    WHERE k.confrelid = 'public.$table'::regclass AND k.conrelid <> k.confrelid" 2>/dev/null)"
+  if [[ -n "$info" ]]; then
+    printf '%s%s%s\n' "$C_ERR" "$(t referenced "$table" "$info")" "$C_RST" >&2
+    return 4
+  fi
+  info="$(psql "${PSQL_ARGS[@]}" -At -F '|' -c "${ORPHAN_SQL} AND c.relname = '$table';" 2>/dev/null)"
+  if [[ -z "$info" ]]; then
+    printf '%s%s%s\n' "$C_ERR" "$(t odoo_table "$table")" "$C_RST" >&2
+    return 4
+  fi
+  size="$(cut -d'|' -f2 <<< "$info")"; rows="$(cut -d'|' -f3 <<< "$info")"
+  printf '%s\n' "$(t table_info "$table" "$PG_DATABASE" "$size" "$rows")"
+  if [[ -n "$PROD_PATTERN" && "$ASSUME_YES" -ne 1 && "$PG_DATABASE" =~ $PROD_PATTERN ]]; then
+    printf '%s\n' "$(t blocked "$PG_DATABASE" "$PROD_PATTERN")" >&2
+    return 4
+  fi
+  if [[ "$ASSUME_YES" -ne 1 ]]; then
+    if [[ ! -t 0 ]]; then printf '%s\n' "$(t refused_noyes)" >&2; return 4; fi
+    read -r -p "$(t confirm_drop "$EXPORT_DIR")" answer
+    if [[ "$answer" != "$table" ]]; then printf '%s\n' "$(t cancelled)"; return 4; fi
+  fi
+  if ! (umask 077; mkdir -p -- "$EXPORT_DIR"); then printf '%s\n' "$(t export_fail "$EXPORT_DIR")" >&2; return 1; fi
+  file="$EXPORT_DIR/${PG_DATABASE}-${table}-$(date '+%Y%m%d-%H%M%S').sql.gz"
+  printf '%s\n' "$(t exporting "$file")"
+  if ! (umask 077; pg_dump -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" -t "public.$table" --no-owner --no-privileges | gzip -6 > "$file") \
+     || ! gzip -t -- "$file" 2>/dev/null \
+     || ! gzip -dc -- "$file" | grep -q "^CREATE TABLE public\.$table " \
+     || ! gzip -dc -- "$file" | grep -qE "^COPY public\.$table "; then
+    printf '%s%s%s\n' "$C_ERR" "$(t export_fail "$file")" "$C_RST" >&2
+    log_line "export-drop-table:$table" export 1
+    return 1
+  fi
+  printf '%s\n' "$(t export_ok "$file" "$(du -h -- "$file" | cut -f1)")"
+  {
+    echo "BEGIN;"
+    echo "DROP TABLE public.$table;"
+    if [[ "$DRY_RUN" -eq 1 ]]; then echo "ROLLBACK;"; else echo "COMMIT;"; fi
+  } | psql "${PSQL_ARGS[@]}"
+  rc=$?
+  log_line "export-drop-table:$table" "$([[ "$DRY_RUN" -eq 1 ]] && echo dry || echo run)" "$rc"
+  if [[ "$rc" -ne 0 ]]; then printf '%s%s%s\n' "$C_ERR" "$(t drop_fail "$file")" "$C_RST" >&2; return 1; fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then printf '%s\n' "$(t dry_drop "$table")"; else printf '%s\n' "$(t dropped "$table" "$file" "$PG_DATABASE")"; fi
+  return 0
+}
+
 # dialog_run VAR ARGS...: run dialog with its screen on the terminal; its answer goes to VAR.
 # The answer is written to a file (--output-fd), not captured with $(...): dialog then keeps the
 # terminal as its screen and never needs to re-open a terminal by name ("cannot open tty-output").
@@ -476,7 +594,7 @@ list_queries() {
     if [[ "${Q_DESTRUCTIVE[$name]:-0}" == "1" ]]; then
       flag=" [$(t destructive)]"
     fi
-    printf -v line '%s%-18s%s %s%s\n' "$C_OPT" "$name" "$C_RST" "$(query_desc "$name")" "$flag"
+    printf -v line '%s%-22s%s %s%s\n' "$C_OPT" "$name" "$C_RST" "$(query_desc "$name")" "$flag"
     # A closed pipe (ex. | head) is not an error: stop quietly.
     printf '%s' "$line" 2>/dev/null || return 0
   done
@@ -519,7 +637,8 @@ Options (alphabetical / ordre alphabetique):
   ${C_OPT}--changelog${C_RST}        Show this program's changelog / Afficher le journal de ce programme
   ${C_OPT}--config FILE${C_RST}      Read only FILE / Lire seulement FILE
   ${C_OPT}--database NAME${C_RST}    Target database / Base cible
-  ${C_OPT}--dry-run${C_RST}          With --run: roll back at the end / Avec --run : annuler a la fin
+  ${C_OPT}--dry-run${C_RST}          With --run or --export-drop-table: roll back at the end / Avec --run ou --export-drop-table : annuler a la fin
+  ${C_OPT}--export-drop-table T${C_RST} Export table T (no Odoo model uses it) to EXPORT_DIR, then drop it / Exporter la table T (aucun modele d'Odoo) dans EXPORT_DIR, puis la supprimer
   ${C_OPT}--help${C_RST}             Show this help / Afficher cette aide
   ${C_OPT}--language LANG${C_RST}    Interface language, fr or en / Langue de l'interface, fr ou en
   ${C_OPT}--list${C_RST}             List available queries / Lister les requetes
@@ -533,7 +652,7 @@ Config files / Fichiers de config (later overrides earlier; command line overrid
   ~/.odoo-sql-maint.conf
   Key options / Options principales: PG_HOST, PG_PORT, PG_USER, PG_DATABASE (target base / base cible),
   LOG_FILE (audit log / journal d'audit), PROD_PATTERN (destructive runs need --yes / --yes requis),
-  UI_LANG (fr or en), DIALOG_BIN.
+  UI_LANG (fr or en), DIALOG_BIN, EXPORT_DIR (exports of --export-drop-table / exports de --export-drop-table).
 
 $(t config_read "${CONFIG_FILES_READ[*]:-$(t config_none)}")
 EOF
@@ -549,7 +668,7 @@ parse_args() {
         val="${opt#*=}"
         opt="${opt%%=*}"
         ;;
-      --config|--database|--language|--run)
+      --config|--database|--export-drop-table|--language|--run)
         if [[ $# -lt 2 ]]; then
           printf '%s\n' "$(t missing_value "$opt")" >&2
           exit 2
@@ -563,6 +682,7 @@ parse_args() {
       --config)    CONFIG_OVERRIDE="$val" ;;
       --database)  CLI_DATABASE="$val" ;;
       --dry-run)   DRY_RUN=1 ;;
+      --export-drop-table) ACTION="export-drop"; DROP_TABLE="$val" ;;
       --help)      ACTION="help" ;;
       --language)
         case "$val" in
@@ -614,6 +734,7 @@ main() {
 
   case "$ACTION" in
     run)  run_cli "$RUN_NAME"; return $? ;;
+    export-drop) export_drop_table "$DROP_TABLE"; return $? ;;
     menu) check_dialog; check_tty; run_menu ;;
   esac
   return 0

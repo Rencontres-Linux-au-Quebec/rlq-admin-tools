@@ -25,3 +25,6 @@ UI_LANG=
 
 # Menu program (dialog) / Programme du menu (dialog)
 DIALOG_BIN=dialog
+
+# Folder of the exports made by --export-drop-table (created with mode 700) / Dossier des exports de --export-drop-table (cree en mode 700)
+EXPORT_DIR=/var/backups/odoo-sql-maint
