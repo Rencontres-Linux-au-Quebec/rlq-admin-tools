@@ -48,7 +48,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.27.20261118.114500"
+__version__ = "1.28.20261120.082620"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1752,8 +1752,39 @@ def guest_config_advice(names, fd):
             fd.suggest(3, f"VM {vmid} ({name}): CPU type kvm64 hides the instructions of the real processor — « host » (or x86-64-v2-AES) is faster when migration is not needed")
 
 
-def ssd_answer(fd, worst, io_avg, io_full, facts, guests_rows, out, host_tasks=()):
-    """The answer to « are SSD disks justified? » from the measurements."""
+def wait_hours(samples):
+    """1.28: disk wait (PSI io some) of the measurement per hour of the local clock: [(hour "YYYY-MM-DD HHh", average %, start epoch of the hour)], by
+    decreasing wait; the hours with less than 5 samples are left out (a partial first or last hour says nothing)."""
+    hours = {}
+    for r in samples or ():
+        v, wall = r.get("psi", {}).get("io", {}).get("some"), r.get("wall")
+        if v is None or not wall:
+            continue
+        start = int(wall // 3600 * 3600)
+        hours.setdefault(start, []).append(v)
+    found = [(datetime.datetime.fromtimestamp(h).strftime("%Y-%m-%d %Hh"), sum(v) / len(v), h) for h, v in hours.items() if len(v) >= 5]
+    return sorted(found, key=lambda x: -x[1])
+
+
+def concentrated_waits(samples):
+    """1.28: are the waits for the disk concentrated in a few hours? (top hours, share of the whole wait, average of the other hours) or None.
+    Top hours = the worst quarter of the hours (at least one) of a measurement of 3 hours or more."""
+    hours = wait_hours(samples)
+    if len(hours) < 3:
+        return None
+    k = max(1, len(hours) // 4)
+    total = sum(w for _h, w, _s in hours)
+    if total <= 0:
+        return None
+    top = hours[:k]
+    rest = [w for _h, w, _s in hours[k:]]
+    return top, sum(w for _h, w, _s in top) / total, sum(rest) / len(rest)
+
+
+def ssd_answer(fd, worst, io_avg, io_full, facts, guests_rows, out, host_tasks=(), samples=None, tasks=None):
+    """The answer to « are SSD disks justified? » from the measurements. 1.28 `samples`: the waits concentrated in a few hours (backups, integrity
+    checks, dumps at night) while the other hours are calm give « not for the whole day » instead of YES; `tasks`: Proxmox tasks [(start, end, type, id,
+    status)] named in those hours."""
     hdd = [d for d, v in facts["disks"].items() if v["kind"] == "HDD"]
     out.append("ARE SSD DISKS JUSTIFIED?")
     if not hdd:
@@ -1762,7 +1793,23 @@ def ssd_answer(fd, worst, io_avg, io_full, facts, guests_rows, out, host_tasks=(
     bad = [w for w in worst if w[1] == "HDD" and w[4] == "bad"]
     io_avg, io_full = io_avg or 0, io_full or 0
     busiest = sorted(guests_rows, key=lambda r: -(r[8] or 0))[:1]
-    if bad or io_avg >= IO_PSI_BAD or io_full >= IO_FULL_BAD:
+    spread = concentrated_waits(samples)
+    if (bad or io_avg >= IO_PSI_BAD or io_full >= IO_FULL_BAD) and spread and spread[1] >= 0.6 and spread[2] < IO_PSI_WARN:
+        # 1.28: 2026-11-20, 8 h at night: 7.1 % on average and YES, while the same host gave 0.7 % and NO the afternoon before. The waits were the
+        # backup of 105, the integrity checks (AIDE) and the dumps of the databases, at hours when nobody used the sites: SSD would not change their day.
+        top, share, rest = spread
+        names = []
+        for _label, _w, start in top:
+            names += [f"{kind} {vmid} {datetime.datetime.fromtimestamp(a):%H:%M}-{datetime.datetime.fromtimestamp(b):%H:%M}"
+                      for a, b, kind, vmid, _st in tasks or () if a < start + 3600 and b > start]
+        out.append(color("1;33", "  NOT FOR THE WHOLE DAY: the waits for the disk are concentrated in a few hours") + f" — {share * 100:.0f} % of the wait in "
+                   + ", ".join(f"{label} ({w:.1f} %)" for label, w, _s in top) + f"; the other hours {rest:.1f} % on average (all tasks over the whole measurement {io_full:.1f} %).")
+        if names:
+            out.append("  Proxmox tasks in those hours: " + ", ".join(sorted(set(names))) + ".")
+        out.append("  Compare these hours with the slow hours of the sites (app-log-live.py --advise in the guests): when nobody uses them then, move or lighten"
+                   " the work of those hours (backups to another disk or Proxmox Backup Server, AIDE exclusions, dumps at other times) instead of buying SSD;"
+                   " measure the busy hours of the day before deciding.")
+    elif bad or io_avg >= IO_PSI_BAD or io_full >= IO_FULL_BAD:
         out.append(color("1;31", f"  YES: the HDD ({', '.join(hdd)}) are a measured bottleneck") + f" — tasks waited for the disk {io_avg:.1f} % of the time (all tasks {io_full:.1f} %)"
                    + (f", {bad[0][0]} busy {bad[0][2]:.0f} % with {bad[0][3]:.0f} ms per operation" if bad else "") + ".")
         out.append("  In order: ARC larger if RAM allows, « special » mirrored SSD (metadata + small blocks), SLOG for synchronous writes, then SSD for the pool of the busiest guest.")
@@ -1897,7 +1944,7 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
             print(f"  {tag(level)} {T(label):<11} {text}")
     print()
     tail = []
-    ssd_answer(fd, worst, io_avg, io_full, facts, rows, tail, host_tasks)
+    ssd_answer(fd, worst, io_avg, io_full, facts, rows, tail, host_tasks, samples=samples, tasks=recent_tasks(days=3))
     for line in tail:
         print(line)
     print()
