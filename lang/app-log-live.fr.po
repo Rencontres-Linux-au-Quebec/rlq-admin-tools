@@ -3640,3 +3640,18 @@ msgstr "avertissements « called ignoring args » : {n}"
 
 msgid "Odoo errors: {n} ERROR / CRITICAL counted; {m} requests with missing parameters counted apart (harmless)"
 msgstr "Erreurs d'Odoo : {n} ERROR / CRITICAL comptées ; {m} requêtes avec paramètres manquants comptées à part (sans gravité)"
+
+msgid "Odoo refused the action and showed the message to the user (transaction rolled back, no data touched): not a failure of Odoo"
+msgstr "Odoo a refusé l'action et affiché le message à l'utilisateur (transaction annulée, aucune donnée modifiée) : ce n'est pas une panne d'Odoo"
+
+msgid "Business refusals shown to the user (not Odoo errors): "
+msgstr "Refus métier affichés à l'utilisateur (pas des erreurs d'Odoo) : "
+
+msgid "Odoo errors: {n} ERROR / CRITICAL counted; {r} business refusals shown to the user counted apart (not Odoo errors)"
+msgstr "Erreurs d'Odoo : {n} ERROR / CRITICAL comptées ; {r} refus métier affichés à l'utilisateur comptés à part (pas des erreurs d'Odoo)"
+
+msgid "refusals shown to the user"
+msgstr "refus affichés à l'utilisateur"
+
+msgid " (business refusal shown to the user: the action was refused and rolled back; not an Odoo error)"
+msgstr " (refus métier affiché à l'utilisateur : l'action a été refusée et annulée ; pas une erreur d'Odoo)"

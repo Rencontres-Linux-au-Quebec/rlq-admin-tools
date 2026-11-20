@@ -478,6 +478,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.202.20261119.225129 - Business refusals shown to the user counted apart from the Odoo errors
+
+- Reason for the request: log of 2026-11-19 19:41:25: archiving the contact of an active user (José R) raised `odoo.exceptions.RedirectWarning` ("Vous ne pouvez pas archiver les contacts liés à un utilisateur actif"). Odoo showed the message and a "Go to users" button, rolled the transaction back and answered 200, but the status line said "erreurs Odoo 1" and the health went down for a refusal that is not a failure.
+- Changes:
+  - New USER_REFUSAL_RE (RedirectWarning, UserError, ValidationError, AccessError, MissingError, AccessDenied), CHAINED_TRACE_RE, FIRST_QUOTED_RE, function refusal_message() and class UserRefusal: gives "user-refusal" to the final line `odoo.exceptions.<refusal>: ...` of the trace of an ERROR "Exception during request handling" of odoo.http, and "user-refusal-revert" when that trace goes on with a chained exception.
+  - Main loop: new benign_of() so that MissingParams and UserRefusal both see every line; emit() receives the reason.
+  - Stats: counters user_refusals, user_refusal_kinds, user_refusal_messages, user_refusal_time (snapshot and period difference too); ajouter() remembers the key of the last "Exception during request handling" counted (request_error_key); new move_refusal() moves it from odoo_errors to the refusals, or undoes the last move (refusal_last).
+  - Health: new indicator "Business refusals shown to the user (not Odoo errors)" with the exceptions, the first line of the messages and the times.
+  - StatusBar.observe(): the same move for "Odoo errors" of the status line; new group "refusals shown to the user" shown only when there is one, never coloured as a problem.
+  - format_value(): the final line of the trace in orange with a note; advisor_facts(), the export (--export-ai) and the daily summary: user_refusals, user_refusal_kinds, user_refusal_messages, user_refusal_times; checks of the analysis: one line when some were counted.
+  - lang/app-log-live.fr.po: 5 texts; nginx-tools-tests/test_app_log_live.py: class AppLogLive202 (3 tests).
+- Bugs fixed: symptom: "erreurs Odoo 1" and a lower health for a refused archiving; diagnosis: in Odoo 18 RedirectWarning is not a subclass of UserError, so odoo/http.py logs it as ERROR "Exception during request handling" with a full trace, like a real crash; fix: the type of the exception, on the last line of the trace, moves the ERROR already counted out of the Odoo errors.
+- Safeguards and edge cases: only the logger odoo.http and only the trace of an "Exception during request handling"; the `raise RedirectWarning(...)` source line of the trace is not taken for the final line (the class name must be followed by ":" or end the line); one move per ERROR line; a chained trace ("During handling of the above exception", "The above exception was the direct cause") after the match undoes the move, the error stays an Odoo error; a real exception (TypeError...) is never moved. The red ERROR line and the beep (--chime) are already written when the type is known: they are not taken back, the final line of the trace says it was a refusal.
+- Checks performed: py_compile; tests AppLogLive202 (3) and AppLogLive200 (3): [OK]; nginx-tools-tests/test_app_log_live.py: 321 tests, 313 passed, 8 failed (7 failures, 1 error): the same 8 as before this change (console output, Ctrl+C summary, key menus, noted in the 1.200 and 1.201 entries); test_i18n.py and test_conventions.py: no failure about app-log-live.py.
+- Action required: none (update the suite in /opt/rlq-admin-tools as usual).
+
 ### 1.201.20261119.191631 - Tab before the referer in nginx lines
 
 - Reason for the request: the nginx part of the lines (request, referer, agent) was one long run of text, hard to read when there is a lot of information.

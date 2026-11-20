@@ -5847,3 +5847,68 @@ class AppLogLive200(unittest.TestCase):
         self.assertEqual(barre.odoo_err, 0)
         self.assertEqual(live.advisor_facts(s)["missing_params"], 1)
         self.assertEqual(s.since(s.snapshot()).missing_params, 0)
+
+
+class AppLogLive202(unittest.TestCase):
+    """1.202 : refus métier affiché à l'utilisateur (RedirectWarning d'Odoo 18, écrit en ERROR « Exception during request handling » avec sa trace) :
+    sorti des erreurs d'Odoo quand la dernière ligne de la trace arrive. Données inventées, d'après la trace vue le 2026-11-19."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_202", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def trace(self, *textes):
+        return [self.live.Line(f"{ts()} odoo18 odoo[502385]: {t}") for t in textes]
+
+    def lignes(self, finale=None):
+        erreur = self.live.Line(odoo("ERROR", "prod", "odoo.http", "Exception during request handling."))
+        suite = self.trace("Traceback (most recent call last):",
+                           '  File "/opt/odoo/odoo/odoo/models.py", line 6181, in action_archive',
+                           "    raise RedirectWarning(error_msg, action_error, _('Go to users'))",
+                           finale or "odoo.exceptions.RedirectWarning: (\"Vous ne pouvez pas archiver les contacts liés à un utilisateur actif.\\n"
+                                     "Vous devez d'abord archiver l'utilisateur qui lui est associé.\", {'type': 'ir.actions.act_window'}, 'Aller aux utilisateurs', None)")
+        return [erreur] + suite
+
+    def test_202_reconnaissance(self):
+        suivi = self.live.UserRefusal()
+        verdicts = [suivi(L) for L in self.lignes()]
+        self.assertEqual(verdicts, [False, False, False, False, "user-refusal"])        # the raise line of the trace is not the final line
+        suivi = self.live.UserRefusal()
+        autre = [self.live.Line(odoo("ERROR", "prod", "odoo.sql_db", "bad query: SELECT 1"))] + self.lignes()[1:]
+        self.assertEqual([suivi(L) for L in autre][-1], False)                          # another logger: never
+        suivi = self.live.UserRefusal()
+        vraie = self.lignes(finale="TypeError: 'NoneType' object is not subscriptable")
+        self.assertNotIn("user-refusal", [suivi(L) for L in vraie])                     # a real error stays an error
+
+    def test_202_hors_des_erreurs_d_odoo(self):
+        live = self.live
+        s, barre, suivi = live.Stats(5.0), live.StatusBar(), live.UserRefusal()
+        for L in self.lignes():
+            benin = suivi(L)
+            s.ajouter(L, {}, None, benin)
+            barre.observe(L, None, 5.0, benign=benin)
+        self.assertEqual(sum(s.odoo_errors.values()), 0)
+        self.assertEqual((s.user_refusals, s.user_refusal_kinds["RedirectWarning"]), (1, 1))
+        self.assertEqual(list(s.user_refusal_messages)[0][1], "Vous ne pouvez pas archiver les contacts liés à un utilisateur actif.")
+        self.assertEqual((barre.odoo_err, barre.refusals), (0, 1))
+        sante = "\n".join(T(l) for l in s.health()[1])
+        self.assertIn("Erreurs d'Odoo (ERROR / CRITICAL) : aucune", sante)
+        self.assertIn("Refus métier affichés à l'utilisateur (pas des erreurs d'Odoo) : 1", sante)
+        self.assertEqual(live.advisor_facts(s)["user_refusals"], 1)
+        self.assertEqual(s.since(s.snapshot()).user_refusals, 0)
+
+    def test_202_trace_enchainee_annulee(self):
+        live = self.live
+        s, barre, suivi = live.Stats(5.0), live.StatusBar(), live.UserRefusal()
+        lignes = self.lignes() + self.trace("During handling of the above exception, another exception occurred:",
+                                            "Traceback (most recent call last):", "KeyError: 'res_model'")
+        for L in lignes:
+            benin = suivi(L)
+            s.ajouter(L, {}, None, benin)
+            barre.observe(L, None, 5.0, benign=benin)
+        self.assertEqual((sum(s.odoo_errors.values()), s.user_refusals), (1, 0))      # the refusal was not the final exception: a real error
+        self.assertEqual((barre.odoo_err, barre.refusals), (1, 0))
+        self.assertEqual(sum(s.user_refusal_kinds.values()), 0)
