@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.98.20261117.143528"
+readonly SCRIPT_VERSION="2.99.20261120.161509"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -2343,9 +2343,12 @@ cms_wordpress() {
 }
 SENSITIVE_BASE='\.env|\.git/|phpmyadmin|\.aws/|\.ssh/|\.(bak|old|sql|swp)(\?|$)|/config\.(php|json|yml)|/server-status|/\.well-known/security|/_ignition|/debug/default'
 SENSITIVE_WP='/wp-|wp-login|xmlrpc\.php|/wp(/|\?|$)|/wordpress(/|\?|$)'
+# 2.99: Odoo runs no PHP, ASP, JSP or CGI script: asking for one is a probe (167.172.73.52 on 2026-11-20: //images/images/cache.php,
+# //cgi-bin/cgi-bin/cache.php... scored 0 sensitive requests). Not used when a WordPress is installed on the server (its .php are real pages).
+SENSITIVE_SCRIPTS='\.(php|phtml|phar|asp|aspx|jsp|cgi)(\?|$)|/cgi-bin/'
 SENSITIVE_CMS_BBB='/administrator(/|$)|/joomla|/drupal|/sites/default|/typo3|/magento|/prestashop|/bitrix|/umbraco|/ghost/|/user/login|/node/[0-9]+|/components/com_|/index\.php|\.(asp|aspx|jsp|cgi|php)(\?|$)|/admin/login|/wp-json|/typo3conf'
 if [[ "$APP_NAME" == "bbb" ]]; then SENSITIVE_RE="$SENSITIVE_BASE|$SENSITIVE_WP|$SENSITIVE_CMS_BBB"      # BigBlueButton hosts no CMS: anything that falls under it is sensitive
-elif cms_wordpress; then SENSITIVE_RE="$SENSITIVE_BASE"; else SENSITIVE_RE="$SENSITIVE_BASE|$SENSITIVE_WP"; fi
+elif cms_wordpress; then SENSITIVE_RE="$SENSITIVE_BASE"; else SENSITIVE_RE="$SENSITIVE_BASE|$SENSITIVE_WP|$SENSITIVE_SCRIPTS"; fi
 
 # Field separator: ASCII character 31 (\037), NOT the tab - with IFS=$'\t', "read" merges the
 # tabulations consecutives (la tabulation est un espace pour lui) et un champ vide ferait glisser tous les suivants.
@@ -2512,6 +2515,16 @@ investigate_and_propose() {
     else echo "      $no Double identité : non"; fi
     if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nprobe tentatives d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requêtes (ex. $probes)"
     else echo "      $no Recherche de fichiers sensibles : ${nprobe} requêtes"; fi
+    # 2.99: the requests REFUSED by the security rules of nginx (blocked-probes.log: hidden files, scripts, frameworks, devices...) are an
+    # attack signature by themselves: these rules match nothing that Odoo serves. A strong sign; one more point only when the sensitive files
+    # above did not already count them.
+    local n_refus="${INV_REFUS:-0}"
+    if (( n_refus >= 3 )); then
+        hostile=$((hostile+1)); SIGNE_FORT=1
+        if (( nprobe < 3 )); then score=$((score+1)); fi
+        motifs+=("$n_refus requêtes refusées par les règles de sécurité de nginx (blocked-probes.log)")
+        echo "      $ok Refusées par les règles de sécurité de nginx : $n_refus requêtes (blocked-probes.log : rien de ce qu'Odoo sert ne tombe sous ces règles)"
+    else echo "      $no Refusées par les règles de sécurité de nginx : $n_refus requêtes"; fi
     # 2.91: systematic sweep. A visitor reads the pages that interest him; a scraper enumerates: every combination of the filters of a listing
     # (/event?tags=[1,+10]...) and the same pages again under each language prefix (/es/..., /en_CA/...). 125.59.124.161 read 440 distinct URLs this way
     # and was proposed for a lift as "a robot that reads fast".
@@ -2535,9 +2548,17 @@ investigate_and_propose() {
         echo "      $ok Balayage systématique : $sweep_n URL distinctes, dont $sweep_var variantes de requête de $sweep_chemin${sweep_langs:+, reprises sous $sweep_loc préfixes de langue (${sweep_langs//,/, })} — un visiteur ne parcourt pas toutes les combinaisons de filtres"
     else echo "      $no Balayage systématique : non ($sweep_n URL distinctes)"; fi
     # 2.91: a real browser always sends "(KHTML, like Gecko)" after AppleWebKit; a client that omits it is a script that copies a User-Agent badly.
-    local n_ua_incomplet
+    local n_ua_incomplet n_ua_faute ua_fautes
     n_ua_incomplet=$(printf '%s\n' "$uas" | tr '\001' '\n' | awk '/AppleWebKit/ && !/KHTML/ { split($1, a, "x"); s += a[1] } END { print s + 0 }') || n_ua_incomplet=0
-    if (( n_ua_incomplet >= 20 )); then
+    # 2.99: a browser never misspells its own User-Agent. "Mozlila/5.0 (... Bulid/NRD90M ...) Moblie Safari" is the forged User-Agent of a
+    # scanner (167.172.73.52, 2026-11-20); before, "Mozlila" was even read as the name of a robot that names itself.
+    read -r n_ua_faute ua_fautes <<< "$(printf '%s\n' "$uas" | tr '\001' '\n' | sed '/^$/d' | awk "$UA_FAUTE_AWK"'
+        { n = $1; sub(/^[0-9]+x /, ""); f = ua_fautes($0); if (f != "") { s += n + 0; if (!(f in vu)) { vu[f] = 1; l = l (l == "" ? "" : ",") f } } }
+        END { print s + 0, (l == "" ? "-" : l) }')" || { n_ua_faute=0; ua_fautes="-"; }
+    if (( n_ua_faute >= 3 )); then
+        score=$((score+1)); hostile=$((hostile+1)); motifs+=("User-Agent de navigateur falsifié ($n_ua_faute requêtes : ${ua_fautes//,/, })")
+        echo "      $ok User-Agent de navigateur falsifié : $n_ua_faute requêtes, fautes de frappe ${ua_fautes//,/, } (un navigateur réel n'écorche jamais son propre nom ; script qui imite un navigateur)"
+    elif (( n_ua_incomplet >= 20 )); then
         score=$((score+1)); hostile=$((hostile+1)); motifs+=("User-Agent de navigateur incomplet ($n_ua_incomplet requêtes)")
         echo "      $ok User-Agent de navigateur incomplet : $n_ua_incomplet requêtes (AppleWebKit sans « KHTML, like Gecko » : un navigateur réel l'envoie toujours ; script qui imite un navigateur)"
     else echo "      $no User-Agent de navigateur incomplet : non"; fi
@@ -3299,15 +3320,38 @@ BOT_BLOCKER_CONF="${NGINX_TOOLS_BOT_BLOCKER:-/etc/nginx/conf.d/bot_blocker.conf}
 # robots_declares UAS: the names that robots give in their User-Agent ("CareerScout/1.0", "(jobs_v1/1.0)", "webzio (+https://...)"), browser and
 # system words and HTTP libraries left out (the script tools are counted apart). One name per line.
 robots_declares() {
-    printf '%s\n' "$1" | tr '\001' '\n' | sed -E 's/^[0-9]+x //' | awk '
+    printf '%s\n' "$1" | tr '\001' '\n' | sed -E 's/^[0-9]+x //' | awk "$UA_FAUTE_AWK"'
         BEGIN { split("mozilla applewebkit khtml gecko chrome chromium safari firefox edg edge edga edgios opr opera version mobile trident msie headlesschrome crios fxios samsungbrowser yabrowser ucbrowser vivaldi brave windows linux android iphone ipad macintosh x11 like compatible curl wget python-requests python-httpx python-urllib go-http-client okhttp java php ruby node-fetch axios aiohttp scrapy libwww-perl httpclient apache-httpclient python mobile/15e148 build", w, " "); for (i in w) skip[w[i]] = 1 }
         { line = $0
           while (match(line, /[A-Za-z][A-Za-z0-9_.-]+\/[0-9]/)) { t = substr(line, RSTART, RLENGTH - 2); line = substr(line, RSTART + RLENGTH)
-              if (!(tolower(t) in skip) && length(t) >= 3 && !(t in seen)) { seen[t] = 1; print t } }
+              if (!(tolower(t) in skip) && !proche(tolower(t), "mozilla") && length(t) >= 3 && !(t in seen)) { seen[t] = 1; print t } }
           line = $0
           while (match(line, /[A-Za-z][A-Za-z0-9_.-]+ \(\+?https?:/)) { t = substr(line, RSTART, RLENGTH); sub(/ \(.*/, "", t); line = substr(line, RSTART + RLENGTH)
               if (!(tolower(t) in skip) && length(t) >= 3 && !(t in seen)) { seen[t] = 1; print t } } }'
 }
+# UA_FAUTE_AWK: awk functions shared by robots_declares and the indicators (2.99). proche(a, b): 1 when a differs from b by one or two
+# letters (Levenshtein distance 1 or 2, a transposition counts 2), 0 when equal or farther. ua_fautes(UA): the misspelled words of a
+# browser User-Agent ("Mozlila", "Bulid", "Moblie"...), comma separated, "" when none: a real browser never misspells them.
+UA_FAUTE_AWK='
+    function proche(a, b,    la, lb, i, j, c, d, x, y, z) {
+        if (a == b) return 0
+        la = length(a); lb = length(b); if (la - lb > 2 || lb - la > 2 || la < 4) return 0
+        for (j = 0; j <= lb; j++) d[0, j] = j
+        for (i = 1; i <= la; i++) { d[i, 0] = i
+            for (j = 1; j <= lb; j++) { c = (substr(a, i, 1) == substr(b, j, 1)) ? 0 : 1
+                x = d[i-1, j] + 1; y = d[i, j-1] + 1; z = d[i-1, j-1] + c
+                d[i, j] = (x < y ? (x < z ? x : z) : (y < z ? y : z)) } }
+        return d[la, lb] <= 2
+    }
+    function ua_fautes(ua,    w, n, i, k, t, r, mots) {
+        split("mozilla build mobile safari chrome gecko applewebkit khtml windows android firefox version", mots, " ")
+        n = split(ua, w, /[^A-Za-z]+/); r = ""
+        for (i = 1; i <= n; i++) { t = tolower(w[i]); if (length(t) < 5) continue
+            for (k in mots) if (proche(t, mots[k]) && !(t in mots_ok)) { if (index("," r ",", "," w[i] ",") == 0) r = r (r == "" ? "" : ",") w[i]; break } }
+        return r
+    }
+    BEGIN { split("mozilla build mobile safari chrome gecko applewebkit khtml windows android firefox version webkit chromium mobile/ like builds", ok, " "); for (q in ok) mots_ok[ok[q]] = 1 }
+'
 # robot_refuse NAME: 0 when bot_blocker.conf (installed, otherwise the copy of the repository) already refuses that User-Agent name.
 robot_refuse() {
     local conf="$BOT_BLOCKER_CONF"

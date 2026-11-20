@@ -6278,6 +6278,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.99.20261120.161509 - Scanners of .php files and forged User-Agents no longer proposed for lifting
+
+- Reason for the request: on 2026-11-20, --unban-low-score proposed to lift the ban of 167.172.73.52 (DigitalOcean, banned by the jail nginx-blocked-probes) with a score of 1/7 and the reason "il se nomme dans son User-Agent : Mozlila". The administrator noted that its 5 pages (//images/images/cache.php, //cgi-bin/cgi-bin/cgi-bin/cgi-bin/cache.php...) are suspicious and do not exist on the site.
+- Changes (nginx-log-audit.sh):
+  - New pattern SENSITIVE_SCRIPTS (\.php, .phtml, .phar, .asp, .aspx, .jsp, .cgi, /cgi-bin/), added to SENSITIVE_RE on a server without WordPress: Odoo runs no such script, so asking for one is a probe.
+  - Indicators of the investigation: new line "Refusées par les règles de sécurité de nginx" (requests of blocked-probes.log, INV_REFUS): from 3 requests, a strong sign of hostility; one point of score only when "Recherche de fichiers sensibles" did not already count them.
+  - New awk functions UA_FAUTE_AWK: proche() (Levenshtein distance 1 or 2) and ua_fautes() (misspelled words of a browser User-Agent: Mozlila, Bulid, Moblie...). The indicator "User-Agent de navigateur incomplet" becomes "User-Agent de navigateur falsifié" from 3 such requests (same point, the score stays out of 7).
+  - robots_declares(): a word close to "Mozilla" is no longer read as the name of a robot.
+  - lang/nginx-log-audit.en.po: English text of the new messages.
+  - nginx-tools-tests/test_nginx_log_audit.py: tests test_299_scanner_cache_php_et_user_agent_ecorche and test_299_navigateurs_reels_sans_faute.
+- Bugs fixed:
+  - Symptom: 167.172.73.52 scored 1/7, "Recherche de fichiers sensibles : 0 requêtes", verdict LEVER LE BANNISSEMENT. Diagnosis: on Odoo, .php was in no sensitive pattern (only for BigBlueButton), and the refusals of blocked-probes.log were counted as requests but never as a sign. Fix: .php and other server scripts are sensitive on a site without PHP, and the refusals of nginx's security rules are a strong sign.
+  - Symptom: "il se nomme dans son User-Agent : Mozlila". Diagnosis: robots_declares() takes every "Word/digit" token outside a list of browser words; "Mozlila" is not in the list. Fix: words close to Mozilla are skipped, and the misspellings are a sign of a forged User-Agent.
+- Safeguards and edge cases: the .php pattern is not used when a WordPress is found on the server (cms_wordpress); .php3 stays out (2.70, md5.php3); /robots.txt refused on port 80 is still left out (sans_robots_txt); proche() ignores words shorter than 4 letters and the exact browser words; 55 User-Agents of real browsers found in the repository give no misspelling; a refused request counts as a sign only from 3 requests.
+- Checks performed: bash -n; ShellCheck; test_nginx_log_audit.ChkNginxLogs279 (the 2.79 case still scores 3/7, BANNIR; the case of 167.172.73.52 now scores 3/7, BANNIR, with neither "il se nomme" nor LEVER; real browsers on ordinary pages: no sign); modules listed in the pull request run by the testeur agent.
+- Action required: answer "n" to the question for 167.172.73.52 (the fail2ban ban expires by itself on 2026-11-21 at 00:00). After merge: git pull in /opt/rlq-admin-tools, then nginx-log-audit.sh prod --unban-low-score again.
+
 ### 2.98.20261117.143528 - HNE / HAE in the reports
 
 - Title: HNE / HAE in the reports.
