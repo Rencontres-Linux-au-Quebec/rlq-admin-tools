@@ -48,7 +48,8 @@ class LectureJournalFail2banStatique(unittest.TestCase):
 
     def test_bannissements_relus_au_demarrage_et_toutes_les_60_secondes(self):
         """La lecture du journal fait partie de refresh(), donc du démarrage et de la relecture périodique."""
-        self.assertIn("journal = self.read_fail2ban_journal()", self.source)
+        self.assertIn("journal = self.read_fail2ban_journal(unbans)", self.source)        # 1.205: the Unban lines in the same reading
+        self.assertIn("self.unbans = unbans", self.source)
         self.assertIn("self.f2b, self.cs, self.pf, self.journal = f2b, cs, pf, journal", self.source)
 
     def test_etiquette_fail2ban_sur_les_lignes_bannies_apres_la_requete(self):
@@ -117,6 +118,63 @@ class LectureJournalFail2banFonctionnelle(unittest.TestCase):
         """Sans journal lisible (root requis, pas de fail2ban) : None, jamais d'erreur."""
         absent = charger_programme(os.path.join(self.dossier, "absent.log"))
         self.assertIsNone(absent.Bans.read_fail2ban_journal())
+
+
+class LeveeDeBannissement1205(unittest.TestCase):
+    """1.205 : une ligne « Unban » (fin du bannissement ou levée par nginx-log-audit.sh --unban) arrête l'étiquette « banni ».
+    2026-11-20 : 132.211.165.182 banni à 16:15:42, débanni à 17:25, encore affiché « [banni : fail2ban 16:15:42] » à 21:01."""
+    JOURNAL = """\
+2026-11-20 16:15:42,100 fail2ban.actions [900]: NOTICE [nginx-badrequests] Ban 132.211.165.182
+2026-11-20 17:25:10,200 fail2ban.actions [900]: NOTICE [nginx-badrequests] Unban 132.211.165.182
+2026-11-20 18:00:00,000 fail2ban.actions [900]: NOTICE [nginx-badrequests] Ban 198.51.100.7
+2026-11-20 18:00:00,500 fail2ban.actions [900]: NOTICE [nginx-sensitive-files] Ban 198.51.100.7
+2026-11-20 18:30:00,000 fail2ban.actions [900]: NOTICE [nginx-badrequests] Unban 198.51.100.7
+2026-11-20 19:00:00,000 fail2ban.actions [900]: NOTICE [nginx-catchall] Ban 203.0.113.9
+2026-11-20 19:10:00,000 fail2ban.actions [900]: NOTICE [nginx-catchall] Unban 203.0.113.9
+2026-11-20 19:20:00,000 fail2ban.actions [900]: NOTICE [nginx-catchall] Ban 203.0.113.9
+"""
+
+    def setUp(self):
+        self.dossier = tempfile.mkdtemp(prefix="test-rlq-f2b-")
+        self.journal = os.path.join(self.dossier, "fail2ban.log")
+        with open(self.journal, "w", encoding="utf-8") as f:
+            f.write(self.JOURNAL)
+        self.programme = charger_programme(self.journal)
+        self.bans = self.programme.Bans()
+        self.bans.unbans = {}
+        self.bans.journal = self.programme.Bans.read_fail2ban_journal(self.bans.unbans)
+
+    def tearDown(self):
+        for nom in os.listdir(self.dossier):
+            os.remove(os.path.join(self.dossier, nom))
+        os.rmdir(self.dossier)
+
+    @staticmethod
+    def t(texte):
+        return time.mktime(time.strptime("2026-11-20 " + texte, "%Y-%m-%d %H:%M:%S"))
+
+    def test_debanni_n_est_plus_etiquete(self):
+        self.assertIsNotNone(self.bans.ban_before("132.211.165.182", self.t("16:30:00")))      # banned at that time
+        self.assertIsNone(self.bans.ban_before("132.211.165.182", self.t("21:01:39")))         # unbanned at 17:25: no label any more
+
+    def test_unban_lu_a_part_journal_des_bans_inchange(self):
+        ip = self.programme.ipaddress.ip_address("132.211.165.182")
+        self.assertEqual(len(self.bans.journal[ip]), 1)
+        self.assertEqual(len(self.bans.unbans[ip]), 1)
+        self.assertEqual(self.bans.first_ban_of("132.211.165.182")[1], ["nginx-badrequests"])     # summary: first ban unchanged
+
+    def test_une_seule_jail_levee_l_autre_reste(self):
+        epoque, jail = self.bans.ban_before("198.51.100.7", self.t("18:45:00"))
+        self.assertEqual(jail, "nginx-sensitive-files")
+
+    def test_banni_de_nouveau_apres_la_levee(self):
+        self.assertIsNone(self.bans.ban_before("203.0.113.9", self.t("19:15:00")))
+        epoque, jail = self.bans.ban_before("203.0.113.9", self.t("19:25:00"))
+        self.assertEqual(epoque, self.t("19:20:00"))
+
+    def test_sans_dictionnaire_des_levees_comportement_d_avant(self):
+        journal = self.programme.Bans.read_fail2ban_journal()
+        self.assertEqual(len(journal[self.programme.ipaddress.ip_address("198.51.100.7")]), 2)
 
 
 if __name__ == "__main__":
