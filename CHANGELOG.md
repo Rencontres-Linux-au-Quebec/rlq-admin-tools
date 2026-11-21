@@ -4470,6 +4470,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx configuration (nginx/VERSION)
 
+### 1.33.20261120.205030 - Odoo images in their own rate-limit zones (no more 429 on the avatars of a list)
+
+- Motif de la demande: app-log-live.py output sent by the administrator on 2026-11-20: at 20:09, a volunteer signed in to Odoo who was going through the Contacts (/odoo/contacts) received more than 150 responses 429 within 5 s on /web/image/res.partner/ID/avatar_128, so as many empty avatars; the health score of the dashboard went down to 49 %.
+- Detail des modifications: nginx/conf.d/odoo-global.conf: two new zones with the same keys as odoo_general (team exempted, shared networks apart): odoo_images (60 r/s) and odoo_images_partage (180 r/s). nginx/snippets/odoo/_odoo-common.conf: the location of /web/image uses odoo_images burst=300 and odoo_images_partage burst=900 instead of odoo_general burst=60 and odoo_general_partage burst=180; the curl limit and the cache are unchanged. nginx/VERSION. nginx-tools-tests/test_config_nginx.py: test_images_d_odoo_ont_leurs_propres_zones_1_33; test_reseaux_partages_ont_leurs_propres_zones_plus_larges unchanged (still OK).
+- Bugs corriges: symptom: "limiting requests ... by zone odoo_general" and 429 on the avatars of a list view for a signed-in user. Diagnosis: a kanban or list view of 80 records loads 80 avatars at once, and 80 more for each next page; these images shared the zone of the pages (30 r/s, burst 60): the burst was used up after one page. Fix: the images have their own, wider zone, and no longer take the burst of the pages.
+- Garde-fous et cas limites traites: 300 images in a burst = about four pages of 80 records going through in a row; then 60 images/s; an enumeration of the images stays limited; an image already served comes from the cache of nginx (only the images that Odoo declares public); the team addresses stay exempted (empty key); curl in bursts still limited (odoo_curl).
+- Verifications effectuees: NGINX_ODOO_DIR=../nginx python3 -m unittest test_config_nginx: the new test OK; the failures already present on main with the configuration of the repository only (generated files and env-*.conf not in the repository) are unchanged; nginx is not installed in the test environment (nginx -t not run here).
+- Action requise: after merge: cd /opt/rlq-admin-tools && git pull, then sudo nginx-hardening.sh --update (installs the new files and runs nginx -t before the reload). Then going through several pages of Contacts must show no 429.
+
 ### 1.32.20261119.175646 - Background shapes with a language prefix get the burst of the shapes (no more 429)
 
 - Motif de la demande: report of the administrator on 2026-11-19: a member signed in on the site, in English, got many 429 responses (106 in a few seconds) while loading the home page.

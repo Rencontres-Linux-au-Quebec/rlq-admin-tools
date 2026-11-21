@@ -215,6 +215,22 @@ class ConfigNginx(unittest.TestCase):
         self.assertIn("limit_req zone=odoo_general_partage burst=180 nodelay;", commun)
         self.assertIn("limit_req zone=odoo_login_partage burst=25 nodelay;", commun)
 
+    def test_images_d_odoo_ont_leurs_propres_zones_1_33(self):
+        """1.33 : /web/image a ses zones odoo_images (60 r/s, rafale 300) et odoo_images_partage (180 r/s, rafale 900) : les 80 avatars d'une liste
+        (Contacts, 2026-11-20 : plus de 150 refus 429 en 5 s) ne prennent plus la rafale des pages ; mêmes clés que odoo_general (équipe exemptée)."""
+        glob = lire("conf.d/odoo-global.conf")
+        self.assertIn("limit_req_zone $limit_key_general_std zone=odoo_images:10m rate=60r/s;", glob)
+        self.assertIn("limit_req_zone $limit_key_general_partage zone=odoo_images_partage:10m rate=180r/s;", glob)
+        commun = lire("snippets/odoo/_odoo-common.conf")
+        m = re.search(r'location ~ "\^/\(\?:\[a-z\]\{2\}\(\?:_\[A-Z\]\{2\}\)\?/\)\?web/image\(\?:/\|\$\)" \{(.*?)\n\}', commun, re.S)
+        self.assertTrue(m)
+        bloc = m.group(1)
+        self.assertIn("limit_req zone=odoo_images burst=300 nodelay;", bloc)
+        self.assertIn("limit_req zone=odoo_images_partage burst=900 nodelay;", bloc)
+        self.assertIn("limit_req zone=odoo_curl burst=10 nodelay;", bloc)          # curl in bursts still limited
+        self.assertNotIn("zone=odoo_general", bloc)
+        self.assertIn("proxy_cache odoo_cache;", bloc)
+
     def test_regle_gestion_des_bases_dans_chaque_environnement(self):
         for env in ("prod", "dev", "lab"):
             with self.subTest(env=env):
