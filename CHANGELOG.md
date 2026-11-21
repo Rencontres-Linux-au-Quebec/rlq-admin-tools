@@ -492,6 +492,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.205.20261120.214125 - An unbanned address is no longer labelled "banned"
+
+- Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-20 at 21:06: the lines of 132.211.165.182 (a member, banned by nginx-badrequests at 16:15:42, unbanned at 17:25 with nginx-log-audit.sh --unban) still carried "[banni : fail2ban 2026-11-20 16:15:42]" and [BANNIE] at 21:01.
+- Changes (app-log-live.py): class Bans: new FAIL2BAN_UNBAN_RE and attribute unbans; read_fail2ban_journal(unbans=None) also gathers the "Unban" lines when a dict is given (one reading of the journal); refresh() keeps them; ban_before() only returns a ban of a jail that was not lifted (Unban line of the same jail) between the ban and the instant of the line. nginx-tools-tests/test_app_log_live_fail2ban.py: class LeveeDeBannissement1205 (5 tests); static test updated to the new call.
+- Bugs fixed: symptom: an address unbanned by hand (or whose bantime was over) still labelled "banned" for 24 h after its ban. Diagnosis: ban_before() (1.151) read only the "Ban" lines of the fail2ban journal and labelled every line within BAN_LABEL_WINDOW (86400 s); the "Unban" lines written by fail2ban for unbanip and at the end of the bantime were ignored. Fix: the Unban lines are read and stop the label of their jail.
+- Safeguards and edge cases: jail by jail: an address banned by two jails and unbanned from one stays labelled by the other; banned again after an unban: labelled again from the new ban; journal of the bans unchanged (first_ban_of and the summary still give the first ban and its jails); without dict, read_fail2ban_journal() behaves as before; still read only, nothing is banned or unbanned.
+- Checks performed: test_app_log_live_fail2ban (18 tests, OK); test_app_log_live, test_app_log_live_fail2ban and test_conventions compared with main: no new failure (the 16 failures already present on main are unchanged).
+- Action required: none (git pull in /opt/rlq-admin-tools after merge; a running app-log-live.py must be restarted).
+
 ### 1.204.20261120.110230 - Update conflicts inside the display of a page counted apart from the Odoo errors
 
 - Reason for the request: odoo18, 2026-11-20 10:50: two ERROR "Exception during request handling" counted as Odoo errors ("erreurs Odoo 2") for a visitor on a phone redirected three times to /es/web/login. Each page runs website.layout -> website._get_livechat_channel_info() -> website.visitor._update_visitor_timezone(); two pages of the same visitor updated the same website_visitor row at the same time: SerializationFailure. In the t-nocache block, Odoo 18 wraps it in an UnboundLocalError then a QWebException, so service/model.py retrying() does not retry it and logs it with its whole trace. Both requests were already abandoned by the phone (499), no data was written.

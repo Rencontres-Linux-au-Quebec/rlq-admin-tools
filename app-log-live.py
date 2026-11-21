@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.204.20261120.110230"
+__version__ = "1.205.20261120.214125"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4334,6 +4334,8 @@ class Bans:
     FAIL2BAN_LOG = os.environ.get("APP_LOG_LIVE_FAIL2BAN_LOG", "/var/log/fail2ban.log")      # 1.151: fail2ban journal read for the bans made by an attack
     FAIL2BAN_TAIL = 20 * 1024 * 1024     # 1.151: the last 20 MB of the journal (older rotations are not read)
     FAIL2BAN_BAN_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ fail2ban\.actions\s+(?:\[\d+\]:\s+)?NOTICE\s+\[([^\]]+)\]\s+Ban\s+(\S+)")
+    # 1.205: "Unban" lines: end of the bantime, or lifted by hand (fail2ban-client set JAIL unbanip, nginx-log-audit.sh --unban)
+    FAIL2BAN_UNBAN_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ fail2ban\.actions\s+(?:\[\d+\]:\s+)?NOTICE\s+\[([^\]]+)\]\s+Unban\s+(\S+)")
     BAN_LABEL_WINDOW = 86400             # 1.151: the lines of a banned address are labelled this many seconds after its ban (fail2ban default bantime)
 
     def __init__(self):
@@ -4342,11 +4344,13 @@ class Bans:
         self.cs = None                       # (addresses, networks, exceptions), or None
         self.pf = None                       # addresses blocked by a firewall rule (iptables / ip6tables / ufw: nginx-log-audit.sh --ban), or None (unreadable)
         self.journal = None                  # 1.151: {ipaddress: [(epoch, jail), ...]} of the bans in the fail2ban journal, or None (unreadable)
+        self.unbans = {}                     # 1.205: {ipaddress: [(epoch, jail), ...]} of the "Unban" lines of the same journal
 
     @classmethod
-    def read_fail2ban_journal(cls):
+    def read_fail2ban_journal(cls, unbans=None):
         """1.151: every ban of the fail2ban journal ("NOTICE [jail] Ban IP"), within the last FAIL2BAN_TAIL bytes: {ipaddress: [(epoch, jail), ...]}.
-        None when the journal cannot be read (root required, or no fail2ban on this server). Lines that are not bans are ignored."""
+        None when the journal cannot be read (root required, or no fail2ban on this server). Lines that are not bans are ignored.
+        1.205: when a dict is given as unbans, the "Unban" lines are added to it, in the same form (one reading of the journal)."""
         try:
             with open(cls.FAIL2BAN_LOG, "rb") as f:
                 f.seek(0, os.SEEK_END)
@@ -4357,6 +4361,9 @@ class Bans:
         bans = {}
         for text_line in text.splitlines():
             m = cls.FAIL2BAN_BAN_RE.match(text_line)
+            target = bans
+            if not m and unbans is not None:
+                m, target = cls.FAIL2BAN_UNBAN_RE.match(text_line), unbans
             if not m:
                 continue
             try:
@@ -4364,7 +4371,7 @@ class Bans:
                 address = ipaddress.ip_address(m.group(3))
             except (ValueError, OverflowError):
                 continue
-            bans.setdefault(address, []).append((epoch, m.group(2)))
+            target.setdefault(address, []).append((epoch, m.group(2)))
         return bans
 
     def ban_before(self, ip, instant):
@@ -4375,13 +4382,14 @@ class Bans:
             return None
         with self.lock:
             events = (self.journal or {}).get(address)
+            lifted = list(self.unbans.get(address, ()))
         if not events or instant is None:
             return None
-        before = [e for e in events if e[0] <= instant]
-        if not before:
-            return None
-        epoch, jail = max(before)
-        return (epoch, jail) if instant - epoch <= self.BAN_LABEL_WINDOW else None
+        # 1.205: a ban lifted before the instant (end of its bantime, or nginx-log-audit.sh --unban: "Unban" line of the same jail) no longer
+        # labels the line. 2026-11-20: 132.211.165.182, unbanned at 17:25 after its ban of 16:15, still shown "[banni : fail2ban 16:15:42]" at 21:01.
+        active = [(epoch, jail) for epoch, jail in events if epoch <= instant and instant - epoch <= self.BAN_LABEL_WINDOW
+                  and not any(j == jail and epoch <= u <= instant for u, j in lifted)]
+        return max(active) if active else None
 
     def ban_after(self, ip, instant):
         """1.171: epoch of the first fail2ban ban of this address AFTER the instant (journal), or None. A request made before its ban was not blocked."""
@@ -4514,9 +4522,11 @@ class Bans:
 
     def refresh(self):
         f2b, cs, pf = self.read_fail2ban(), self.read_ipsets(), self.read_firewall()
-        journal = self.read_fail2ban_journal()
+        unbans = {}
+        journal = self.read_fail2ban_journal(unbans)
         with self.lock:
             self.f2b, self.cs, self.pf, self.journal = f2b, cs, pf, journal
+            self.unbans = unbans
 
     def start(self):
         """First read immediately (the first lines benefit), then re-read every 60 s in the background."""
