@@ -106,7 +106,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.39.20261119.185539"
+readonly SCRIPT_VERSION="1.40.20261120.185748"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -265,6 +265,18 @@ attn() { echo "  ${C_YELLOW}⚠ [ATTN]${C_RESET} ${C_YELLOW}$*${C_RESET}"; }
 ko()   { echo "  ${C_RED}✖ [FAIL]${C_RESET} ${C_RED}$*${C_RESET}"; }
 sim()  { echo "  ${C_DIM}(simulation)${C_RESET} $*"; }
 detail() { echo "    ${C_DIM}$*${C_RESET}"; }
+# 1.40: detail line of the activity report (wait for a quiet site, --check-activity): e-mail addresses, times and numbers stand out of the
+# dim text (request of the administrator, 2026-11-20). An IP address, a path (-125/, /2026) or a version keeps the dim colour of the line.
+# No colour when the output is redirected (C_RESET empty) or when perl is missing: the plain line is printed.
+detail_vif() {
+    if [[ -z "$C_RESET" ]] || ! command -v perl >/dev/null 2>&1; then detail "$*"; return; fi
+    local ligne
+    ligne=$(printf '%s' "$*" | CE="$C_CYAN" CT="$C_GREEN" CN="$C_YELLOW" CD="$C_DIM" CR="$C_RESET" perl -CSD -pe '
+        s{([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|(?<![\w:.])(\d{1,2}:\d{2}(?::\d{2})?)(?![\w:.])|(?<![\w.:@/+-])(\d+(?:,\d+)?)(?![\w.:@/%+-]|\.\d)}{
+            defined $1 ? "$ENV{CR}$ENV{CE}$1$ENV{CR}$ENV{CD}" : defined $2 ? "$ENV{CR}$ENV{CT}$2$ENV{CR}$ENV{CD}" : "$ENV{CR}$ENV{CN}$3$ENV{CR}$ENV{CD}"
+        }ge') || ligne="$*"
+    detail "$ligne"
+}
 en_retrait() { local l; while IFS= read -r l; do printf '        %s%s%s\n' "$1" "$l" "$C_RESET"; done; }       # lines read on the input, indented, in the given color
 champ() { printf '  %s%s%s %s\n' "$C_DIM" "$(pad_cols "$1" 13)" "$C_RESET" "$2"; }         # field "Base :" "value"; 1.13: width in columns (accented label)
 ETAPE=0; ETAPES=0
@@ -1382,8 +1394,8 @@ wait_for_quiet_site() {
         else
         precedentes="$raisons"
         echo "  ${C_YELLOW}[$stamp] site occupé :${C_RESET}"
-        while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail "${r#I|}"; else detail "· ${r#*|}"; fi; done <<< "$raisons"
-        detail "· attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
+        while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail_vif "${r#I|}"; else detail_vif "· ${r#*|}"; fi; done <<< "$raisons"
+        detail_vif "· attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
         fi
         if (( SECONDS >= prochaine )); then
             prochaine=$(( SECONDS + ask_every ))
@@ -1398,7 +1410,7 @@ rapport_activite() {     # --check-activity: state of the site now, changes noth
     raisons=$(site_reasons_who)
     if [[ -z "$raisons" ]]; then ok "site calme (base $DB) : aucune écriture HTTP ni en base, aucun utilisateur connecté actif"; return 0; fi
     echo "  ${C_YELLOW}site occupé (base $DB) :${C_RESET}"
-    while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail "${r#I|}"; else detail "· ${r#*|}"; fi; done <<< "$raisons"     # 1.27: without the tag
+    while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail_vif "${r#I|}"; else detail_vif "· ${r#*|}"; fi; done <<< "$raisons"     # 1.27: without the tag
     return 3
 }
 
