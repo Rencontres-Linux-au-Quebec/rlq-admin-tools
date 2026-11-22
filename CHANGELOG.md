@@ -492,6 +492,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.207.20261122.163000 - 4xx answers to this server itself counted apart ([test of this server])
+
+- Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 16:19 (odoo18): at 11:22:44, from 127.0.0.1, /rlq/session/check 401 then the example URLs of the tests of the repository (Tux-FleurDeLys image, /plan-commandite, /chat/80/..., icons of modules not installed), each 303 then 404, shown as "[not in sitemap.xml]" and counted with the 404 of the visitors. Only the suspicious URLs asked by this server (1.173, probes) were set apart.
+- Changes (app-log-live.py): new local_request() (the client address of the line is a loopback address) and local_test(); sitemap_tag(local=): tag "[test of this server]" ("[test de ce serveur]") on a 404 of this server that is not a probe; Formatting: the two calls of sitemap_tag pass it. Stats.ajouter(): a 4xx asked by this server itself (not a probe) goes to the new counter local_tests (in COUNTERS), and no longer to errors, not_found, ip_not_found nor the 404 kinds; health line and report line "Tests from this server". StatusBar.observe(): every 4xx of a loopback address is without penalty (before: only the probes). lang/app-log-live.fr.po: 3 texts. nginx-tools-tests/test_app_log_live.py: class AppLogLive207 (3 tests).
+- Bugs fixed: symptom: a check by hand from the server (curl) shown and counted as 404 of visitors (404o, 4xx). Diagnosis: local_probe() required a suspicious URL. Fix: every 4xx of a loopback address is a local test.
+- Safeguards and edge cases: a suspicious URL of this server stays a probe ("[probe of this server]", counter probes); a 5xx of this server stays an error (a real fault of the application); the public addresses of this server (self.server) are not concerned, only 127.0.0.0/8 and ::1; same rule as the pages asked by this server (1.181): it supposes nginx in front and Odoo in proxy mode (a visitor never has a loopback address).
+- Checks performed: py_compile; AppLogLive207 [OK]; nginx-tools-tests/test_app_log_live.py compared with main: see the pull request.
+- Action required: none (git pull in /opt/rlq-admin-tools after merge; restart a running app-log-live.py).
+
 ### 1.206.20261122.121500 - --log-merge no longer splits a pair when nginx writes by blocks; link preview walks recognized
 
 - Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 11:55 (odoo18): about 120 404 answers in 25 s for 149.154.161.x (*.ptr.telegram.org), each URL one character shorter than the previous one, and many requests shown twice (an "odoo" line without size, then 8 to 10 s later an "http" line without SQL, out of time order). Question: are these 404 normal?

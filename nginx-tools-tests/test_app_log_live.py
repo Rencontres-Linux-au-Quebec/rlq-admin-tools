@@ -6126,3 +6126,67 @@ class AppLogLive206(unittest.TestCase):
         self.assertNotIn("[aperçu de lien]", textes[0])                               # la page complète : 200
         self.assertIn("[aperçu de lien]", textes[2])
         self.assertNotIn("[pas dans sitemap.xml]", textes[2])
+
+
+class AppLogLive207(unittest.TestCase):
+    """1.207 : une réponse 4xx à une requête du serveur lui-même (127.0.0.1, ::1) qui n'est pas une sonde de sécurité : étiquette [test de ce serveur],
+    ni erreur 4xx, ni 404 à chercher, ni adresse à problème. D'après le journal d'odoo18 du 2026-11-22 11:22:44 (curl des URL d'exemple des tests)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_207", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.ancien_sitemap = self.m.SITEMAP
+        self.m.SITEMAP = AppLogLive142.Fixe({"/autre"})
+        self.m.SITEMAP.m_path = self.m.sitemap_path
+
+    def tearDown(self):
+        self.m.SITEMAP = self.ancien_sitemap
+
+    def nginx(self, chemin, code="404", ip="127.0.0.1"):
+        return self.m.Line(f'2026-11-22T11:22:44.000000-0500 odoo18 http: {ip} - - "GET {chemin} HTTP/1.1" {code} 35000 "-" "curl/8.5.0" '
+                           f'host=www.example.org rl=120')
+
+    def jouer(self, lignes):
+        s, barre = self.m.Stats(5.0), self.m.StatusBar()
+        for L in lignes:
+            s.ajouter(L, {}, None)
+            barre.observe(L, None, 5.0, "4.4.4.4")
+        return s, barre
+
+    def test_207_404_et_401_du_serveur_mis_a_part(self):
+        m = self.m
+        locales = [self.nginx("/rlq/session/check", "401"), self.nginx("/en_CA/plan-commandite"),
+                   self.nginx("/en_CA/om_hospital/static/description/icon.png"), self.nginx("/chat/80/T7kyKvEKT5", ip="::1")]
+        s, barre = self.jouer(locales)
+        self.assertEqual(sum(s.local_tests.values()), 4)
+        self.assertEqual((sum(s.not_found.values()), sum(s.unknown_404.values()), sum(s.errors[4].values())), (0, 0, 0))
+        self.assertEqual(s.ip_not_found, {})
+        self.assertEqual((barre.e4, barre.unknown_404), (0, 0))
+        self.assertIn("Tests de ce serveur : 4 requêtes locales", "\n".join(T(l) for l in s.health()[1]))
+        self.assertEqual(s.since(s.snapshot()).local_tests, m.Counter())
+
+    def test_207_visiteur_et_sonde_inchanges(self):
+        m = self.m
+        s, barre = self.jouer([self.nginx("/en_CA/plan-commandite", ip="4.4.4.4"), self.nginx("/.env")])
+        self.assertEqual(sum(s.unknown_404.values()), 1)                       # a visitor: counted as before
+        self.assertEqual(sum(s.probes.values()), 1)                            # a suspicious URL of this server: still a probe (1.173)
+        self.assertEqual(sum(s.local_tests.values()), 0)
+        self.assertEqual(barre.unknown_404, 1)
+        self.assertFalse(m.local_test("127.0.0.1 - - x", "/.env", 404))
+        self.assertFalse(m.local_test("127.0.0.1 - - x", "/page", 200))
+        self.assertTrue(m.local_test("127.0.0.1 - - x", "/page", 404))
+
+    def test_207_etiquette(self):
+        m = self.m
+        forme = m.Formatting(False, 40, 0.0, False)
+        locale = ANSI.sub("", forme.format_value(self.nginx("/en_CA/plan-commandite"), {}, False))
+        visiteur = ANSI.sub("", forme.format_value(self.nginx("/en_CA/plan-commandite", ip="4.4.4.4"), {}, False))
+        self.assertIn("[test de ce serveur]", locale)
+        self.assertNotIn("[pas dans sitemap.xml]", locale)
+        self.assertIn("[pas dans sitemap.xml]", visiteur)
+        self.assertIn("[sonde de ce serveur]", ANSI.sub("", forme.format_value(self.nginx("/.env"), {}, False)))
