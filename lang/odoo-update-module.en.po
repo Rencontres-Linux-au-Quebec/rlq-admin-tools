@@ -1063,8 +1063,8 @@ msgstr "(never installed in the database: code replaced, taken at the restart)"
 msgid "  --update-list                mettre à jour la liste des applications d'Odoo (comme Applications > Mettre à jour la liste des applications), SANS"
 msgstr "  --update-list                update the list of applications of Odoo (like Apps > Update Apps List), WITHOUT"
 
-msgid "                               arrêter Odoo : « odoo shell » sous le compte du service ; affiche les modules restés sans code sur le disque (non installables)"
-msgstr "                               stopping Odoo: \"odoo shell\" under the account of the service; shows the modules left without code on the disk (uninstallable)"
+msgid "                               arrêter Odoo : « odoo shell » sous le compte du service ; affiche les modules non installés dont le code n'est plus sur le disque"
+msgstr "                               stopping Odoo: \"odoo shell\" under the account of the service; shows the modules not installed whose code is no longer on the disk"
 
 msgid "--update-list|Mettre à jour la liste des applications|Update the list of applications|1"
 msgstr "--update-list|Update the list of applications|Update the list of applications|1"
@@ -1078,11 +1078,7 @@ msgstr "Update of the list of applications in the database "
 msgid "Odoo n'est pas arrêté : « odoo shell » à part (sans HTTP, sans worker ni cron), qui écrit seulement la table ir_module_module"
 msgstr "Odoo is not stopped: a separate \"odoo shell\" (no HTTP, no worker nor cron), which writes only the table ir_module_module"
 
-msgid "la mise à jour de la liste ne s'est pas terminée en "
-msgstr "the update of the list did not finish within "
 
-msgid "la mise à jour de la liste des applications a échoué (code "
-msgstr "the update of the list of applications failed (code "
 
 msgid ", voir "
 msgstr ", see "
@@ -1099,8 +1095,66 @@ msgstr " added "
 msgid "(journal : "
 msgstr "(log: "
 
-msgid " modules sans code sur le disque (non installables) : leur icône répond 404 dans le menu Applications"
-msgstr " modules without code on the disk (uninstallable): their icon answers 404 in the Apps menu"
 
 msgid "aucun module sans code sur le disque"
 msgstr "no module without code on the disk"
+
+msgid "  --remove-missing             comme --update-list, puis RETIRE de la base les modules non installés dont le code n'est plus sur le disque (leur"
+msgstr "  --remove-missing             like --update-list, then REMOVES from the database the modules not installed whose code is no longer on the disk (their"
+
+msgid "                               icône répond 404 dans le menu Applications) ; confirmation [o/N] sur un terminal, --yes sinon ; un module installé n'est jamais retiré"
+msgstr "                               icon answers 404 in the Apps menu); confirmation [y/N] on a terminal, --yes otherwise; an installed module is never removed"
+
+msgid "  --yes                        confirme --remove-missing sans question (sans terminal : obligatoire)"
+msgstr "  --yes                        confirms --remove-missing without a question (required without a terminal)"
+
+msgid "--remove-missing|Retirer les modules sans code sur le disque|Remove the modules without code on the disk|1"
+msgstr "--remove-missing|Remove the modules without code on the disk|Remove the modules without code on the disk|1"
+
+msgid "Mise à jour de la liste des applications d'Odoo et retrait des modules sans code"
+msgstr "Update of the list of applications of Odoo and removal of the modules without code"
+
+msgid "la mise à jour de la liste des applications"
+msgstr "the update of the list of applications"
+
+msgid "le retrait des modules"
+msgstr "the removal of the modules"
+
+msgid " ne s'est pas terminée en "
+msgstr " did not finish within "
+
+msgid " a échoué (code "
+msgstr " failed (code "
+
+msgid " modules non installés sans code sur le disque : leur icône répond 404 dans le menu Applications"
+msgstr " modules not installed without code on the disk: their icon answers 404 in the Apps menu"
+
+msgid "pour les retirer de la base (un module installé ne l'est jamais) : odoo-update-module.sh --remove-missing"
+msgstr "to remove them from the database (an installed module never is): odoo-update-module.sh --remove-missing"
+
+msgid "Retrait de la base des "
+msgstr "Removal from the database of the "
+
+msgid " modules sans code sur le disque"
+msgstr " modules without code on the disk"
+
+msgid "retrait non fait : confirmation requise (--yes sans terminal)"
+msgstr "removal not done: confirmation required (--yes without a terminal)"
+
+msgid "  Retirer ces "
+msgstr "  Remove these "
+
+msgid " modules de la base "
+msgstr " modules from the database "
+
+msgid " ? [o/N] "
+msgstr "? [y/N] "
+
+msgid "retrait annulé : rien n'a été retiré"
+msgstr "removal cancelled: nothing was removed"
+
+msgid " modules retirés de la base "
+msgstr " modules removed from the database "
+
+msgid " : le menu Applications ne demande plus leur icône"
+msgstr ": the Apps menu no longer asks for their icon"

@@ -29,6 +29,8 @@ Service: `erplibre*` or `odoo*` systemd unit (override `--service`). Database: t
 
 1.41: `--update-list` does what the button Apps > Update Apps List does (developer mode), **without stopping Odoo**: a separate `odoo shell`, under the account of the service, without HTTP, worker nor cron, calls `update_list()` then commits. It shows the number of modules updated and added, then the modules left **without code on the disk** (state "uninstallable"): their icon answers 404 when the Apps menu is opened. `--dry-run` shows the command without running it.
 
+1.42: the list shows the modules **not installed whose code is no longer on the disk** (no folder in the `addons_path`): their icon answers 404. Updating the list does not remove them (it never marks a module that disappeared from the disk), so they stay in Apps. `--remove-missing` removes them from the database (`ir.module.module` and their identifiers `base.module_NAME`), after a [y/N] confirmation on a terminal, or with `--yes`. An installed module is never removed, and a module that comes back on the disk is added again by the next update of the list.
+
 ## What to check after
 
 Update logs are kept `LOG_KEEP_DAYS` days. A successful `-u` followed by a clean warm-up is the real signal for modules with XML/view changes; read the printed log path if anything fails.

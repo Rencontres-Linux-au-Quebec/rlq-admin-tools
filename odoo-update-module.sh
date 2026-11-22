@@ -48,6 +48,8 @@
 #   --no-warmup                  ne pas préchauffer le cache d'Odoo après le redémarrage (clé WARMUP=non) ; sinon odoo-warmup.py charge les pages publiques,
 #                                les derniers événements et sondages, les écrans d'administration (réglages : /etc/default/odoo-warmup.conf)
 #   --odoo-conf FILE             configuration d'Odoo (défaut : ODOO_CONF, sinon config.conf du dossier du service, sinon emplacements connus)
+#   --remove-missing             comme --update-list, puis RETIRE de la base les modules non installés dont le code n'est plus sur le disque (leur
+#                                icône répond 404 dans le menu Applications) ; confirmation [o/N] sur un terminal, --yes sinon ; un module installé n'est jamais retiré
 #   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
 #                                échecs, avertissements) ; désactive couleurs et questions interactives
 #   --restart-only               redémarrer Odoo SANS mettre à jour de modules : attente d'un site calme, arrêt, démarrage, première réponse,
@@ -57,12 +59,13 @@
 #   --service NAME               service systemd d'Odoo (défaut : SERVICE, sinon détection automatique : erplibre* ou odoo*)
 #   --timeout SECONDS            durée maximale de la mise à jour (défaut : TIMEOUT, soit 1800)
 #   --update-list                mettre à jour la liste des applications d'Odoo (comme Applications > Mettre à jour la liste des applications), SANS
-#                                arrêter Odoo : « odoo shell » sous le compte du service ; affiche les modules restés sans code sur le disque (non installables)
+#                                arrêter Odoo : « odoo shell » sous le compte du service ; affiche les modules non installés dont le code n'est plus sur le disque
 #   --user NAME                  compte sous lequel la mise à jour s'exécute (défaut : User= du service)
 #   -v, --verbose                afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)
 #   --version                    affiche la version et quitte
 #   --visitor-window MIN         fenêtre de comptage des visiteurs actifs, en minutes (défaut : VISITOR_WINDOW, soit 5)
 #   --wait-quiet MIN             délai fixe d'attente d'un site calme, en minutes (WAIT_QUIET) : remplace les deux délais selon le profil ; 0 = un seul contrôle
+#   --yes                        confirme --remove-missing sans question (sans terminal : obligatoire)
 #   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; option répétable :
 #                                plusieurs archives, décompressées dans l'ordre ; un module ne peut être que dans une seule ; défaut : ZIP, sinon la plus
 #                                récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser
@@ -108,7 +111,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.41.20261122.174500"
+readonly SCRIPT_VERSION="1.42.20261122.181500"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -146,7 +149,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; DO_I18N_OVERWRITE=0; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""; ZIP_ARGS=(); CLI_ZIP=0
-LIGHT_WRITES=""; LIGHT_WRITES_WAIT=1; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0; UPDATE_LIST=0; RESTART_ONLY=0; RESTART_PG=0; PG_SERVICE="postgresql"                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+LIGHT_WRITES=""; LIGHT_WRITES_WAIT=1; WRITE_GRACE=60; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0; UPDATE_LIST=0; REMOVE_MISSING=0; DO_YES=0; RESTART_ONLY=0; RESTART_PG=0; PG_SERVICE="postgresql"                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -203,6 +206,7 @@ MENU_ENTREES=(
     "--dry-run|Montrer la mise à jour sans la faire|Show the update without doing it|0"
     "--check-activity|État du site maintenant|Site activity now|0"
     "--update-list|Mettre à jour la liste des applications|Update the list of applications|1"
+    "--remove-missing|Retirer les modules sans code sur le disque|Remove the modules without code on the disk|1"
     "--restart-only|Redémarrer Odoo sans mettre à jour de modules|Restart Odoo without updating modules|1"
     "--restart-postgresql|Redémarrer PostgreSQL et Odoo|Restart PostgreSQL and Odoo|1"
     "|Mettre à jour le ou les modules (configuration)|Update the modules (configuration)|1"
@@ -251,6 +255,8 @@ while [[ $# -gt 0 ]]; do
         --service) SERVICE="${2:-}"; shift 2 ;;
         --timeout) TIMEOUT="${2:-}"; shift 2 ;;
         --update-list) UPDATE_LIST=1; shift ;;                  # 1.41: list of the applications updated, Odoo not stopped
+        --remove-missing) UPDATE_LIST=1; REMOVE_MISSING=1; shift ;;   # 1.42: + removal of the modules without code on the disk (not installed)
+        --yes) DO_YES=1; shift ;;                               # 1.42: confirmation of --remove-missing without a terminal
         --user) RUN_USER="${2:-}"; shift 2 ;;
         -v|--verbose) VERBOSE=1; shift ;;
         --version) echo "odoo-update-module.sh version $SCRIPT_VERSION"; exit 0 ;;
@@ -1571,54 +1577,91 @@ rollback() {
     return 0
 }
 
-# mettre_a_jour_liste (1.41, --update-list): what the button Apps > "Update Apps List" does (ir.module.module.update_list), through
-# "odoo shell" under the account of the service, WITHOUT stopping Odoo (a second process, --no-http, no worker, no cron; it only writes the
-# table ir_module_module and commits). Then the modules left without code on the disk (state uninstallable) are listed: they are the ones whose
-# icon answers 404 when the Apps menu is opened (2026-11-22: about 40 on odoo18). Exit code: 0 done, 1 failure.
-mettre_a_jour_liste() {
-    local code=0 journal sortie ajour ajoutes absents n
+# odoo_shell JOURNAL SCRIPT [VAR=VALUE]... (1.42): runs the Python SCRIPT in "odoo shell" (no HTTP, no worker nor cron), under the account of the service,
+# with TIMEOUT; the output goes to JOURNAL; the code of the command is returned. The script travels in a variable of the environment and the inner bash
+# gives it as a here-string: run_interruptible runs the command in the background, where bash would give it /dev/null; no temporary file.
+odoo_shell() {
+    local journal="$1" script="$2" code=0; shift 2
     local -a odoo=("$CMD_ODOO" shell -c "$ODOO_CONF_UTILISEE" -d "$DB" --no-http --workers=0 --max-cron-threads=0 --log-level=warn)
-    # The Python script is read by "odoo shell" on its standard input. It travels in a variable of the environment and the inner bash gives it as
-    # a here-string: run_interruptible runs the command in the background, where bash would give it /dev/null; no temporary file to clean up.
-    local script
-    script=$(printf '%s\n' 'r = env["ir.module.module"].update_list()' 'env.cr.commit()' \
-        'print("RLQ_UPDATE_LIST\t%s\t%s" % (r[0], r[1]))' \
-        'print("RLQ_UNINSTALLABLE\t%s" % " ".join(sorted(env["ir.module.module"].search([("state", "=", "uninstallable")]).mapped("name"))))')
     # shellcheck disable=SC2016  # the apostrophes are intended: bash -c receives the script as is
     local enveloppe='cd "$1" && shift && exec "$@" <<< "$RLQ_UPDATE_LIST_PY"'
-    local -a lancer=(timeout --kill-after=30 "$TIMEOUT" env "RLQ_UPDATE_LIST_PY=$script" bash -c "$enveloppe" _ "${ODOO_DIR:-.}" "${odoo[@]}")
+    local -a lancer=(timeout --kill-after=30 "$TIMEOUT" env "RLQ_UPDATE_LIST_PY=$script" "$@" bash -c "$enveloppe" _ "${ODOO_DIR:-.}" "${odoo[@]}")
     if [[ -n "$RUN_USER" && "$(id -un)" != "$RUN_USER" ]]; then
         local maison
         maison=$(getent passwd "$RUN_USER" | cut -d: -f6 || true)      # runuser -u garde HOME=/root : data_dir d'Odoo irait au mauvais endroit
-        lancer=(timeout --kill-after=30 "$TIMEOUT" runuser -u "$RUN_USER" -- env "HOME=${maison:-/nonexistent}" "RLQ_UPDATE_LIST_PY=$script"
+        lancer=(timeout --kill-after=30 "$TIMEOUT" runuser -u "$RUN_USER" -- env "HOME=${maison:-/nonexistent}" "RLQ_UPDATE_LIST_PY=$script" "$@"
                 bash -c "$enveloppe" _ "${ODOO_DIR:-.}" "${odoo[@]}")
     fi
-    etape "Mise à jour de la liste des applications dans la base $DB"
-    detail "Odoo n'est pas arrêté : « odoo shell » à part (sans HTTP, sans worker ni cron), qui écrit seulement la table ir_module_module"
-    if (( DO_DRY_RUN )); then sim "$CMD_ODOO shell -c $ODOO_CONF_UTILISEE -d $DB --no-http (update_list(), commit), compte ${RUN_USER:-$(id -un)}"; return 0; fi
-    preparer_journal
-    journal="${JOURNAL%.log}-update-list.log"
     trace "${lancer[@]}"
     run_interruptible "${lancer[@]}" > "$journal" 2>&1 < /dev/null || code=$?
-    if (( code == 124 || code == 137 )); then
-        ko "la mise à jour de la liste ne s'est pas terminée en ${TIMEOUT} s : processus tué (code $code)"; return 1
+    return "$code"
+}
+
+# odoo_shell_echec CODE JOURNAL TEXTE: [FAIL] of a run of odoo_shell (timeout or error), with the end of the log.
+odoo_shell_echec() {
+    if (( $1 == 124 || $1 == 137 )); then ko "$3 ne s'est pas terminée en ${TIMEOUT} s : processus tué (code $1)"; return 0; fi
+    ko "$3 a échoué (code $1, voir $2)"
+    tail -n 15 "$2" | en_retrait "$C_DIM"
+}
+
+# mettre_a_jour_liste (1.41, --update-list; 1.42, --remove-missing): what the button Apps > "Update Apps List" does (ir.module.module.update_list),
+# through "odoo shell" under the account of the service, WITHOUT stopping Odoo (a second process, --no-http, no worker, no cron; it only writes the
+# table ir_module_module and commits). Then the modules that are NOT installed and whose code is not on the disk (get_module_path: none in the
+# addons_path) are listed: their icon answers 404 when the Apps menu is opened (2026-11-22, odoo18: about 45, in state "uninstalled": update_list
+# never marks a module that disappeared from the disk, so they stayed in Apps; only 10 others were "uninstallable"). With --remove-missing, after a
+# confirmation, these records are removed (ir.module.module and their identifiers base.module_NAME in ir.model.data): an installed module never is
+# (Odoo refuses it too), and a module that comes back on the disk is added again by the next update of the list. Exit code: 0 done, 1 failure.
+mettre_a_jour_liste() {
+    local code=0 journal sortie ajour ajoutes absents n reponse retires
+    local script='from odoo.modules.module import get_module_path
+r = env["ir.module.module"].update_list()
+env.cr.commit()
+print("RLQ_UPDATE_LIST\t%s\t%s" % (r[0], r[1]))
+absents = env["ir.module.module"].search([("state", "in", ("uninstalled", "uninstallable"))]).filtered(lambda m: not get_module_path(m.name, display_warning=False))
+print("RLQ_MISSING\t%s" % " ".join(sorted(absents.mapped("name"))))'
+    local retrait='import os
+from odoo.modules.module import get_module_path
+noms = set(os.environ.get("RLQ_REMOVE", "").split())
+cibles = env["ir.module.module"].search([("name", "in", sorted(noms)), ("state", "in", ("uninstalled", "uninstallable"))]).filtered(lambda m: not get_module_path(m.name, display_warning=False))
+env["ir.model.data"].search([("model", "=", "ir.module.module"), ("res_id", "in", cibles.ids)]).unlink()
+retires = sorted(cibles.mapped("name"))
+cibles.unlink()
+env.cr.commit()
+print("RLQ_REMOVED\t%d\t%s" % (len(retires), " ".join(retires)))'
+    etape "Mise à jour de la liste des applications dans la base $DB"
+    detail "Odoo n'est pas arrêté : « odoo shell » à part (sans HTTP, sans worker ni cron), qui écrit seulement la table ir_module_module"
+    if (( DO_DRY_RUN )); then
+        sim "$CMD_ODOO shell -c $ODOO_CONF_UTILISEE -d $DB --no-http (update_list(), commit), compte ${RUN_USER:-$(id -un)}"
+        (( REMOVE_MISSING )) && sim "retrait des modules non installés sans code sur le disque (après confirmation)"
+        return 0
     fi
+    preparer_journal
+    journal="${JOURNAL%.log}-update-list.log"
+    odoo_shell "$journal" "$script" || code=$?
     sortie=$(grep -E '^RLQ_UPDATE_LIST' "$journal" | tail -n 1 || true)
-    if (( code != 0 )) || [[ -z "$sortie" ]]; then
-        ko "la mise à jour de la liste des applications a échoué (code $code, voir $journal)"
-        tail -n 15 "$journal" | en_retrait "$C_DIM"
-        return 1
-    fi
+    if (( code != 0 )) || [[ -z "$sortie" ]]; then odoo_shell_echec "$code" "$journal" "la mise à jour de la liste des applications"; return 1; fi
     IFS=$'\t' read -r _ ajour ajoutes <<< "$sortie"
     ok "liste des applications mise à jour : ${C_BOLD}${ajour}${C_RESET} modules mis à jour, ${C_BOLD}${ajoutes}${C_RESET} ajoutés ${C_DIM}(journal : $journal)${C_RESET}"
-    absents=$(grep -E '^RLQ_UNINSTALLABLE' "$journal" | tail -n 1 | cut -f2- || true)
+    absents=$(grep -E '^RLQ_MISSING' "$journal" | tail -n 1 | cut -f2- || true)
     n=$(wc -w <<< "$absents")
-    if (( n > 0 )); then
-        attn "$n modules sans code sur le disque (non installables) : leur icône répond 404 dans le menu Applications"
-        fold -s -w 110 <<< "$absents" | en_retrait "$C_DIM"
-    else
-        ok "aucun module sans code sur le disque"
+    if (( n == 0 )); then ok "aucun module sans code sur le disque"; return 0; fi
+    attn "$n modules non installés sans code sur le disque : leur icône répond 404 dans le menu Applications"
+    fold -s -w 110 <<< "$absents" | en_retrait "$C_DIM"
+    if (( ! REMOVE_MISSING )); then
+        detail "pour les retirer de la base (un module installé ne l'est jamais) : odoo-update-module.sh --remove-missing"
+        return 0
     fi
+    etape "Retrait de la base des $n modules sans code sur le disque"
+    if (( ! DO_YES )); then
+        if ! peut_demander; then ko "retrait non fait : confirmation requise (--yes sans terminal)"; return 1; fi
+        reponse=$(question_reponse "  Retirer ces $n modules de la base $DB ? [o/N] " "n" 60)
+        case "${reponse,,}" in o|oui|y|yes) ;; *) attn "retrait annulé : rien n'a été retiré"; return 0 ;; esac
+    fi
+    code=0
+    odoo_shell "${journal%.log}-remove.log" "$retrait" "RLQ_REMOVE=$absents" || code=$?
+    retires=$(grep -E '^RLQ_REMOVED' "${journal%.log}-remove.log" | tail -n 1 || true)
+    if (( code != 0 )) || [[ -z "$retires" ]]; then odoo_shell_echec "$code" "${journal%.log}-remove.log" "le retrait des modules"; return 1; fi
+    ok "${C_BOLD}$(cut -f2 <<< "$retires")${C_RESET} modules retirés de la base ${C_DIM}(journal : ${journal%.log}-remove.log)${C_RESET} : le menu Applications ne demande plus leur icône"
     return 0
 }
 
@@ -1643,6 +1686,7 @@ if (( ! DO_DRY_RUN )); then prendre_verrou; fi
 titre="Mise à jour des modules Odoo"
 if (( RESTART_PG )); then titre="Redémarrage d'Odoo et de PostgreSQL (sans mise à jour de modules)"
 elif (( RESTART_ONLY )); then titre="Redémarrage d'Odoo (sans mise à jour de modules)"
+elif (( REMOVE_MISSING )); then titre="Mise à jour de la liste des applications d'Odoo et retrait des modules sans code"
 elif (( UPDATE_LIST )); then titre="Mise à jour de la liste des applications d'Odoo"; fi
 echo "${C_BOLD}${titre}${C_RESET}  ${C_DIM}$(date "+%Y-%m-%d %H:%M:%S $(zone_locale 2>/dev/null || date +%Z)")${C_RESET}"
 detecter_service
@@ -1656,7 +1700,8 @@ if (( UPDATE_LIST )); then                                       # 1.41: --updat
     champ "Compte :" "${C_DIM}${RUN_USER:-$(id -un)}${C_RESET}"
     champ "Config Odoo :" "${C_DIM}$ODOO_CONF_UTILISEE${C_RESET}"
     if (( DO_DRY_RUN )); then echo "  ${C_YELLOW}Mode simulation : rien n'est arrêté, écrit ni démarré.${C_RESET}"; fi
-    ETAPES=1
+    ETAPES=1; (( REMOVE_MISSING )) && ETAPES=2
+    if (( REMOVE_MISSING && DO_BACKUP )); then ETAPES=3; sauvegarder || exit 1; fi      # 1.42: --backup: the database is backed up before the removal
     mettre_a_jour_liste; exit $?
 fi
 if (( ! RESTART_ONLY )); then                                   # 1.34: --restart-only: no archive, no module, no update command
