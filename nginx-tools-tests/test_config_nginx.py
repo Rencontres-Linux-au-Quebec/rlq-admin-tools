@@ -605,3 +605,58 @@ class FormesAvecPrefixeDeLangue132(unittest.TestCase):
         for chemin in ("/en_CA/web_editor/shape/web_editor/Rainy/05_001.svg", "/fr_CA/web_editor/shape/web_editor/Blocks/04.svg"):
             with self.subTest(chemin=chemin):
                 self.assertFalse(any(re.search(rx, chemin, re.I if op == "~*" else 0) for op, rx in regles), f"{chemin} serait refusé par nginx")
+
+
+@unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration absente : {CONFIG_DIR}")
+class FauxBannissements134(unittest.TestCase):
+    """Configuration nginx 1.34 (nginx/VERSION), 2026-11-21 : des membres connectés à Odoo étaient bannis 24 h par la jail
+    nginx-blocked-probes. Cause 1 : « error_page 400 =444 /dev/null » redirige vers l'URI interne /dev/null, que la règle 6 de
+    securite-commune.conf (mot « null ») refusait en 404 et écrivait dans blocked-probes.log (« POST /mail/attachment/upload 404 »
+    six fois en une seconde). Cause 2 : la règle 6 cherchait ses mots n'importe où dans le chemin, même comme début de mot."""
+    COMMUN = os.path.join(CONFIG_DIR, "snippets", "odoo", "_odoo-common.conf")
+    SECURITE = os.path.join(CONFIG_DIR, "snippets", "securite-commune.conf")
+
+    def refuse(self, chemin):
+        return any(re.search(rx, chemin, re.I if op == "~*" else 0) for op, rx in regles_de_refus(self.SECURITE))
+
+    def blocs_location(self):
+        """[(entête de la location, corps)] des locations de premier niveau de _odoo-common.conf."""
+        texte = open(self.COMMUN, encoding="utf-8").read()
+        blocs = []
+        for m in re.finditer(r"(?m)^location ([^\n{]*?|\"[^\"]*\"[^\n{]*?)\{(.*?)^\}", texte, re.S):
+            blocs.append((m.group(1).strip(), m.group(2)))
+        return blocs
+
+    def test_dev_null_a_sa_location_exacte_interne_qui_coupe_en_444(self):
+        blocs = dict(self.blocs_location())
+        self.assertIn("= /dev/null", blocs, "location = /dev/null absente : le 400 retombe sur les règles de refus")
+        corps = blocs["= /dev/null"]
+        self.assertRegex(corps, r"(?m)^\s*internal;")
+        self.assertRegex(corps, r"(?m)^\s*return 444;")
+        self.assertNotIn("blocked-probes.log", corps, "un 400 ne doit jamais aller dans un journal de bannissement")
+        self.assertIn("error_page 400 =444 /dev/null;", open(self.COMMUN, encoding="utf-8").read())
+
+    def test_chaque_location_vers_odoo_redeclare_error_page_sans_400(self):
+        """Une location qui déclare un error_page n'hérite plus ceux du serveur : le 400 d'Odoo revient tel quel au navigateur,
+        la page de maintenance (502, 503, 504) reste en place."""
+        vers_odoo = [(entete, corps) for entete, corps in self.blocs_location() if "proxy_pass" in corps]
+        self.assertGreaterEqual(len(vers_odoo), 8)
+        for entete, corps in vers_odoo:
+            with self.subTest(location=entete):
+                self.assertRegex(corps, r"(?m)^\s*error_page 502 503 504 = @maintenance;")
+                self.assertNotRegex(corps, r"(?m)^\s*error_page[^;\n]*\b400\b")
+
+    def test_pages_et_images_legitimes_jamais_refusees(self):
+        for chemin in ("/event/containers-et-podman-2026-140/register", "/en_CA/event/containers-et-podman-2026-140",
+                       "/slides/slide/vendor-lock-in-34", "/blog/nouvelles-1/nullement-utile-12", "/mail/attachment/upload",
+                       "/web/image/res.partner/undefined/avatar_128", "/web/image/null", "/en_CA/web/image/res.users/null/avatar_128",
+                       "/web/content/undefined", "/fr_CA/web/content/null", "/odoo/discuss", "/discuss/channel/12/avatar_128"):
+            with self.subTest(chemin=chemin):
+                self.assertFalse(self.refuse(chemin), f"{chemin} est légitime : il ne doit pas être refusé ni compté comme attaque")
+
+    def test_vraies_sondes_toujours_refusees(self):
+        for chemin in ("/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php", "/vendor/", "/vendor", "/laravel/.env", "/thinkphp/x",
+                       "/containers/json", "/undefined", "/null", "/drupal/", "/pearcmd", "/lib/phpunit/phpunit/x", "/en_CA/vendor/x",
+                       "/VENDOR/x", "/a/b/undefined"):
+            with self.subTest(chemin=chemin):
+                self.assertTrue(self.refuse(chemin), f"{chemin} est une sonde : il doit rester refusé")
