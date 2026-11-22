@@ -402,6 +402,20 @@ class ChkNginxLogs(EnvTest):
         _, vraie, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.62", "--no-prompt"])
         self.assertRegex(vraie, r"Rafale : 16 pages distinctes")
 
+    def test_404_des_icones_du_menu_applications_ne_sont_pas_des_erreurs(self):
+        """2.100 : un utilisateur interne ouvre Applications : 40 icônes /MODULE/static/description/icon.png en 404 (modules inscrits dans la base, sans
+        code sur le disque, 2026-11-22). Ce n'est pas un « taux d'erreurs » hostile ; 40 pages 404 qui ne sont pas des fichiers statiques le restent (témoin)."""
+        apps = "https://www.rencontres-linux.quebec/odoo/action-38"
+        self.add(*(f'198.51.100.71 - - [26/Oct/2026:10:00:01 -0400] "GET /openeducat_m{i}/static/description/icon.png HTTP/1.1" 404 9780 "{apps}" "{CHROME}"\n'
+                   for i in range(40)))
+        self.add(*(acc("198.51.100.71", "26/Oct/2026", "10:00:00", f"/odoo/action-{i}", 200, CHROME) for i in range(5)))
+        self.add(*(acc("198.51.100.72", "26/Oct/2026", "10:00:00", f"/page-{i}", 404, CHROME) for i in range(40)))
+        _, icones, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.71", "--no-prompt"])
+        self.assertIn("Taux d'erreurs : 0/45 (hors 429)", icones)
+        _, pages, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.72", "--no-prompt"])
+        self.assertNotIn("Taux d'erreurs : 0/", pages)
+        self.assertIn("Taux d'erreurs élevé : 40/40", pages)
+
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
     def test_icones_du_capteur_catchall_ne_justifient_pas_le_bannissement(self):
         """2.52 : apple-touch-icon et favicon.ico reçus du capteur catch-all (ancien nom de serveur) ne sont pas hostiles :
