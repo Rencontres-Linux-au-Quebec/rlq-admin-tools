@@ -3239,3 +3239,27 @@ msgstr "# bundles of a previous version), pages hidden to this visitor (unpublis
 
 msgid "# users) and 404 reached from a link of the site itself: never a probe, never counted. See CHANGELOG.md, nginx-hardening.sh 2.120-2.122."
 msgstr "# users) and 404 reached from a link of the site itself: never a probe, never counted. See CHANGELOG.md, nginx-hardening.sh 2.120-2.122."
+
+msgid " : taille d'image (2160x2160) jamais prise pour du SQL ---"
+msgstr ": a size of image (2160x2160) never taken for SQL ---"
+
+msgid " absent"
+msgstr " missing"
+
+msgid " : une taille d'image (2160x2160) n'est pas prise pour une valeur hexadécimale de SQL ("
+msgstr ": a size of image (2160x2160) is not taken for a hexadecimal value of SQL ("
+
+msgid " : une image dont le nom contient une taille (2160x2160) fait bannir le visiteur (relancer avec --update pour corriger le filtre après confirmation)."
+msgstr ": an image whose name contains a size (2160x2160) gets the visitor banned (run again with --update to fix the filter after confirmation)."
+
+msgid "Pas de terminal : filtre de la jail "
+msgstr "No terminal: filter of the jail "
+
+msgid " non modifié (lancer --update dans un terminal pour confirmer)."
+msgstr " not changed (run --update in a terminal to confirm)."
+
+msgid " : filtre corrigé, jail rechargée ; sauvegarde : "
+msgstr ": filter fixed, jail reloaded; backup: "
+
+msgid " : fail2ban a refusé le filtre corrigé : retour à "
+msgstr ": fail2ban refused the fixed filter: back to "

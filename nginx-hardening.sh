@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.122.20261120.180244"
+readonly SCRIPT_VERSION="2.123.20261121.213635"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3153,6 +3153,72 @@ else
                     cp -p "$F2B_BAK" "$F2B_SQLI_FICHIER"
                     fail2ban-client reload >/dev/null 2>&1 || true
                     fail "Jail $F2B_SQLI_JAIL : fail2ban n'a pas pris le changement : retour à $F2B_SQLI_FICHIER d'origine (sauvegarde : $F2B_BAK)."
+                fi
+            else
+                warn "Jail $F2B_SQLI_JAIL : aucun changement appliqué (refusé ou sans réponse)."
+            fi
+        fi
+    fi
+    rm -f "$F2B_TMP"
+fi
+echo
+
+# --- 9b bis) Jail nginx-sqli: a size of image (2160x2160) is not a hexadecimal value of SQL ---
+# 2.123: on 2026-11-21 three members signed in to Odoo (172.216.14.68, 196.250.117.3, 142.172.32.100) were banned 24 h by
+# nginx-sqli. Their browser asked for a broken image of a message of the discussion (channel 118) and of an event
+# (.../Tux-FleurDeLys-shadow-RLQ-v2-fondTransp.2160x2160.png, 404): the token 0x[0-9a-fA-F]+ of the filter, written by hand on
+# the server, found "0x2160" inside "2160x2160"; 3 lines in 5 min -> ban. A real hexadecimal value of SQL (0x414243, CHAR(0x41))
+# never follows a letter or a digit: the token gets the lookbehind (?<![0-9A-Za-z]). Only that token is changed, after
+# confirmation, with a backup; fail2ban must accept the filter, otherwise the original file is put back.
+F2B_SQLI_HEX_OLD='0x[0-9a-fA-F]+'
+F2B_SQLI_HEX_NEW='(?<![0-9A-Za-z])0x[0-9a-fA-F]+'
+f2b_sqli_hex_fix() {      # $1 filter file: the file with the lookbehind before each bare 0x token (stdout); lines of comment unchanged
+    awk -v old="$F2B_SQLI_HEX_OLD" -v new="$F2B_SQLI_HEX_NEW" '
+        /^[[:space:]]*[#;]/ { print; next }
+        {
+            prefixe = substr(new, 1, length(new) - length(old))      # (?<![0-9A-Za-z])
+            out = ""; ligne = $0
+            while ((i = index(ligne, old)) > 0) {
+                avant = out substr(ligne, 1, i - 1)
+                deja = (length(avant) >= length(prefixe) && substr(avant, length(avant) - length(prefixe) + 1) == prefixe)
+                out = avant (deja ? old : new)
+                ligne = substr(ligne, i + length(old))
+            }
+            print out ligne
+        }' "$1"
+}
+echo "--- 9b bis) Jail $F2B_SQLI_JAIL : taille d'image (2160x2160) jamais prise pour du SQL ---"
+F2B_SQLI_FILTRE="/etc/fail2ban/filter.d/$F2B_SQLI_JAIL.conf"
+if [[ "$APP_NAME" != "odoo" ]]; then
+    sans_objet "jail $F2B_SQLI_JAIL (Odoo seulement)"
+elif ! command -v fail2ban-client >/dev/null 2>&1; then
+    sans_objet "jail $F2B_SQLI_JAIL (fail2ban absent)"
+elif [[ ! -r "$F2B_SQLI_FILTRE" ]]; then
+    sans_objet "filtre $F2B_SQLI_FILTRE absent"
+else
+    F2B_TMP=$(mktemp "${TMPDIR:-/tmp}/f2b-sqli-hex.XXXXXX")
+    f2b_sqli_hex_fix "$F2B_SQLI_FILTRE" > "$F2B_TMP"
+    if cmp -s "$F2B_SQLI_FILTRE" "$F2B_TMP"; then
+        pass "Jail $F2B_SQLI_JAIL : une taille d'image (2160x2160) n'est pas prise pour une valeur hexadécimale de SQL ($F2B_SQLI_FILTRE)."
+    else
+        echo "  Changement prévu pour $F2B_SQLI_FILTRE (jail $F2B_SQLI_JAIL) :"
+        diff -u "$F2B_SQLI_FILTRE" "$F2B_TMP" | sed -n '3,20p' | sed 's/^/      /' || true
+        if [[ "$CHECK_ONLY" == "1" ]]; then
+            warn "Jail $F2B_SQLI_JAIL : une image dont le nom contient une taille (2160x2160) fait bannir le visiteur (relancer avec --update pour corriger le filtre après confirmation)."
+        else
+            F2B_REP=""
+            if [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ce changement à $F2B_SQLI_FILTRE et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
+            else warn "Pas de terminal : filtre de la jail $F2B_SQLI_JAIL non modifié (lancer --update dans un terminal pour confirmer)."; fi
+            if [[ "$F2B_REP" =~ ^[oOyY]$ ]]; then
+                F2B_BAK="$F2B_SQLI_FILTRE.before-hex-$(date +%Y%m%d-%H%M%S)"
+                cp -p "$F2B_SQLI_FILTRE" "$F2B_BAK"
+                cat "$F2B_TMP" > "$F2B_SQLI_FILTRE"
+                if fail2ban-client reload "$F2B_SQLI_JAIL" >/dev/null 2>&1 && fail2ban-client status "$F2B_SQLI_JAIL" >/dev/null 2>&1; then
+                    pass "Jail $F2B_SQLI_JAIL : filtre corrigé, jail rechargée ; sauvegarde : $F2B_BAK."
+                else
+                    cp -p "$F2B_BAK" "$F2B_SQLI_FILTRE"
+                    fail2ban-client reload "$F2B_SQLI_JAIL" >/dev/null 2>&1 || true
+                    fail "Jail $F2B_SQLI_JAIL : fail2ban a refusé le filtre corrigé : retour à $F2B_SQLI_FILTRE d'origine (sauvegarde : $F2B_BAK)."
                 fi
             else
                 warn "Jail $F2B_SQLI_JAIL : aucun changement appliqué (refusé ou sans réponse)."
