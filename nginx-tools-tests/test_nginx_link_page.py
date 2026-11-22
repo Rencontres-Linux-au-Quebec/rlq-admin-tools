@@ -451,10 +451,10 @@ PAGE_2_TITLE=Deux
         self.assertIn('class="button button-default"', ici)
         self.assertIn("avatar--rounded", ici)
         self.assertIn('href="css/accent.css"', ici)
-        self.assertIn('href="autre.html"', ici)
+        self.assertIn('href="/liens/autre.html" rel="nofollow"', ici)                  # 1.61: absolute path, not crawled
         self.assertIn("Passer au thème sombre", ici)
         self.assertIn('class="theme-dark"', autre)
-        self.assertIn('href="index.html"', autre)
+        self.assertIn('href="/liens/index.html" rel="nofollow"', autre)
         self.assertIn("Passer au thème clair", autre)
         self.seul_script_local(autre)
         accent = (self.www / "liens" / "css" / "accent.css").read_text(encoding="utf-8")
@@ -607,9 +607,9 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertIn("<summary>Thème</summary>", html)
                 self.seul_script_local(html)
                 self.assertEqual(html.count('aria-current="page"'), 1)
-                self.assertIn(f'<li><a href="{f}" data-theme="{theme}" aria-current="page">', html)
+                self.assertIn(f'<li><a href="/liens/{f}" rel="nofollow" data-theme="{theme}" aria-current="page">', html)   # 1.61: absolute, nofollow
                 menu = html[html.index("<ul>"):html.index("</ul>")]
-                self.assertEqual(__import__("re").findall(r'href="([^"]+)"', menu), ["index.html", "theme-light.html", "theme-ls-dawn.html", "theme-terminal.html"])
+                self.assertEqual(__import__("re").findall(r'href="([^"]+)"', menu), ["/liens/index.html", "/liens/theme-light.html", "/liens/theme-ls-dawn.html", "/liens/theme-terminal.html"])
                 self.assertNotIn("autre.html", html)
         self.assertIn(">aurore boréale</a>", (page / "index.html").read_text(encoding="utf-8"))
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
@@ -650,7 +650,9 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn('data-other-lang="fr" data-other-href="/liens/index.html"', en)
         self.assertIn('href="/liens/en/" data-lang="en"', fr)
         self.assertIn('href="/liens/index.html" data-lang="fr"', en)
-        self.assertIn('<a href="theme-light.html" data-theme="light">', fr)
+        self.assertIn('<a href="/liens/theme-light.html" rel="nofollow" data-theme="light">', fr)
+        self.assertIn('<a href="/liens/en/theme-light.html" rel="nofollow" data-theme="light">', en)      # 1.61: the folder of the language
+        self.assertNotIn('href="theme-', fr + en)                                                    # 1.61: no relative theme link left
         self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/themes.css?v=', fr)
         self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/themes-linkstack.css?v=', fr)   # every offered theme can be applied in place
         self.assertIn('class="ls-rain"', fr)                                           # shown by CSS only with ls-misty-rain
@@ -1301,7 +1303,7 @@ LINK_4_MENU=3
                                 (self.www / "liens" / "en" / "index.html", ["amber", "arctic", "auto", "dark", "light", "aurora", "tux"])):
             with self.subTest(page=chemin.parent.name):
                 page = chemin.read_text(encoding="utf-8")
-                menu = re.findall(r'<li><a href="[^"]+" data-theme="([^"]+)"', page)
+                menu = re.findall(r'<li><a href="[^"]+" rel="nofollow" data-theme="([^"]+)"', page)
                 self.assertEqual(menu, attendu)
                 donnees = [e.split("|")[0] for e in re.search(r'data-themes="([^"]*)"', page).group(1).split()]
                 self.assertEqual(donnees, attendu)

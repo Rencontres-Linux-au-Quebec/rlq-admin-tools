@@ -5643,6 +5643,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.61.20261122.161500 - Absolute "nofollow" links for the Theme menu and the other theme
+
+- Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 16:00 (odoo18): about 30 404 answers in one second on /es/website/social/theme-tux.html, theme-quebec.html, theme-ls-dark.html, index.html... from about 30 addresses of proxy networks (steel-axis, truview, cleardocks), each one followed by the JavaScript files of Odoo: a headless browser that read the link page and resolved its relative links from the URL it asked before the redirection (/es/website/social/facebook, 303), not from the address of the page.
+- Changes (nginx-link-page.sh): new L_BASE_HREF (absolute path of the folder of the language: PAGE_n_PATH, plus LANG/ for the second language); genere_index(): the links of the "Theme" menu (index.html, theme-NAME.html) and the button of the other theme (PAGE_n_SWITCH=yes, autre.html / index.html) use this absolute path and rel="nofollow"; the "Back" button of the sub-pages (already absolute) is unchanged. nginx-tools-tests/test_nginx_link_page.py: tests 1.17, 1.18, 1.57 and the switch test adapted; the second language checked (/liens/en/theme-NAME.html) and no relative theme link left.
+- Bugs fixed: symptom: 404 on PREFIX/theme-NAME.html under a wrong folder (here /es/website/social/); diagnosis: relative links, resolved by some robots from a wrong base; fix: absolute links.
+- Safeguards and edge cases: PAGE_n_PATH is always /NAME/ (CHEMIN_RE), the path is escaped (html_echap); the script link-page.js reads only data-theme (the theme is still applied in place without loading the page); the pages stay complete without script.
+- Checks performed: bash -n; nginx-tools-tests/test_nginx_link_page.py: 91 tests [OK].
+- Action required: run nginx-link-page.sh --update --yes on each server with a link page (or nginx-hardening.sh --update), so that the pages are generated again.
+
 ### 1.60.20261114.164142 - Language prefix of Odoo redirected to the page
 
 - Title: A page asked behind a language prefix of Odoo is redirected to the page.
