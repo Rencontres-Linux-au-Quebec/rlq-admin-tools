@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.60.20261114.164142"
+readonly SCRIPT_VERSION="1.61.20261122.161500"
 readonly SCRIPT_NAME="nginx-link-page"
 # 1.59: first line of EVERY run, even --help: name and version (--version prints it by itself), as the other programs do
 case " $* " in *" --version "*) ;; *) echo "$SCRIPT_NAME.sh v$SCRIPT_VERSION" ;; esac
@@ -1739,10 +1739,13 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             echo "      <ul>"
             for t in "${menu_trie[@]}"; do
                 if [[ "$t" == "$P_THEME" ]]; then f="index.html"; else f="theme-$t.html"; fi
+                # 1.61: absolute path and rel="nofollow": a robot that resolves the link from a wrong base (the URL before a redirection) no
+                # longer asks /es/website/social/theme-NAME.html (404), and the theme pages, copies of the page, are not crawled
+                f="$(html_echap "${L_BASE_HREF}$f")"
                 if [[ "$t" == "$theme" ]]; then
-                    echo "        <li><a href=\"$f\" data-theme=\"$t\" aria-current=\"page\">$(html_echap "$(theme_nom "$t")")</a></li>"
+                    echo "        <li><a href=\"$f\" rel=\"nofollow\" data-theme=\"$t\" aria-current=\"page\">$(html_echap "$(theme_nom "$t")")</a></li>"
                 else
-                    echo "        <li><a href=\"$f\" data-theme=\"$t\">$(html_echap "$(theme_nom "$t")")</a></li>"
+                    echo "        <li><a href=\"$f\" rel=\"nofollow\" data-theme=\"$t\">$(html_echap "$(theme_nom "$t")")</a></li>"
                 fi
             done
             echo "      </ul>"
@@ -1782,7 +1785,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         if [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]]; then      # 1.38: newsletter
             echo "      <p class=\"newsletter\"><a class=\"button button-default button-newsletter\" href=\"$(html_echap "$SITE_NEWSLETTER_URL_V")\" target=\"_blank\" rel=\"noopener noreferrer\"><img class=\"icon\" aria-hidden=\"true\" src=\"images/icons/generic-email.svg\" alt=\"\">$(html_echap "$(tp "$(valeur_ou SITE_NEWSLETTER_LABEL "Recevoir l'infolettre")" "$(valeur_ou SITE_NEWSLETTER_LABEL_EN "Get the newsletter")")")</a></p>"
         fi
-        if [[ -n "$cible" ]]; then
+        if [[ -n "$cible" && "$cible" != /* ]]; then           # 1.61: the page of the other theme (autre.html): absolute path, not crawled
+            echo "      <p><a class=\"button button-default\" href=\"$(html_echap "${L_BASE_HREF:-}$cible")\" rel=\"nofollow\">$(html_echap "$libelle")</a></p>"
+        elif [[ -n "$cible" ]]; then
             echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
         fi
         if [[ -n "${L_AUTRE_HREF:-}" ]]; then
@@ -1887,6 +1892,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         else
             L_PARTAGE_TITRE="$SITE_SHARE_TITLE_V"; L_PARTAGE_DESCRIPTION="$SITE_SHARE_DESCRIPTION_V"
         fi
+        L_BASE_HREF="$P_CHEMIN"                                # 1.61: absolute path of this language folder (theme pages, other theme)
+        if (( k > 0 )); then L_BASE_HREF+="$L_LANG/"; fi
         L_URL_PUBLIQUE=""
         if [[ -n "$SITE_BASE_URL_V" ]]; then
             L_URL_PUBLIQUE="${SITE_BASE_URL_V%/}/${P_CHEMIN#/}"
