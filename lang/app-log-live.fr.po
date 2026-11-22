@@ -3670,3 +3670,12 @@ msgstr "conflits dans une page"
 
 msgid " (update conflict during the display of a page, not retried by Odoo 18: harmless, not counted as an Odoo error)"
 msgstr " (conflit de mise à jour pendant l'affichage d'une page, non réessayé par Odoo 18 : sans gravité, pas compté comme erreur d'Odoo)"
+
+msgid "[link preview]"
+msgstr "[aperçu de lien]"
+
+msgid "404p"
+msgstr "404p"
+
+msgid "404 of link previews (Telegram... while a link is erased in a message; not an attack, never banned): "
+msgstr "404 d'aperçus de liens (Telegram... pendant qu'un lien est effacé dans un message ; pas une attaque, jamais banni) : "

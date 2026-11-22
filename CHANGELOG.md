@@ -492,6 +492,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.206.20261122.121500 - --log-merge no longer splits a pair when nginx writes by blocks; link preview walks recognized
+
+- Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 11:55 (odoo18): about 120 404 answers in 25 s for 149.154.161.x (*.ptr.telegram.org), each URL one character shorter than the previous one, and many requests shown twice (an "odoo" line without size, then 8 to 10 s later an "http" line without SQL, out of time order). Question: are these 404 normal?
+- Changes (app-log-live.py):
+  - merge_step(): a held line is released by log time only when a line of the OTHER stream is newer than its window (MERGE_WINDOW); new merge_alone() and merge_twin(), new MERGE_ALONE and MERGE_TWINS: a line whose partner was already shown alone is dropped (neither shown nor counted a second time); MERGE_HOLD 8 -> 15 s; merge_release() also runs while the stream is busy (main loop).
+  - Link preview walk: new PREVIEW_WINDOW_S, PREVIEW_STEP_MAX, PREVIEW_MEMORY, PREVIEW_NETWORKS, preview_network(), preview_step(), class LinkPreviewWalk, LINK_PREVIEW and link_preview(); sitemap_tag(preview=) gives the tag "[link preview]" ("[aperçu de lien]"); Formatting.preview_of() and current_line.
+  - Stats: new counter preview_404 (in COUNTERS); such a 404 is not added to ip_not_found (never a "probe sweep" to ban) nor to unknown_404; new health indicator "404 of link previews", shown only when there is one. StatusBar: preview_404, no penalty, not a problem address; kinds_404() gives 4 kinds, piece "404p=" shown only when there is one. advisor_facts(): preview_404 and merge_twins.
+  - lang/app-log-live.fr.po: 3 texts. nginx-tools-tests/test_app_log_live.py: class AppLogLive206 (8 tests); the test of 1.135 waits MERGE_HOLD + 1 s.
+- Bugs fixed:
+  - Symptom: during a burst, a request shown twice and counted twice (4xx +34 for 14 new requests between two status bars). Diagnosis: nginx-hardening.sh 2.109 writes the access logs by blocks (buffer=64k flush=10s), so the nginx lines arrive up to 11.5 s after the Odoo lines; merge_step() released a held Odoo line as soon as ANY line 5 s newer came, and the next Odoo lines of the burst did it before nginx had delivered the partner; the nginx line, later, found nobody and was shown alone too. Fix: only a line of the other stream releases by log time, MERGE_HOLD covers the flush, and a late twin is dropped.
+  - Symptom: a Telegram link preview counted as an attack ("404o"), and one address of the robot reached 5 different 404 pages (THRESHOLD_404): it would have been proposed for a ban. Diagnosis: a person erased a link in a Telegram draft with Backspace held down; Telegram asks the preview of each state of the draft. Fix: such a step is recognized and counted apart.
+- Safeguards and edge cases: a step needs the same network (/24, /48), less than 10 s, and a difference of 1 or 2 characters at the end only; never a step: a suspicious URL (SUSPECT_RE), a difference of a "/" alone (/admin and /admin/), two different networks; a 404 on a page of the sitemap stays "404s" (important) even in a walk; a twin is matched once (two real requests of the same URL stay two); memory bounded (40 URLs per network, 2000 networks, 400 lines alone). An Odoo line may now wait up to 15 s for its nginx line before it is shown.
+- Checks performed: py_compile; AppLogLive206 (8 tests) and the merge and sitemap classes (123, 142, 145, 146, 153): [OK]; nginx-tools-tests/test_app_log_live.py compared with main: see the pull request.
+- Action required: none (git pull in /opt/rlq-admin-tools after merge; a running app-log-live.py must be restarted).
+
 ### 1.205.20261120.214125 - An unbanned address is no longer labelled "banned"
 
 - Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-20 at 21:06: the lines of 132.211.165.182 (a member, banned by nginx-badrequests at 16:15:42, unbanned at 17:25 with nginx-log-audit.sh --unban) still carried "[banni : fail2ban 2026-11-20 16:15:42]" and [BANNIE] at 21:01.

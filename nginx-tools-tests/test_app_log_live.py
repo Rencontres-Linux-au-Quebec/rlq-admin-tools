@@ -4007,7 +4007,7 @@ class AppLogLive123(EnvTest):
         ready = self.m.merge_step(self._item(autre), held)
         self.assertEqual(ready, [])                                                   # 1.135: la ligne Odoo attend, elle aussi, sa ligne nginx
         self.assertEqual(len(held), 2)                                                # les deux attendent ...
-        released = self.m.merge_release(held, time.time() + 10)                       # ... puis sont affichées seules après MERGE_HOLD
+        released = self.m.merge_release(held, time.time() + self.m.MERGE_HOLD + 1)    # ... puis sont affichées seules après MERGE_HOLD
         self.assertEqual(len(released), 2)
         self.assertTrue(all(item[0].odoo_times is None for item in released))
 
@@ -6009,3 +6009,120 @@ class AppLogLive204(unittest.TestCase):
         autre = [self.live.Line(odoo("ERROR", "prod", "odoo.sql_db", "bad query: UPDATE x"))] + self.lignes()[1:]
         self.assertNotIn("hidden-conflict", [suivi(L) for L in autre])
 
+
+
+class AppLogLive206(unittest.TestCase):
+    """1.206 : (1) --log-merge ne sépare plus une paire quand nginx écrit son journal par blocs (flush=10s) : une ligne Odoo plus récente ne libère plus
+    une ligne Odoo en attente, et le jumeau d'une ligne déjà affichée seule n'est ni affiché ni compté une 2e fois ; (2) le « balayage » d'un aperçu de
+    lien (Telegram pendant qu'un lien est effacé, un caractère à la fois) est reconnu : étiquette [aperçu de lien], 404p, jamais une adresse à bannir.
+    D'après le journal d'odoo18 du 2026-11-22 11:42 (149.154.161.x, *.ptr.telegram.org), adresses et URL réduites."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_206", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.m.MERGE_ALONE.clear()
+        self.m.MERGE_TWINS[0] = 0
+        self.m.LINK_PREVIEW = self.m.LinkPreviewWalk()
+        self.ancien_sitemap = self.m.SITEMAP
+
+    def tearDown(self):
+        self.m.SITEMAP = self.ancien_sitemap
+
+    BASE = "/en_CA/event/jpo-2026-125/track/la-souverainete"
+
+    def nginx(self, chemin, seconde, code="404", ip="149.154.161.221"):
+        return self.m.Line(f'2026-11-22T11:42:{seconde:05.2f}0000-0500 odoo18 http: {ip} - - "GET {chemin} HTTP/1.1" {code} 8000 "-" '
+                           f'"TelegramBot (like TwitterBot)" host=www.example.org rl=300')
+
+    def odoo(self, chemin, seconde, code="404", ip="149.154.161.221"):
+        return self.m.Line(f'2026-11-22T11:42:{seconde:05.2f}0000-0500 odoo18 odoo[1]: 2026-11-22 16:42:{int(seconde):02d},000 1 INFO base werkzeug: '
+                           f'{ip} - - [22/Nov/2026 11:42:{int(seconde):02d}] "GET {chemin} HTTP/1.1" {code} - 22 0.010 0.080')
+
+    def test_206_ligne_odoo_plus_recente_ne_libere_plus_la_ligne_en_attente(self):
+        m, held = self.m, collections.deque()
+        self.assertEqual(m.merge_step([self.odoo(self.BASE + "-a", 19.90)], held), [])
+        self.assertEqual(m.merge_step([self.odoo(self.BASE + "-b", 26.06)], held), [])        # 6 s plus tard, même flux : la 1re attend encore
+        self.assertEqual(len(held), 2)
+        pret = m.merge_step([self.nginx(self.BASE + "-a", 19.0)], held)                     # le bloc de nginx arrive : la paire se forme
+        self.assertEqual(len(pret), 1)
+        self.assertIsNotNone(pret[0][0].odoo_times)
+        self.assertEqual(len(held), 1)
+
+    def test_206_ligne_de_l_autre_flux_plus_recente_libere_la_ligne_en_attente(self):
+        m, held = self.m, collections.deque()
+        m.merge_step([self.odoo(self.BASE + "-a", 10.0)], held)
+        pret = m.merge_step([self.nginx(self.BASE + "-z", 20.0)], held)                     # nginx est passé au-delà de la fenêtre : le partenaire ne viendra plus
+        self.assertEqual([item[0].database for item in pret], ["base"])
+
+    def test_206_jumeau_d_une_ligne_deja_affichee_seule_supprime(self):
+        m, held = self.m, collections.deque()
+        m.merge_step([self.odoo(self.BASE + "-a", 19.90)], held)
+        seule = m.merge_release(held, time.time() + m.MERGE_HOLD + 1)
+        self.assertEqual(len(seule), 1)
+        self.assertEqual(m.merge_step([self.nginx(self.BASE + "-a", 19.0)], held), [])     # même requête : ni affichée ni comptée deux fois
+        self.assertEqual(m.MERGE_TWINS[0], 1)
+        self.assertEqual(len(held), 0)
+        self.assertEqual(m.merge_step([self.nginx(self.BASE + "-a", 19.0)], held), [])     # une 2e vraie requête de la même URL : en attente, pas supprimée
+        self.assertEqual(len(held), 1)
+        self.assertEqual(m.MERGE_TWINS[0], 1)
+
+    def test_206_attente_plus_longue_que_le_flush_de_nginx(self):
+        self.assertGreater(self.m.MERGE_HOLD, 10 + 1.5)
+
+    def balayage(self):
+        """La page complète (200), puis 12 URL raccourcies d'un caractère, réparties sur plusieurs adresses du même /24."""
+        lignes = [self.nginx(self.BASE + "-17", 18.0, "200")]
+        chemin = self.BASE + "-1"
+        for i in range(12):
+            lignes.append(self.nginx(chemin, 19.0 + i * 0.2, ip=f"149.154.161.{200 + i % 3}"))
+            chemin = chemin[:-1]
+        return lignes
+
+    def test_206_balayage_d_apercu_reconnu(self):
+        m = self.m
+        self.assertEqual([m.link_preview(L) for L in self.balayage()], [False] + [True] * 12)
+
+    def test_206_pas_un_apercu(self):
+        m = self.m
+        cas = [("/admin", "/admin/"), ("/wp-login", "/wp-login.php"), ("/.en", "/.env"), ("/page-a", "/page-b")]
+        for premier, second in cas:
+            m.LINK_PREVIEW = m.LinkPreviewWalk()
+            m.link_preview(self.nginx(premier, 10.0))
+            self.assertFalse(m.link_preview(self.nginx(second, 10.2)), (premier, second))
+        m.LINK_PREVIEW = m.LinkPreviewWalk()                                              # un autre réseau, ou trop tard : pas une étape
+        m.link_preview(self.nginx(self.BASE + "ab", 10.0, ip="1.2.3.4"))
+        self.assertFalse(m.link_preview(self.nginx(self.BASE + "a", 10.2, ip="5.6.7.8")))
+        self.assertFalse(m.link_preview(self.nginx(self.BASE, 40.0, ip="1.2.3.4")))
+        self.assertEqual(m.preview_network("2001:db8:1:2::5"), "2001:db8:1::/48")
+
+    def test_206_jamais_propose_au_bannissement_compte_a_part(self):
+        m = self.m
+        m.SITEMAP = AppLogLive142.Fixe({"/autre"})
+        m.SITEMAP.m_path = m.sitemap_path
+        s, barre = m.Stats(5.0), m.StatusBar()
+        for L in self.balayage():
+            s.ajouter(L, {}, None)
+            barre.observe(L, None, 5.0, "149.154.161.200")
+        self.assertTrue(all(len(pages) < m.THRESHOLD_404 for pages in s.ip_not_found.values()), s.ip_not_found)
+        self.assertEqual(sum(s.preview_404.values()), 12)
+        self.assertEqual(sum(s.unknown_404.values()), 0)
+        self.assertEqual((barre.preview_404, barre.unknown_404), (12, 0))
+        self.assertIn("404p=12", "".join(part for part, _ in barre.pieces()))
+        self.assertEqual(barre.health(), 100)
+        sante = "\n".join(T(l) for l in s.health()[1])
+        self.assertIn("404 d'aperçus de liens", sante)
+
+    def test_206_etiquette_apercu_de_lien(self):
+        m = self.m
+        m.SITEMAP = AppLogLive142.Fixe({"/autre"})
+        m.SITEMAP.m_path = m.sitemap_path
+        forme = m.Formatting(False, 40, 0.0, False)
+        textes = [ANSI.sub("", forme.format_value(L, {}, False)) for L in self.balayage()[:3]]
+        self.assertNotIn("[aperçu de lien]", textes[0])                               # la page complète : 200
+        self.assertIn("[aperçu de lien]", textes[2])
+        self.assertNotIn("[pas dans sitemap.xml]", textes[2])
