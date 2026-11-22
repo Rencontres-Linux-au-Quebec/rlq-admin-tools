@@ -29,6 +29,8 @@ Service : unité systemd `erplibre*` ou `odoo*` (`--service` pour forcer). Base 
 
 1.41 : `--update-list` fait ce que fait le bouton Applications > Mettre à jour la liste des applications (mode développeur), **sans arrêter Odoo** : un `odoo shell` à part, sous le compte du service, sans HTTP, sans worker ni cron, appelle `update_list()` puis enregistre. Il affiche le nombre de modules mis à jour et ajoutés, puis les modules restés **sans code sur le disque** (état « non installable ») : ce sont ceux dont l'icône répond 404 quand on ouvre le menu Applications. `--dry-run` montre la commande sans la lancer.
 
+1.42 : la liste montre les modules **non installés dont le code n'est plus sur le disque** (aucun dossier dans l'`addons_path`) : c'est leur icône qui répond 404. La mise à jour de la liste ne les retire pas (elle ne marque jamais un module disparu du disque), ils restent donc dans Applications. `--remove-missing` les retire de la base (`ir.module.module` et leurs identifiants `base.module_NOM`), après une confirmation [o/N] sur un terminal, ou avec `--yes`. Un module installé n'est jamais retiré, et un module qui revient sur le disque est ajouté de nouveau par la prochaine mise à jour de la liste.
+
 ## À vérifier ensuite
 
 Les journaux de mise à jour sont gardés `LOG_KEEP_DAYS` jours. Un `-u` réussi suivi d'un préchauffage propre est le vrai signal pour les modules qui modifient des vues XML ; en cas d'échec, lire le chemin du journal affiché.

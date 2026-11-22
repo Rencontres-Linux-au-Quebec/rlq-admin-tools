@@ -26,6 +26,7 @@ esac
 FAUX_ODOO = r'''#!/bin/bash
 echo "odoo $*" >> "$D/appels.log"
 [ "$1" = shell ] && cat > "$D/odoo_stdin"
+if [ -n "${RLQ_REMOVE:-}" ]; then echo "retrait=$RLQ_REMOVE" >> "$D/appels.log"; printf 'RLQ_REMOVED\t%s\t%s\n' "$(echo $RLQ_REMOVE | wc -w)" "$RLQ_REMOVE"; exit 0; fi
 echo "etat_service=$(cat "$D/etat")" >> "$D/appels.log"
 pwd >> "$D/appels.log"
 [ -e "$D/odoo_sortie" ] && cat "$D/odoo_sortie"
@@ -305,7 +306,7 @@ class OdooUpdateModule(EnvTest):
     def test_141_liste_des_applications_sans_arreter_odoo(self):
         """1.41 --update-list : « odoo shell » sous le compte du service, le script Python sur l'entrée standard (update_list, commit), le
         service jamais arrêté ni redémarré ; nombres et modules sans code sur le disque affichés."""
-        self.write("odoo_sortie", "RLQ_UPDATE_LIST\t3\t1\nRLQ_UNINSTALLABLE\tom_hospital openeducat_core plm\n")
+        self.write("odoo_sortie", "RLQ_UPDATE_LIST\t3\t1\nRLQ_MISSING\tom_hospital openeducat_core plm\n")
         rc, out, err = self.lancer("--update-list")
         self.assertEqual(rc, 0, out + err)
         a = self.appels()
@@ -318,8 +319,11 @@ class OdooUpdateModule(EnvTest):
         self.assertIn('env["ir.module.module"].update_list()', entree)
         self.assertIn("env.cr.commit()", entree)
         self.assertIn("3 modules mis à jour, 1 ajoutés", re.sub(r"\x1b\[[0-9;]*m", "", out))
-        self.assertIn("3 modules sans code sur le disque", out)
+        self.assertIn("3 modules non installés sans code sur le disque", out)
         self.assertIn("om_hospital openeducat_core plm", out)
+        self.assertIn("get_module_path(m.name, display_warning=False)", entree)                 # 1.42: not installed AND not on the disk
+        self.assertIn("--remove-missing", out)                                                 # the way to remove them is named
+        self.assertFalse([l for l in a if l.startswith("retrait=")])                           # nothing removed without --remove-missing
 
     def test_141_liste_des_applications_echec_et_simulation(self):
         self.write("odoo_code", "1\n")
@@ -333,6 +337,24 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 0, out + err)
         self.assertIn("(simulation)", out)
         self.assertFalse([l for l in self.appels() if l.startswith("odoo ") and "--dry" in l])
+
+    def test_142_retrait_des_modules_sans_code(self):
+        """1.42 --remove-missing : sans terminal ni --yes, rien n'est retiré (code 1) ; avec --yes, un second « odoo shell » retire exactement les
+        modules listés par le premier ; Odoo n'est jamais arrêté."""
+        self.write("odoo_sortie", "RLQ_UPDATE_LIST\t473\t0\nRLQ_MISSING\tom_hospital openeducat_core\n")
+        rc, out, err = self.lancer("--remove-missing")
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("confirmation requise (--yes sans terminal)", out)
+        self.assertFalse([l for l in self.appels() if l.startswith("retrait=")])
+        rc, out, err = self.lancer("--remove-missing", "--yes")
+        self.assertEqual(rc, 0, out + err)
+        a = self.appels()
+        self.assertIn("retrait=om_hospital openeducat_core", a)
+        self.assertIn("2 modules retirés de la base", re.sub(r"\x1b\[[0-9;]*m", "", out))
+        entree = open(os.path.join(self.d, "odoo_stdin"), encoding="utf-8").read()                 # the second script: the removal
+        self.assertIn('("state", "in", ("uninstalled", "uninstallable"))', entree)
+        self.assertIn("cibles.unlink()", entree)
+        self.assertFalse([l for l in a if l.startswith(("systemctl stop", "systemctl start", "systemctl restart"))], a)
 
     def test_135_prechauffage_du_redemarrage_seulement(self):
         """1.35 --restart-only : le journal du préchauffage a un vrai nom (restart-BASE-...-prechauffage.log dans le dossier des journaux), jamais
