@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.205.20261120.214125"
+__version__ = "1.206.20261122.121500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -439,7 +439,10 @@ SQL_SIZE_RE = re.compile(r'"\s\d{3}\s(\S+)\s(\d+)\s\d+\.\d+\s\d+\.\d+\s*$')
 # ------------------------------------------------------------------------------------------------------------------
 MERGE_WINDOW = 5.0      # seconds (log time) between the nginx line and the Odoo line of one request (Odoo logs when its answer is ready); 1.145: 2 to 5 s,
                         # the Odoo journal is read more slowly than the nginx file, so a pair was split when the Odoo line came more than 2 s later
-MERGE_HOLD = 8.0        # seconds (wall clock) an nginx line waits for its Odoo line, then it is shown alone (static file, no Odoo...); 1.145: 3 to 8 s
+MERGE_HOLD = 15.0       # seconds (wall clock) an nginx line waits for its Odoo line, then it is shown alone (static file, no Odoo...); 1.145: 3 to 8 s;
+                        # 1.206: 8 to 15 s, nginx-hardening.sh 2.109 writes the access logs by blocks (flush=10s), plus 1.5 s of apps/_logs_merge.py
+MERGE_ALONE = collections.deque(maxlen=400)     # 1.206: (key, log time, is nginx) of the request lines already shown ALONE (partner not found in time)
+MERGE_TWINS = [0]                               # 1.206: lines dropped because their partner was already shown alone (the same request, not shown twice)
 
 
 def is_nginx_request(L):
@@ -496,10 +499,24 @@ def merge_step(item, held):
     A held line whose partner can no longer come is released alone."""
     L = item[0]
     ready = []
-    while held and L.instant is not None and held[0][2] + MERGE_WINDOW < L.instant:
-        ready.append(held.popleft()[0])
-    if is_odoo_request(L):
+    incoming_nginx = is_nginx_request(L)
+    incoming_odoo = not incoming_nginx and is_odoo_request(L)
+    if held and L.instant is not None and (incoming_nginx or incoming_odoo):
+        # 1.206: a held line is released by log time only when a line of the OTHER stream is newer than its window: the partner can no longer come.
+        # Before, any newer line released it: during a burst, the Odoo lines (read at once) released the held Odoo lines before nginx, which writes
+        # its access log by blocks (flush=10s), had delivered their partners: each request was shown twice and counted twice.
+        kept = collections.deque()
+        for entry in held:
+            if entry[2] + MERGE_WINDOW < L.instant and is_nginx_request(entry[0][0]) != incoming_nginx:
+                ready.append(merge_alone(entry))
+            else:
+                kept.append(entry)
+        held.clear()
+        held.extend(kept)
+    if incoming_odoo:
         key = request_key(L)
+        if merge_twin(key, L.instant, False):                  # 1.206: its nginx line is already shown alone: not shown nor counted twice
+            return ready
         index = merge_partner(held, key, L.instant, True)      # 1.153: 304 or 499 of nginx for a 200 of Odoo merge too
         if index is not None:
             held_item = held[index][0]
@@ -513,8 +530,10 @@ def merge_step(item, held):
             return ready
         held.append((item, key, L.instant, time.time()))      # 1.135: the Odoo line waits for its nginx line
         return ready
-    if is_nginx_request(L):
+    if incoming_nginx:
         key = request_key(L)
+        if merge_twin(key, L.instant, True):                   # 1.206: its Odoo line is already shown alone
+            return ready
         index = merge_partner(held, key, L.instant, False)
         if index is not None:
             held_item = held[index][0]
@@ -545,11 +564,31 @@ def status_bar_due(emitted, last_at, every, health_now, last_health):
     return last_health is not None and abs(health_now - last_health) > BAR_CHANGE_POINTS and gap >= BAR_MIN_GAP
 
 
+def merge_alone(entry):
+    """1.206: a held entry (item, key, log time, wall time) released ALONE: remembered, so that its partner, if it still comes, is not shown twice."""
+    MERGE_ALONE.append((entry[1], entry[2], is_nginx_request(entry[0][0])))
+    return entry[0]
+
+
+def merge_twin(key, instant, is_nginx):
+    """1.206: True when the partner of this request line (same URL, compatible status code, within MERGE_WINDOW) was already shown alone: the line is the
+    same request a second time, it is dropped (neither shown nor counted). The partner is used once: two real requests of the same URL stay two."""
+    for index, (alone_key, alone_instant, alone_nginx) in enumerate(MERGE_ALONE):
+        if alone_nginx == is_nginx or alone_key[0] != key[0] or abs(alone_instant - instant) > MERGE_WINDOW:
+            continue
+        codes = (key[1], alone_key[1]) if is_nginx else (alone_key[1], key[1])
+        if merge_codes_compatible(*codes):
+            del MERGE_ALONE[index]
+            MERGE_TWINS[0] += 1
+            return True
+    return False
+
+
 def merge_release(held, now):
     """1.123: the nginx lines held for more than MERGE_HOLD seconds (wall clock) are shown alone, in order."""
     released = []
     while held and held[0][3] + MERGE_HOLD <= now:
-        released.append(held.popleft()[0])
+        released.append(merge_alone(held.popleft()))
     return released
 
 
@@ -2484,10 +2523,15 @@ class Formatting:
             position = cut_end
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]))            # 1.144: the sitemap tag of a 404 goes at the END of the line
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code))   # 1.144: the sitemap tag of a 404 goes at the END of the line
         head = before + block + "   " + rl_column + os_column + " " + request_data
         stop = NGINX_TAB_STOP - display_width(head) % NGINX_TAB_STOP          # 1.183: a tab before the referer: spaces up to the next tab stop (1 to 8)
         return head + " " * stop + tail.lstrip(" ") + tag
+
+    def preview_of(self, code):
+        """1.206: True when the line being formatted is a 404 step of a link preview walk (link_preview)."""
+        line = getattr(self, "current_line", None)
+        return str(code) == "404" and line is not None and link_preview(line)
 
     def account_form_repeated(self, text):
         """1.174: True when the address of the line asked the password reset / sign-up forms MORE than ACCOUNT_FORM_ALERT_N times (this request included)."""
@@ -2527,7 +2571,7 @@ class Formatting:
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
         rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]))            # 1.144: the sitemap tag of a 404 Odoo line, at the end too
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code))   # 1.144: the sitemap tag of a 404 Odoo line, at the end too
         return before + block + "   " + rl_blank + OS_BLANK + " " + request_data + tag          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
@@ -2544,6 +2588,7 @@ class Formatting:
 
     def format_value(self, L, renderings, benign=False):
         """Final text of the line (without a line break). benign: error WITHOUT SEVERITY (orange instead of red, with its reason)."""
+        self.current_line = L                                           # 1.206: the line of the 404 tag (link preview walk)
         if L.level is not None:                                         # new structured Odoo entry: the trace is over
             self.in_trace = False
             self.benign_ongoing = benign
@@ -5146,12 +5191,86 @@ def local_probe(text, url):
     return bool(ips) and local_address(ips[0][2]) and suspect_url(url)
 
 
-def sitemap_tag(code, url, probe=False):
+# 1.206: LINK PREVIEW WALK. While a person writes a message in Telegram (WhatsApp, Discord, Signal...), the application asks the preview of the link of the
+# draft each time the draft changes. A person who erases a link with the Backspace key held down makes the preview robot ask every shorter URL, one
+# character less each time, a few tenths of a second apart (149.154.161.x, *.ptr.telegram.org, 2026-11-22 11:42: about 120 URLs in 25 s, from
+# ".../track/la-souverainete-numerique-depuis-15-ans-en-pratique-17" down to "/e"). Almost all of them answer 404: they look like a sweep of an attacker,
+# and one address of the robot reached 5 different 404 pages (THRESHOLD_404): it would have been proposed for a ban. A 404 is a step of such a walk when
+# the same network (/24 in IPv4, /48 in IPv6) asked, less than PREVIEW_WINDOW_S seconds before or after, a URL that differs from it ONLY by the last
+# 1 to PREVIEW_STEP_MAX characters (removed or added). Never a step: a suspicious URL (SUSPECT_RE: .env, wp-login...), a difference of a "/" only.
+PREVIEW_WINDOW_S = 10.0          # seconds between two steps of the walk (a key repeat: 0.03 to 0.5 s; nginx has only whole seconds, the two streams are not in order)
+PREVIEW_STEP_MAX = 2             # characters removed or added between two steps
+PREVIEW_MEMORY = 40              # last URLs kept per network
+PREVIEW_NETWORKS = 2000          # networks kept at most (memory bound)
+
+
+def preview_network(ip):
+    """1.206: the network of an address for the link preview walk: /24 in IPv4, /48 in IPv6; the address itself when it is not one."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    return str(ipaddress.ip_network(f"{ip}/{24 if address.version == 4 else 48}", strict=False))
+
+
+def preview_step(path, other):
+    """1.206: True when `path` and `other` differ only by their last 1 to PREVIEW_STEP_MAX characters (one is the start of the other), not by a "/" alone."""
+    short, long_ = (path, other) if len(path) <= len(other) else (other, path)
+    extra = long_[len(short):]
+    return 0 < len(extra) <= PREVIEW_STEP_MAX and long_.startswith(short) and extra.strip("/") != ""
+
+
+class LinkPreviewWalk:
+    """1.206: recent URLs of each network; observe() tells whether a 404 is a step of a link preview walk (see PREVIEW_WINDOW_S). Every request line is
+    observed once (link_preview() keeps the answer on the line), in the order of the stream."""
+    def __init__(self):
+        self.recent = collections.OrderedDict()           # network -> deque of (instant, path)
+        self.steps = 0                                    # 404 recognized as steps of a walk
+
+    def observe(self, ip, url, code, instant):
+        path = url.split("?", 1)[0].split("#", 1)[0]
+        network = preview_network(ip)
+        seen = self.recent.get(network)
+        step = False
+        if str(code) == "404" and seen and not suspect_url(url):
+            step = any(abs(instant - when) <= PREVIEW_WINDOW_S and preview_step(path, other) for when, other in seen)
+        if seen is None:
+            seen = self.recent[network] = collections.deque(maxlen=PREVIEW_MEMORY)
+            while len(self.recent) > PREVIEW_NETWORKS:
+                self.recent.popitem(last=False)
+        else:
+            self.recent.move_to_end(network)
+        seen.append((instant, path))
+        self.steps += step
+        return step
+
+
+LINK_PREVIEW = LinkPreviewWalk()
+
+
+def link_preview(L):
+    """1.206: True when the request line L is a 404 step of a link preview walk. Decided once per line (the first call observes it), then kept on the line:
+    the display, the counters and the status bar get the same answer."""
+    known = getattr(L, "link_preview_step", None)
+    if known is not None:
+        return known
+    step = False
+    request = REQUEST_RE.search(L.text or "")
+    ips = find_ips(L.text or "") if request else []
+    if request and ips:
+        step = LINK_PREVIEW.observe(ips[0][2], request.group(1), request.group(2), L.instant if L.instant is not None else time.time())
+    L.link_preview_step = step
+    return step
+
+
+def sitemap_tag(code, url, probe=False, preview=False):
     """1.144 --sitemap: the tag shown at the END of a 404 line: [in sitemap.xml] (important page, counted in the health), [not in sitemap.xml] (never
     existed, not counted), [disabled] (refused on purpose by our configuration), [not read yet] (sitemap not read). "" for the other lines and when
     --sitemap is off. French: [dans sitemap.xml], [pas dans sitemap.xml], [désactivé], [pas encore lu]."""
     if str(code) == "404" and probe:                              # 1.173: blocked on purpose, by the test of this server
         return " " + color_code(STYLES["debug"], TR("[probe of this server]"))
+    if str(code) == "404" and preview:                            # 1.206: a step of a link preview walk (Telegram...): not an attack
+        return " " + color_code(STYLES["debug"], TR("[link preview]"))
     if SITEMAP is None or str(code) != "404":
         return ""
     if is_disabled(url):                                          # refused on purpose by our configuration (--disable-uri)
@@ -5230,7 +5349,7 @@ IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counte
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "preview_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -5271,6 +5390,7 @@ class Stats:
         self.not_found = Counter()                                               # URL -> number of 404 responses
         self.gone_404 = Counter()                 # 1.142 --sitemap: URL listed in sitemap.xml that answers 404 (important: counted in the health)
         self.unknown_404 = Counter()              # 1.142 --sitemap: URL NOT in sitemap.xml answering 404 (never existed: not counted in the health)
+        self.preview_404 = Counter()              # 1.206: 404 of a link preview walk (Telegram... while a link is erased in a draft): neither an attack nor in the health
         self.disabled_404 = Counter()             # 1.143: 404 on a path refused on purpose (--disable-uri): not counted in the health
         self.ip_not_found = {}                                                   # address -> set of the DIFFERENT pages it requested in 404 (probe sweep)
         self.probes = Counter()                           # "suspicious" URLs requested by THIS server itself (health probes): counted apart, never to ban
@@ -5569,6 +5689,7 @@ class Stats:
         elif ip != "?" and self.names[ip] != ip:                                   # identified: a name, not the bare address (kept in step with --dns-max)
             self.by_name[self.names[ip]] += 1
         url, code = r.group(1), int(r.group(2))
+        preview = link_preview(L)                                       # 1.206: every request line is observed (the walk compares it with the next ones)
         if ROBOTS_FILES_RE.match(url.split("?", 1)[0]):
             self.robots_ips.add(ip)
         self.urls[url.split("?", 1)[0]] += 1
@@ -5608,8 +5729,13 @@ class Stats:
             del self.http_errors[:-2000]
         if code == 404 and not probe:
             self.not_found[url] += 1
-            self.ip_not_found.setdefault(ip, set()).add(url.split("?", 1)[0])
-            if is_disabled(url):                                                # 1.143: refused on purpose by our configuration: neither important nor an attack
+            if preview:                                                         # 1.206: a link preview walk (Telegram...): never a probe sweep to ban
+                self.preview_404[url] += 1
+            else:
+                self.ip_not_found.setdefault(ip, set()).add(url.split("?", 1)[0])
+            if preview and SITEMAP is not None and SITEMAP.paths is not None and not SITEMAP.listed(url):
+                pass                                                            # 1.206: counted apart (preview_404), not with the "attacks"
+            elif is_disabled(url):                                                # 1.143: refused on purpose by our configuration: neither important nor an attack
                 self.disabled_404[url] += 1
             elif SITEMAP is not None and SITEMAP.paths is not None:             # 1.142: listed in the sitemap = important; any other = never existed
                 (self.gone_404 if SITEMAP.listed(url) else self.unknown_404)[url] += 1
@@ -5867,6 +5993,10 @@ class Stats:
                 never = sum(self.unknown_404.values())
                 indicator(0, TR("404 on URLs never in sitemap.xml (attacks, not in the health): ") + (f"{never}" if never else none_fem()),
                           ["URL: " + self.top(self.unknown_404, 5)] if never else (), (10 ** 9, 10 ** 9), never)
+            previews = sum(self.preview_404.values())
+            if previews:                                        # 1.206: shown only when there is one
+                indicator(0, TR("404 of link previews (Telegram... while a link is erased in a message; not an attack, never banned): ") + f"{previews}",
+                          ["URL: " + self.top(self.preview_404, 3)], (10 ** 9, 10 ** 9), previews)
             refused = sum(self.disabled_404.values())
             indicator(0, TR("404 refused on purpose (--disable-uri, not in the health): ") + (f"{refused}" if refused else none_fem()),
                       ["URL: " + self.top(self.disabled_404, 5)] if refused else (), (10 ** 9, 10 ** 9), refused)
@@ -6267,7 +6397,7 @@ def advisor_facts(stats):
             "known_ips": sorted(set(stats.people) | set(stats.protected_ones)),
             "errors5": dict(stats.errors[5]), "codes_by_url": codes,
             "plain_4xx": {u: n for u, n in stats.errors[4].items() if not suspect_url(u) and not is_disabled(u)},
-            "gone_404": dict(stats.gone_404), "sitemap_paths": SITEMAP.paths if SITEMAP is not None else None,
+            "gone_404": dict(stats.gone_404), "preview_404": sum(stats.preview_404.values()), "merge_twins": MERGE_TWINS[0], "sitemap_paths": SITEMAP.paths if SITEMAP is not None else None,
             "odoo_errors": odoo_errors, "conflicts": stats.conflicts, "conflict_codes": dict(stats.conflict_codes),
             "final_failures": stats.final_failures, "failure_codes": dict(stats.failure_codes), "mails": stats.mails, "slow": slow,
             "to_ban": [(ip, stats.who_country(ip), stats.ban_reason(ip, n)) for ip, n in to_ban],
@@ -6809,6 +6939,7 @@ class StatusBar:
         self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
         self.gone_404 = self.unknown_404 = self.disabled_404 = 0    # 1.142 --sitemap: 404 on a page of sitemap.xml (important, in the health) / on any other URL (never existed); 1.143: refused on purpose
+        self.preview_404 = 0                                        # 1.206: 404 of a link preview walk (Telegram...): no penalty
         self.bots403 = 0                                                       # 1.130: 403 answered to the bots refused by policy
         self.codes = collections.Counter()               # 1.124: 4xx and 5xx answers by code (403, 404, 500...)
         self.slow_max = 0.0
@@ -6858,6 +6989,9 @@ class StatusBar:
                     elif SITEMAP is not None and SITEMAP.paths is not None:          # 1.142: listed = important; any other = never existed
                         if SITEMAP.listed(request.group(1)):
                             self.gone_404 += 1
+                        elif link_preview(L):                                        # 1.206: a link preview walk (Telegram...): no penalty, not a problem address
+                            self.preview_404 += 1
+                            problem = False
                         else:
                             self.unknown_404 += 1
             elif code >= 500:
@@ -6928,7 +7062,7 @@ class StatusBar:
         """1.120: health of the bar, out of 100 %: SQL injection attempts (3 points), 5xx (2), banned addresses (2 each), 4xx (0.1 each) and
         connections slower than 9 s (1 each) take points off. 1.130: the 403 answered to the bots refused by policy take none (counted apart).
         Reset by Ctrl-T and g, like the other counters."""
-        never = self.unknown_404 + self.disabled_404              # 1.142: 404 on URLs never in the sitemap (attacks) and 1.143: refused on purpose: no penalty
+        never = self.unknown_404 + self.disabled_404 + self.preview_404     # 1.142: 404 on URLs never in the sitemap (attacks), 1.143: refused on purpose, 1.206: link previews: no penalty
         penalty = 3 * self.sqli + 2 * self.e5 + 0.1 * (self.e4 - never) + 2 * len(self.banned) + self.slow
         return max(0, round(100 - penalty))
 
@@ -6954,6 +7088,8 @@ class StatusBar:
                 pieces = [([(f"{TR('404s')}=", None), (f"{split[0]}", criticite(split[0], 1, 5))]),
                           ([(f"{TR('404b')}=", None), (f"{split[1]}", None)]),
                           ([(f"{TR('404o')}=", None), (f"{split[2]}", None)])]
+                if split[3]:                                       # 1.206: link previews (Telegram...), shown only when there is one
+                    pieces.append([(f"{TR('404p')}=", None), (f"{split[3]}", None)])
             for code, n in codes:
                 pieces.append([(f"{code}: ", None), (f"{n}", criticite(n, *thresholds))])
             for i, piece in enumerate(pieces):
@@ -6965,9 +7101,9 @@ class StatusBar:
 
     def kinds_404(self):
         """1.147: (sitemap, refused on purpose, never in the sitemap) when every 404 of the 4xx count is classified, else None (the sitemap is not read yet)."""
-        if self.gone_404 + self.disabled_404 + self.unknown_404 != self.codes.get(404, 0):
+        if self.gone_404 + self.disabled_404 + self.unknown_404 + self.preview_404 != self.codes.get(404, 0):
             return None
-        return self.gone_404, self.disabled_404, self.unknown_404
+        return self.gone_404, self.disabled_404, self.unknown_404, self.preview_404
 
     def codes_text(self, first, total):
         """1.124: text of codes_pieces (no colour)."""
@@ -9515,6 +9651,9 @@ def follow(cmd, people, resolver, options, output):
             skip_merge = bool(merge_ready)              # 1.123: a line released by --log-merge is shown as it is (already merged)
             if not merge_ready and merge_ended[0]:
                 break
+            if not merge_ready and merge_held:
+                merge_ready.extend(merge_release(merge_held, time.time()))      # 1.206: also while the stream is busy (the window no longer releases them)
+                skip_merge = bool(merge_ready)
             try:
                 item = merge_ready.popleft() if merge_ready else file.get(timeout=1.0)
             except queue.Empty:                         # idle stream: summary after the history, then inactivities
