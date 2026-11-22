@@ -25,6 +25,10 @@ Service: `erplibre*` or `odoo*` systemd unit (override `--service`). Database: t
 * **Rollback**: after a failed update, a failed start or errors in the log - and when this run replaced the code with `--zip` - the previous module folders are put back, updated again and Odoo restarted. On a terminal it asks first (Enter = yes); unattended (cron, systemd) it is automatic; `--no-rollback` (`ROLLBACK=non`) forbids it. The site never stays stopped.
 * **Ctrl+C** is answered at once, even during a 30-minute update; "yes" stops the update and restarts the service if it was running.
 
+## List of applications (`--update-list`)
+
+1.41: `--update-list` does what the button Apps > Update Apps List does (developer mode), **without stopping Odoo**: a separate `odoo shell`, under the account of the service, without HTTP, worker nor cron, calls `update_list()` then commits. It shows the number of modules updated and added, then the modules left **without code on the disk** (state "uninstallable"): their icon answers 404 when the Apps menu is opened. `--dry-run` shows the command without running it.
+
 ## What to check after
 
 Update logs are kept `LOG_KEEP_DAYS` days. A successful `-u` followed by a clean warm-up is the real signal for modules with XML/view changes; read the printed log path if anything fails.

@@ -25,6 +25,10 @@ Service : unité systemd `erplibre*` ou `odoo*` (`--service` pour forcer). Base 
 * **Retour arrière** : après une mise à jour en échec, un démarrage raté ou des erreurs dans le journal - et si ce lancement a remplacé le code avec `--zip` - , les dossiers d'avant sont remis, mis à jour de nouveau et Odoo redémarré. Sur un terminal, une question d'abord (Entrée = oui) ; sans personne (cron, systemd), automatique ; `--no-rollback` (`ROLLBACK=non`) l'interdit. Le site ne reste jamais arrêté.
 * **Ctrl+C** répond tout de suite, même pendant une mise à jour de 30 minutes ; « oui » arrête la mise à jour et redémarre le service s'il tournait.
 
+## Liste des applications (`--update-list`)
+
+1.41 : `--update-list` fait ce que fait le bouton Applications > Mettre à jour la liste des applications (mode développeur), **sans arrêter Odoo** : un `odoo shell` à part, sous le compte du service, sans HTTP, sans worker ni cron, appelle `update_list()` puis enregistre. Il affiche le nombre de modules mis à jour et ajoutés, puis les modules restés **sans code sur le disque** (état « non installable ») : ce sont ceux dont l'icône répond 404 quand on ouvre le menu Applications. `--dry-run` montre la commande sans la lancer.
+
 ## À vérifier ensuite
 
 Les journaux de mise à jour sont gardés `LOG_KEEP_DAYS` jours. Un `-u` réussi suivi d'un préchauffage propre est le vrai signal pour les modules qui modifient des vues XML ; en cas d'échec, lire le chemin du journal affiché.

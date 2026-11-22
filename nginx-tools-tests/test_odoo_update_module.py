@@ -25,6 +25,7 @@ esac
 
 FAUX_ODOO = r'''#!/bin/bash
 echo "odoo $*" >> "$D/appels.log"
+[ "$1" = shell ] && cat > "$D/odoo_stdin"
 echo "etat_service=$(cat "$D/etat")" >> "$D/appels.log"
 pwd >> "$D/appels.log"
 [ -e "$D/odoo_sortie" ] && cat "$D/odoo_sortie"
@@ -300,6 +301,38 @@ class OdooUpdateModule(EnvTest):
         self.assertIn("aucun (redémarrage seulement)", out)
         self.assertIn("Site coupé :", out)
         self.assertFalse(os.path.isdir(os.path.join(self.d, "copies")) and os.listdir(os.path.join(self.d, "copies")))     # no copy of the modules
+
+    def test_141_liste_des_applications_sans_arreter_odoo(self):
+        """1.41 --update-list : « odoo shell » sous le compte du service, le script Python sur l'entrée standard (update_list, commit), le
+        service jamais arrêté ni redémarré ; nombres et modules sans code sur le disque affichés."""
+        self.write("odoo_sortie", "RLQ_UPDATE_LIST\t3\t1\nRLQ_UNINSTALLABLE\tom_hospital openeducat_core plm\n")
+        rc, out, err = self.lancer("--update-list")
+        self.assertEqual(rc, 0, out + err)
+        a = self.appels()
+        odoo = [l for l in a if l.startswith("odoo ")]
+        self.assertEqual(len(odoo), 1, a)
+        self.assertTrue(odoo[0].startswith("odoo shell -c ") and " -d base_prod " in odoo[0] and "--no-http" in odoo[0], odoo[0])
+        self.assertIn("etat_service=active", a)                                               # Odoo still running during the shell
+        self.assertFalse([l for l in a if l.startswith(("systemctl stop", "systemctl start", "systemctl restart"))], a)
+        entree = open(os.path.join(self.d, "odoo_stdin"), encoding="utf-8").read()
+        self.assertIn('env["ir.module.module"].update_list()', entree)
+        self.assertIn("env.cr.commit()", entree)
+        self.assertIn("3 modules mis à jour, 1 ajoutés", re.sub(r"\x1b\[[0-9;]*m", "", out))
+        self.assertIn("3 modules sans code sur le disque", out)
+        self.assertIn("om_hospital openeducat_core plm", out)
+
+    def test_141_liste_des_applications_echec_et_simulation(self):
+        self.write("odoo_code", "1\n")
+        self.write("odoo_sortie", "Traceback (most recent call last):\npsycopg2.OperationalError: x\n")
+        rc, out, err = self.lancer("--update-list")
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("la mise à jour de la liste des applications a échoué (code 1", out)
+        self.assertIn("psycopg2.OperationalError", out)
+        os.remove(os.path.join(self.d, "odoo_code"))
+        rc, out, err = self.lancer("--update-list", "--dry-run")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("(simulation)", out)
+        self.assertFalse([l for l in self.appels() if l.startswith("odoo ") and "--dry" in l])
 
     def test_135_prechauffage_du_redemarrage_seulement(self):
         """1.35 --restart-only : le journal du préchauffage a un vrai nom (restart-BASE-...-prechauffage.log dans le dossier des journaux), jamais
