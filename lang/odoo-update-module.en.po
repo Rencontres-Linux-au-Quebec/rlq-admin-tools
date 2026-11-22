@@ -1059,3 +1059,48 @@ msgstr "), code replaced, taken at the restart"
 
 msgid "(jamais installés dans la base : code remplacé, pris au redémarrage)"
 msgstr "(never installed in the database: code replaced, taken at the restart)"
+
+msgid "  --update-list                mettre à jour la liste des applications d'Odoo (comme Applications > Mettre à jour la liste des applications), SANS"
+msgstr "  --update-list                update the list of applications of Odoo (like Apps > Update Apps List), WITHOUT"
+
+msgid "                               arrêter Odoo : « odoo shell » sous le compte du service ; affiche les modules restés sans code sur le disque (non installables)"
+msgstr "                               stopping Odoo: \"odoo shell\" under the account of the service; shows the modules left without code on the disk (uninstallable)"
+
+msgid "--update-list|Mettre à jour la liste des applications|Update the list of applications|1"
+msgstr "--update-list|Update the list of applications|Update the list of applications|1"
+
+msgid "Mise à jour de la liste des applications d'Odoo"
+msgstr "Update of the list of applications of Odoo"
+
+msgid "Mise à jour de la liste des applications dans la base "
+msgstr "Update of the list of applications in the database "
+
+msgid "Odoo n'est pas arrêté : « odoo shell » à part (sans HTTP, sans worker ni cron), qui écrit seulement la table ir_module_module"
+msgstr "Odoo is not stopped: a separate \"odoo shell\" (no HTTP, no worker nor cron), which writes only the table ir_module_module"
+
+msgid "la mise à jour de la liste ne s'est pas terminée en "
+msgstr "the update of the list did not finish within "
+
+msgid "la mise à jour de la liste des applications a échoué (code "
+msgstr "the update of the list of applications failed (code "
+
+msgid ", voir "
+msgstr ", see "
+
+msgid "liste des applications mise à jour : "
+msgstr "list of applications updated: "
+
+msgid " modules mis à jour, "
+msgstr " modules updated, "
+
+msgid " ajoutés "
+msgstr " added "
+
+msgid "(journal : "
+msgstr "(log: "
+
+msgid " modules sans code sur le disque (non installables) : leur icône répond 404 dans le menu Applications"
+msgstr " modules without code on the disk (uninstallable): their icon answers 404 in the Apps menu"
+
+msgid "aucun module sans code sur le disque"
+msgstr "no module without code on the disk"

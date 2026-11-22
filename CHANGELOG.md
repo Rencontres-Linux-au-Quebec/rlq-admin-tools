@@ -4133,6 +4133,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.41.20261122.174500 - New option --update-list: list of the applications updated without stopping Odoo
+
+- Reason for the request: request of the administrator on 2026-11-22 at 17:38: a command line for Apps > "Update Apps List", in odoo-update-module.sh, with an option such as --update-list (after the 404 of the icons of the modules without code on the disk, see app-log-live.py 1.208).
+- Changes (odoo-update-module.sh): new option --update-list (action, no configuration key) and function mettre_a_jour_liste(): "odoo shell -c CONF -d DB --no-http --workers=0 --max-cron-threads=0 --log-level=warn" under the account of the service (runuser, HOME of the account), the same command of Odoo as the updates (COMMAND, ./odoo_bin.sh or odoo-bin), maximum delay TIMEOUT; the Python script (update_list(), commit, then the names of the modules in state uninstallable) is given on the standard input; result: numbers of modules updated and added, list of the modules without code on the disk; log update-DB-DATE-update-list.log in the folder of the logs. Menu (--menu): new entry. lang/odoo-update-module.en.po: help and messages. doc/fr and doc/en/09-odoo-update-module.md: new section. nginx-tools-tests/test_odoo_update_module.py: 2 tests; the fake Odoo keeps its standard input for "shell".
+- Bugs fixed: none.
+- Safeguards and edge cases: Odoo is never stopped nor restarted (a second process without HTTP, which writes only the table ir_module_module); the lock of the program is taken (no update at the same time); --dry-run shows the command; failure (exit code, no result line, timeout): [FAIL] with the end of the log, exit code 1; the script travels in a variable of the environment and is given as a here-string by the inner bash (run_interruptible runs the command in the background, where bash gives /dev/null as input; no temporary file).
+- Checks performed: bash -n; ShellCheck 0.11.0 (no warning); the 2 new tests [OK]; nginx-tools-tests/test_odoo_update_module.py: see the pull request.
+- Action required: none (git pull in /opt/rlq-admin-tools, then: sudo odoo-update-module.sh --update-list).
+
 ### 1.40.20261120.185748 - E-mail addresses, times and numbers in colour in the activity report
 
 - Reason for the request: the administrator, 2026-11-20, while odoo-update-module.sh waited for a quiet site before the restart of Odoo: the e-mail addresses, the times and the numbers of the lines "site occupé" should have their own colour; the whole detail was grey.
