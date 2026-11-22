@@ -6,6 +6,7 @@ Audits (default) or installs/repairs (`--update`) the server's baseline in numbe
 ./nginx-hardening.sh --check --app odoo          # read-only audit
 ./nginx-hardening.sh --update                    # apply (root; asks a few questions the first time)
 ./nginx-hardening.sh --update --rename-to new.example.org   # DNS name change + new Let's Encrypt certificate
+./nginx-hardening.sh --update --yes              # without a terminal (host-perf-audit.py --guest-run): steps 0f and 9b bis applied without asking
 ```
 
 ## Steps

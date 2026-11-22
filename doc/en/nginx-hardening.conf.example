@@ -99,5 +99,5 @@
 #   --menu        menu interactif des opérations courantes (dialog si installé ; terminal requis)
 #   --rollback    restaure la dernière sauvegarde de la configuration nginx (--yes : sans question)
 #   --test-rules  teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
-#   --yes         avec --rollback, --disable-uri ou --enable-uri : appliquer sans question
+#   --yes         with --rollback, --disable-uri, --enable-uri or --update: apply without asking (--update: steps 0f and 9b bis)
 #   --dns-refresh  resolve the DNS names of the white list; --update only when an address changed (cron every 15 min)

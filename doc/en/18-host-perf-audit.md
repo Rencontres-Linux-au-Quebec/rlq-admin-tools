@@ -69,7 +69,7 @@ At the end of the report and of `--health`, each command is marked **`[read]`** 
 host-perf-audit.py --guest-run --guests 101,104,105,433
 ```
 
-Runs `/opt/rlq-admin-tools/nginx-hardening.sh --update` (or `--guest-command`) in each guest, one after the other, after checking that the program exists there and after a confirmation (`--yes`: without the question). The outputs are kept in `/var/lib/host-perf-audit/guest-runs/DATE/`, with a `report.md` to send for analysis. Keys `GUESTS` and `GUEST_COMMAND` in the configuration.
+Runs `/opt/rlq-admin-tools/nginx-hardening.sh --update` (or `--guest-command`) in each guest, one after the other, after checking that the program exists there and after a confirmation (`--yes`: without the question). The outputs are kept in `/var/lib/host-perf-audit/guest-runs/DATE/`, with a `report.md` to send for analysis. Keys `GUESTS` and `GUEST_COMMAND` in the configuration. Without a terminal in the guest, `nginx-hardening.sh --update` does not apply the steps that ask for a confirmation (0f, generic nginx configuration; 9b bis, filter nginx-sqli): `--guest-command "/opt/rlq-admin-tools/nginx-hardening.sh --update --yes"` applies them (backup, then back to the previous state if `nginx -t` or fail2ban refuse).
 
 ## Copy of the suite to the guests (1.18)
 
