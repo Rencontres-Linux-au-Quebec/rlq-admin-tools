@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.124.20261121.215718"
+readonly SCRIPT_VERSION="2.125.20261122.092248"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -148,7 +148,7 @@ BACKUP_KEEP="${NGINX_HARDENING_BACKUP_KEEP:-20}"
 read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fail2ban}"
 ROLLBACK=0
 ROLLBACK_BACKUP=""
-ROLLBACK_YES=0
+ROLLBACK_YES=0                 # --yes: no question for --rollback, --disable-uri, --enable-uri and (2.125) the steps 0f and 9b bis of --update
 DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 15 min)
 DISABLE_URI_LIST=()     # --disable-uri CHEMIN (repeatable): refused with 404 in the Odoo site, every language
 ENABLE_URI_LIST=()      # --enable-uri CHEMIN (repeatable): the refusal is removed
@@ -345,7 +345,7 @@ Options (par ordre alphabétique) :
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
   --workers N                  nombre de workers pour la suggestion de limites mémoire (étape 6)
-  --yes                        avec --rollback, --disable-uri ou --enable-uri : appliquer sans question
+  --yes                        avec --rollback, --disable-uri, --enable-uri ou --update : appliquer sans question (--update : configuration nginx générique, étape 0f, et filtre nginx-sqli, étape 9b bis ; sauvegarde et retour en arrière si nginx -t ou fail2ban refusent)
 AIDE
             exit 0
             ;;
@@ -1977,8 +1977,9 @@ else
             warn "Configuration nginx générique : ${#GEN_PLAN[@]} changements en attente (relancer avec --update pour les appliquer après confirmation)."
         else
             GEN_REP=""
-            if [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
-            else warn "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."; fi
+            if [[ "$ROLLBACK_YES" == "1" ]]; then GEN_REP="o"; echo "  --yes : changements appliqués sans question (sauvegarde, puis retour à l'état précédent si nginx -t refuse)."   # 2.125
+            elif [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
+            else warn "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer, ou --update --yes)."; fi
             if [[ "$GEN_REP" =~ ^[oOyY]$ ]]; then
                 GEN_TS=$(date +%Y%m%d-%H%M%S); GEN_FAITS=()
                 for ligne in "${GEN_PLAN[@]}"; do
@@ -3260,8 +3261,9 @@ else
             warn "Jail $F2B_SQLI_JAIL : une image dont le nom contient une taille (2160x2160) fait bannir le visiteur (relancer avec --update pour corriger le filtre après confirmation)."
         else
             F2B_REP=""
-            if [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ce changement à $F2B_SQLI_FILTRE et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
-            else warn "Pas de terminal : filtre de la jail $F2B_SQLI_JAIL non modifié (lancer --update dans un terminal pour confirmer)."; fi
+            if [[ "$ROLLBACK_YES" == "1" ]]; then F2B_REP="o"; echo "  --yes : changement appliqué sans question (sauvegarde, puis retour au filtre d'origine si fail2ban le refuse)."   # 2.125
+            elif [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ce changement à $F2B_SQLI_FILTRE et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
+            else warn "Pas de terminal : filtre de la jail $F2B_SQLI_JAIL non modifié (lancer --update dans un terminal pour confirmer, ou --update --yes)."; fi
             if [[ "$F2B_REP" =~ ^[oOyY]$ ]]; then
                 F2B_BAK="$F2B_SQLI_FILTRE.before-hex-$(date +%Y%m%d-%H%M%S)"
                 cp -p "$F2B_SQLI_FILTRE" "$F2B_BAK"

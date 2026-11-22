@@ -6,6 +6,7 @@ Audite (par défaut) ou installe/répare (`--update`) la base du serveur en éta
 ./nginx-hardening.sh --check --app odoo          # audit en lecture seule
 ./nginx-hardening.sh --update                    # appliquer (root ; pose quelques questions la première fois)
 ./nginx-hardening.sh --update --rename-to nouveau.example.org   # changement de nom DNS + nouveau certificat Let's Encrypt
+./nginx-hardening.sh --update --yes              # sans terminal (host-perf-audit.py --guest-run) : étapes 0f et 9b bis appliquées sans question
 ```
 
 ## Étapes

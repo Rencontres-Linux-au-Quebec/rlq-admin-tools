@@ -2027,8 +2027,8 @@ msgstr " changes pending (run --update to apply them after confirmation)."
 msgid " changements à la configuration nginx générique ? [o/N] "
 msgstr " changes to the generic nginx configuration? [y/N] "
 
-msgid "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."
-msgstr "No terminal: generic nginx configuration not changed (run --update in a terminal to confirm)."
+msgid "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer, ou --update --yes)."
+msgstr "No terminal: generic nginx configuration not changed (run --update in a terminal to confirm, or --update --yes)."
 
 msgid "# vide — créé par nginx-hardening.sh --update ; à remplir par le zip de configuration du site"
 msgstr "# empty file, created by nginx-hardening.sh --update; to be filled by the site configuration package"
@@ -2060,8 +2060,8 @@ msgstr "  --menu                       interactive menu of the common operations
 msgid "  --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation"
 msgstr "  --rollback                   restores the most recent backup (or --backup NAME) of the nginx and fail2ban configuration, after confirmation"
 
-msgid "  --yes                        avec --rollback, --disable-uri ou --enable-uri : appliquer sans question"
-msgstr "  --yes                        with --rollback, --disable-uri or --enable-uri: apply without asking"
+msgid "  --yes                        avec --rollback, --disable-uri, --enable-uri ou --update : appliquer sans question (--update : configuration nginx générique, étape 0f, et filtre nginx-sqli, étape 9b bis ; sauvegarde et retour en arrière si nginx -t ou fail2ban refusent)"
+msgstr "  --yes                        with --rollback, --disable-uri, --enable-uri or --update: apply without asking (--update: generic nginx configuration, step 0f, and filter nginx-sqli, step 9b bis; backup and back to the previous state if nginx -t or fail2ban refuse)"
 
 msgid "ERREUR: chemin invalide « "
 msgstr "ERROR: invalid path « "
@@ -3255,8 +3255,8 @@ msgstr ": an image whose name contains a size (2160x2160) gets the visitor banne
 msgid "Pas de terminal : filtre de la jail "
 msgstr "No terminal: filter of the jail "
 
-msgid " non modifié (lancer --update dans un terminal pour confirmer)."
-msgstr " not changed (run --update in a terminal to confirm)."
+msgid " non modifié (lancer --update dans un terminal pour confirmer, ou --update --yes)."
+msgstr " not changed (run --update in a terminal to confirm, or --update --yes)."
 
 msgid " : filtre corrigé, jail rechargée ; sauvegarde : "
 msgstr ": filter fixed, jail reloaded; backup: "
@@ -3287,3 +3287,9 @@ msgstr "--- 9d) Jail sshd: a longer ban at each repeat ---"
 
 msgid "jail sshd non chargée par fail2ban"
 msgstr "jail sshd not loaded by fail2ban"
+
+msgid "  --yes : changements appliqués sans question (sauvegarde, puis retour à l'état précédent si nginx -t refuse)."
+msgstr "  --yes: changes applied without asking (backup, then back to the previous state if nginx -t refuses)."
+
+msgid "  --yes : changement appliqué sans question (sauvegarde, puis retour au filtre d'origine si fail2ban le refuse)."
+msgstr "  --yes: change applied without asking (backup, then back to the original filter if fail2ban refuses it)."

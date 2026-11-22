@@ -69,7 +69,7 @@ Depuis la 1.14, chaque invité en ordre a sa ligne `[OK]` avec ce qui a été v�
 host-perf-audit.py --guest-run --guests 101,104,105,433
 ```
 
-Lance `/opt/rlq-admin-tools/nginx-hardening.sh --update` (ou `--guest-command`) dans chaque invité, l'un après l'autre, après avoir vérifié que le programme y existe et après une confirmation (`--yes` : sans question). Les sorties sont gardées dans `/var/lib/host-perf-audit/guest-runs/DATE/`, avec un `report.md` à envoyer pour analyse. Clés `GUESTS` et `GUEST_COMMAND` dans la configuration.
+Lance `/opt/rlq-admin-tools/nginx-hardening.sh --update` (ou `--guest-command`) dans chaque invité, l'un après l'autre, après avoir vérifié que le programme y existe et après une confirmation (`--yes` : sans question). Les sorties sont gardées dans `/var/lib/host-perf-audit/guest-runs/DATE/`, avec un `report.md` à envoyer pour analyse. Clés `GUESTS` et `GUEST_COMMAND` dans la configuration. Sans terminal dans l'invité, `nginx-hardening.sh --update` n'applique pas les étapes qui demandent une confirmation (0f, configuration nginx générique ; 9b bis, filtre nginx-sqli) : `--guest-command "/opt/rlq-admin-tools/nginx-hardening.sh --update --yes"` les applique (sauvegarde, puis retour en arrière si `nginx -t` ou fail2ban refusent).
 
 ## Copie de la suite dans les invités (1.18)
 

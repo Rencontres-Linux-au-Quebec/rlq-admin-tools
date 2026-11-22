@@ -4537,6 +4537,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.125.20261122.092248 - --update --yes: steps 0f and 9b bis applied without a terminal
+
+- Motif de la demande: on 2026-11-21 at 22:11, host-perf-audit.py --guest-run ran nginx-hardening.sh --update in the guests without a terminal; on odoo18 and odoo-dev the steps 0f (generic nginx configuration 1.34, fix of /dev/null) and 9b bis (filter nginx-sqli) said "Pas de terminal : ... non modifié", so the fixes of the bans of 2026-11-21 stayed inactive. Request of the administrator: an option to apply them from Proxmox.
+- Detail des modifications: nginx-hardening.sh: the option --yes (variable ROLLBACK_YES, already used by --rollback, --disable-uri and --enable-uri) now also answers "o" to the question of step 0f and to the question of step 9b bis of --update, with a line "--yes : ... appliqué sans question"; without --yes and without a terminal, the warning now says "ou --update --yes"; help (--help) of --yes. lang/nginx-hardening.en.po: 3 entries changed, 2 new. doc/fr and doc/en 01-nginx-hardening.md (example), 18-host-perf-audit.md (--guest-command "... --update --yes"), doc/en/nginx-hardening.conf.example (comment of --yes). nginx-tools-tests/test_nginx_hardening_update_yes.py: new (6 tests).
+- Bugs corriges: symptom: the steps 0f and 9b bis are never applied by host-perf-audit.py --guest-run. Diagnosis: they ask for a confirmation and, without a terminal, answer no. Fix: --yes gives the answer.
+- Garde-fous et cas limites traites: --yes changes nothing without --update (--check stays read-only, tested); the safeguards of each step are unchanged: step 0f keeps a copy (.before-generic-DATE) and puts every file back if nginx -t refuses the new configuration; step 9b bis keeps a copy (.before-hex-DATE) and puts the original filter back if fail2ban refuses it (tested); the other questions of --update (e-mail, link page, time zone) are not answered by --yes: they need values, not a yes; --yes has no key in the configuration file (a confirmation, rule of the repository).
+- Verifications effectuees: bash -n nginx-hardening.sh; python3 -m unittest test_nginx_hardening_update_yes test_nginx_sqli_hex test_fail2ban_sshd_increment: 16 OK, 2 skipped (fail2ban absent here); test_i18n: no new message without translation.
+- Action requise: after merge, on Proxmox: host-perf-audit.py --guest-sync --guest-run --guests 104,105,433 --guest-command "/opt/rlq-admin-tools/nginx-hardening.sh --update --yes". Then on odoo18: grep -c 'location = /dev/null' /etc/nginx/snippets/odoo/_odoo-common.conf (1) and fail2ban-client get sshd bantime.increment (true).
+
 ### 2.124.20261121.215718 - Step 9d: the jail sshd bans a repeat offender longer at each new ban (up to one week)
 
 - Motif de la demande: on 2026-11-21 on bbb3, 209.99.190.186 was banned 17 times by the jail sshd in one day, about every 20 minutes: the ban is short and the address tries again as soon as it ends. Request of the administrator: ban the repeat offenders longer.
