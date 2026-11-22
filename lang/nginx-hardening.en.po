@@ -3263,3 +3263,27 @@ msgstr ": filter fixed, jail reloaded; backup: "
 
 msgid " : fail2ban a refusé le filtre corrigé : retour à "
 msgstr ": fail2ban refused the fixed filter: back to "
+
+msgid "bantime.increment (fail2ban 0.11 ou plus récent requis)"
+msgstr "bantime.increment (fail2ban 0.11 or later required)"
+
+msgid "Jail sshd : chaque nouveau bannissement d'une même adresse est plus long, jusqu'à une semaine ("
+msgstr "Jail sshd: each new ban of the same address is longer, up to one week ("
+
+msgid "Jail sshd : une adresse bannie revient dès la fin de son bannissement (relancer avec --update : bannissement plus long à chaque récidive, jusqu'à une semaine)."
+msgstr "Jail sshd: a banned address comes back as soon as its ban ends (run again with --update: a longer ban at each repeat, up to one week)."
+
+msgid "Jail sshd : bannissement plus long à chaque récidive, jusqu'à une semaine ("
+msgstr "Jail sshd: a longer ban at each repeat, up to one week ("
+
+msgid " écrit ; fail2ban rechargé en fin d'exécution)."
+msgstr " written; fail2ban reloaded at the end of the run)."
+
+msgid "Jail sshd : impossible d'écrire "
+msgstr "Jail sshd: cannot write "
+
+msgid "--- 9d) Jail sshd : bannissement plus long à chaque récidive ---"
+msgstr "--- 9d) Jail sshd: a longer ban at each repeat ---"
+
+msgid "jail sshd non chargée par fail2ban"
+msgstr "jail sshd not loaded by fail2ban"
