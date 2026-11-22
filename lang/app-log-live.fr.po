@@ -3679,3 +3679,12 @@ msgstr "404p"
 
 msgid "404 of link previews (Telegram... while a link is erased in a message; not an attack, never banned): "
 msgstr "404 d'aperçus de liens (Telegram... pendant qu'un lien est effacé dans un message ; pas une attaque, jamais banni) : "
+
+msgid "[test of this server]"
+msgstr "[test de ce serveur]"
+
+msgid "ℹ Tests from this server: {n} local requests answered 4xx (curl, test by hand), not counted as errors — "
+msgstr "ℹ Tests de ce serveur : {n} requêtes locales avec réponse 4xx (curl, test à la main), non comptées comme erreurs — "
+
+msgid "Tests from this server: {n} local requests answered 4xx (curl, test by hand), not counted as errors — "
+msgstr "Tests de ce serveur : {n} requêtes locales avec réponse 4xx (curl, test à la main), non comptées comme erreurs — "

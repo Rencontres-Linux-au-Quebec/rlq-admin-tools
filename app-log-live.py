@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.206.20261122.121500"
+__version__ = "1.207.20261122.163000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2523,7 +2523,7 @@ class Formatting:
             position = cut_end
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code))   # 1.144: the sitemap tag of a 404 goes at the END of the line
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code), local_request(text))   # 1.144: the sitemap tag of a 404 goes at the END of the line
         head = before + block + "   " + rl_column + os_column + " " + request_data
         stop = NGINX_TAB_STOP - display_width(head) % NGINX_TAB_STOP          # 1.183: a tab before the referer: spaces up to the next tab stop (1 to 8)
         return head + " " * stop + tail.lstrip(" ") + tag
@@ -2571,7 +2571,7 @@ class Formatting:
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
         rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code))   # 1.144: the sitemap tag of a 404 Odoo line, at the end too
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code), local_request(text))   # 1.144: the sitemap tag of a 404 Odoo line, at the end too
         return before + block + "   " + rl_blank + OS_BLANK + " " + request_data + tag          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
@@ -5184,6 +5184,20 @@ class Sitemap:
         return sitemap_path(url) in paths
 
 
+def local_request(text):
+    """1.207: True when the client address of the line is this server itself (loopback: 127.0.0.1, ::1). Same rule as the pages asked by this server
+    (1.181): with Odoo behind nginx in proxy mode and nginx in front, a visitor never has a loopback address."""
+    ips = find_ips(text)
+    return bool(ips) and local_address(ips[0][2])
+
+
+def local_test(text, url, code):
+    """1.207: a 4xx answer to a request of this server itself that is not a security probe (local_probe): a check by hand with curl, a test of a
+    configuration (2026-11-22 11:22:44: /rlq/session/check 401, then the example URLs of the tests of the repository, each 303 then 404). Expected:
+    neither a 4xx error, nor a 404 to look for, nor a problem address."""
+    return 400 <= int(code) < 500 and local_request(text) and not suspect_url(url)
+
+
 def local_probe(text, url):
     """1.173: a security test of THIS server (app-health-check.py: traversal in the query string, /.env, /.git/config...): a suspicious URL asked from the
     loopback address. It answers 404 on purpose (nginx blocks it): neither an error to correct nor a page to look for in sitemap.xml."""
@@ -5263,12 +5277,14 @@ def link_preview(L):
     return step
 
 
-def sitemap_tag(code, url, probe=False, preview=False):
+def sitemap_tag(code, url, probe=False, preview=False, local=False):
     """1.144 --sitemap: the tag shown at the END of a 404 line: [in sitemap.xml] (important page, counted in the health), [not in sitemap.xml] (never
     existed, not counted), [disabled] (refused on purpose by our configuration), [not read yet] (sitemap not read). "" for the other lines and when
     --sitemap is off. French: [dans sitemap.xml], [pas dans sitemap.xml], [désactivé], [pas encore lu]."""
     if str(code) == "404" and probe:                              # 1.173: blocked on purpose, by the test of this server
         return " " + color_code(STYLES["debug"], TR("[probe of this server]"))
+    if str(code) == "404" and local:                              # 1.207: asked by this server itself (curl, test): not a visitor
+        return " " + color_code(STYLES["debug"], TR("[test of this server]"))
     if str(code) == "404" and preview:                            # 1.206: a step of a link preview walk (Telegram...): not an attack
         return " " + color_code(STYLES["debug"], TR("[link preview]"))
     if SITEMAP is None or str(code) != "404":
@@ -5349,7 +5365,7 @@ IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counte
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "preview_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "local_tests", "not_found", "gone_404", "unknown_404", "preview_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -5394,6 +5410,7 @@ class Stats:
         self.disabled_404 = Counter()             # 1.143: 404 on a path refused on purpose (--disable-uri): not counted in the health
         self.ip_not_found = {}                                                   # address -> set of the DIFFERENT pages it requested in 404 (probe sweep)
         self.probes = Counter()                           # "suspicious" URLs requested by THIS server itself (health probes): counted apart, never to ban
+        self.local_tests = Counter()                      # 1.207: other URLs answering 4xx to THIS server itself (curl, test by hand): counted apart, never an error
         self.errors = {5: Counter(), 4: Counter()}
         self.urls, self.languages, self.statuses = Counter(), Counter(), Counter()
         self.odoo_errors = Counter()                     # (level, logger, message) -> number
@@ -5715,19 +5732,22 @@ class Stats:
                     self.visits[ip] += 1
                 self.last_seen_at[ip] = max(instant, self.last_seen_at.get(ip, instant))
         probe = suspect_url(url) and (ip in self.server or local_address(ip))
+        local = not probe and 400 <= code < 500 and local_address(ip)      # 1.207: a 4xx asked by this server itself (curl, test by hand)
         if probe:
             self.probes[url] += 1
+        elif local:
+            self.local_tests[url.split("?", 1)[0]] += 1
         elif suspect_url(url):
             self.suspect_ips[ip] += 1
             self.suspect_urls[url] += 1
         if ACCOUNT_FORM_RE.search(url) and not (ip in self.server or local_address(ip)):
             self.account_ips[ip] += 1
             self.account_urls[url.split("?", 1)[0]] += 1
-        if code >= 400 and not (probe and code < 500):                # 1.173: the 404 of the security tests of this server (app-health-check.py) are expected
+        if code >= 400 and not ((probe or local) and code < 500):      # 1.207: nor the 4xx of the local tests                # 1.173: the 404 of the security tests of this server (app-health-check.py) are expected
             self.errors[5 if code >= 500 else 4][url] += 1
             self.http_errors.append((L.instant or time.time(), code, url, ip))
             del self.http_errors[:-2000]
-        if code == 404 and not probe:
+        if code == 404 and not probe and not local:
             self.not_found[url] += 1
             if preview:                                                         # 1.206: a link preview walk (Telegram...): never a probe sweep to ban
                 self.preview_404[url] += 1
@@ -6109,6 +6129,8 @@ class Stats:
                       [TR("its timer may be stopped or failing: systemctl list-timers 'web-monitor*' ; journalctl -u 'web-monitor*' -n 30")], (1, 2), 1)
         if self.probes:
             lines.append("  " + color_code(STYLES["debug"], f"ℹ Probes from this server: {sum(self.probes.values())} local requests (app-health-check.py) ignored as suspicious — {self.top(self.probes, 3)}"))
+        if self.local_tests:                                                 # 1.207
+            lines.append("  " + color_code(STYLES["debug"], TR("ℹ Tests from this server: {n} local requests answered 4xx (curl, test by hand), not counted as errors — ").format(n=sum(self.local_tests.values())) + self.top(self.local_tests, 3)))
         suspects = sum(self.suspect_urls.values())
         if suspects:
             lines.append("  " + color_code(STYLES["debug"], TR("ℹ Suspicious requests seen: {n} · addresses: {k}").format(n=suspects, k=len(self.suspect_ips))))
@@ -6285,6 +6307,8 @@ class Stats:
                                                                for ip, n in self.suspect_ips.most_common(5))))
         else:
             blocks.append((9, f"  Suspicious requests: {none_found()}."))
+        if self.local_tests:                                                 # 1.207
+            blocks.append((9, "  " + TR("Tests from this server: {n} local requests answered 4xx (curl, test by hand), not counted as errors — ").format(n=sum(self.local_tests.values())) + self.top(self.local_tests, 3)))
         if self.probes:
             blocks.append((9, f"  Probes from this server: {sum(self.probes.values())} local requests (app-health-check.py), not counted as suspicious — {self.top(self.probes, 3)}"))
         for class_, caption, style in ((5, "5xx errors (critical)", STYLES["url_critical"]), (4, "4xx errors (warnings)", STYLES["url_warning"])):
@@ -6977,8 +7001,9 @@ class StatusBar:
             code = int(request.group(2))
             if 400 <= code < 500 and is_bot_403(L):
                 self.bots403 += 1                                               # 1.130: policy, not an error: no health penalty, no problem address
-            elif 400 <= code < 500 and local_probe(L.text or "", request.group(1)):
-                pass                                                            # 1.173: security test of this server (app-health-check.py): blocked on purpose, no penalty
+            elif 400 <= code < 500 and local_request(L.text or ""):
+                pass                                                            # 1.173: security test of this server (app-health-check.py): blocked on purpose, no penalty;
+                                                                                # 1.207: any 4xx asked by this server itself (curl, test by hand)
             elif 400 <= code < 500:
                 self.e4 += 1
                 self.codes[code] += 1
