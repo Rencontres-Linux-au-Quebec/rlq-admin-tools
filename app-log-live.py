@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.207.20261122.163000"
+__version__ = "1.208.20261122.170000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5184,6 +5184,30 @@ class Sitemap:
         return sitemap_path(url) in paths
 
 
+# 1.208: 404 that a BROWSER of Odoo gets without any probe: the same rules as the filter of fail2ban (nginx-hardening.sh step 9c, 2.120-2.122).
+# 2026-11-22 16:50: an internal user opens Apps (/odoo/action-38): the browser asks the icon /MODULE/static/description/icon.png of each module listed in
+# the database; 40 of these modules have no code on the disk: 40 different 404 in 2 s, 8 times THRESHOLD_404, proposed for a ban as a "probe sweep".
+# Also: a deleted image (/web/image/...), an old bundle (/web/assets/...), a page hidden to this visitor (/chat/ID/TOKEN, unpublished event...), and any
+# 404 reached from a link of the site itself (Referer on the host of the request). Never ".." nor a name starting with a dot; a suspicious URL
+# (SUSPECT_RE) stays suspicious. Still counted and shown as 404; only never a "probe sweep" to ban.
+BROWSER_404_RE = re.compile(r'^(?:/[a-z]{2,3}(?:_[A-Za-z]{2,4})?)?/(?:[A-Za-z0-9_]+/static/|web/(?:image|assets|content)(?:[/?]|$)|website/image(?:[/?]|$)'
+                            r'|(?:chat|discuss|event|shop|blog|forum|slides|survey|my|odoo|mail|calendar|appointment|jobs|profile)(?:[/?]|$))')
+MISSING_ICON_RE = re.compile(r'^(?:/[a-z]{2,3}(?:_[A-Za-z]{2,4})?)?/[A-Za-z0-9_]+/static/description/icon\.(?:png|svg)$')    # 1.208: the icon of a module (Apps)
+SAME_SITE_REFERER_RE = re.compile(r'"[A-Z]+ [^"]*" \d{3} \S+ "https?://([^/":]+)[^"]*" "[^"]*" host="?([^"\s:]+)')
+
+
+def browser_404(text, url):
+    """1.208: True when a 404 is one that a browser of Odoo gets in normal use (BROWSER_404_RE, or a Referer on the host of the request): never counted
+    toward the "probe sweep" of THRESHOLD_404 (ban proposals)."""
+    path = url.split("?", 1)[0]
+    if ".." in path or "/." in path or suspect_url(url):
+        return False
+    if BROWSER_404_RE.match(path):
+        return True
+    same = SAME_SITE_REFERER_RE.search(text or "")
+    return bool(same) and same.group(1).lower() == same.group(2).lower()
+
+
 def local_request(text):
     """1.207: True when the client address of the line is this server itself (loopback: 127.0.0.1, ::1). Same rule as the pages asked by this server
     (1.181): with Odoo behind nginx in proxy mode and nginx in front, a visitor never has a loopback address."""
@@ -5365,7 +5389,7 @@ IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counte
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "local_tests", "not_found", "gone_404", "unknown_404", "preview_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "local_tests", "browser_404", "not_found", "gone_404", "unknown_404", "preview_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors", "ip_url", "worker_recycles", "user_refusal_kinds", "user_refusal_messages", "local_names")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -5410,6 +5434,7 @@ class Stats:
         self.disabled_404 = Counter()             # 1.143: 404 on a path refused on purpose (--disable-uri): not counted in the health
         self.ip_not_found = {}                                                   # address -> set of the DIFFERENT pages it requested in 404 (probe sweep)
         self.probes = Counter()                           # "suspicious" URLs requested by THIS server itself (health probes): counted apart, never to ban
+        self.browser_404 = Counter()                      # 1.208: 404 of a browser of Odoo in normal use (BROWSER_404_RE, Referer of the site): never a probe sweep
         self.local_tests = Counter()                      # 1.207: other URLs answering 4xx to THIS server itself (curl, test by hand): counted apart, never an error
         self.errors = {5: Counter(), 4: Counter()}
         self.urls, self.languages, self.statuses = Counter(), Counter(), Counter()
@@ -5751,6 +5776,8 @@ class Stats:
             self.not_found[url] += 1
             if preview:                                                         # 1.206: a link preview walk (Telegram...): never a probe sweep to ban
                 self.preview_404[url] += 1
+            elif browser_404(L.text, url):                                      # 1.208: icons of the Apps menu, hidden pages, links of the site: never a sweep
+                self.browser_404[url.split("?", 1)[0]] += 1
             else:
                 self.ip_not_found.setdefault(ip, set()).add(url.split("?", 1)[0])
             if preview and SITEMAP is not None and SITEMAP.paths is not None and not SITEMAP.listed(url):
@@ -6013,6 +6040,11 @@ class Stats:
                 never = sum(self.unknown_404.values())
                 indicator(0, TR("404 on URLs never in sitemap.xml (attacks, not in the health): ") + (f"{never}" if never else none_fem()),
                           ["URL: " + self.top(self.unknown_404, 5)] if never else (), (10 ** 9, 10 ** 9), never)
+            icons = sum(n for url, n in self.browser_404.items() if MISSING_ICON_RE.match(url))
+            if icons:                                           # 1.208: shown only when there is one
+                indicator(0, TR("404 of icons of modules without code on the disk (Apps menu of Odoo; never a ban): ") + f"{icons}",
+                          [TR("modules listed in the database whose folder is missing: Apps > Update Apps List (developer mode), or remove them"),
+                           "URL: " + self.top(Counter({u: n for u, n in self.browser_404.items() if MISSING_ICON_RE.match(u)}), 3)], (10 ** 9, 10 ** 9), icons)
             previews = sum(self.preview_404.values())
             if previews:                                        # 1.206: shown only when there is one
                 indicator(0, TR("404 of link previews (Telegram... while a link is erased in a message; not an attack, never banned): ") + f"{previews}",

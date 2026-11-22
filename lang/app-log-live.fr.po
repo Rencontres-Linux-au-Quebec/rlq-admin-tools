@@ -3688,3 +3688,9 @@ msgstr "ℹ Tests de ce serveur : {n} requêtes locales avec réponse 4xx (curl,
 
 msgid "Tests from this server: {n} local requests answered 4xx (curl, test by hand), not counted as errors — "
 msgstr "Tests de ce serveur : {n} requêtes locales avec réponse 4xx (curl, test à la main), non comptées comme erreurs — "
+
+msgid "404 of icons of modules without code on the disk (Apps menu of Odoo; never a ban): "
+msgstr "404 d'icônes de modules sans code sur le disque (menu Applications d'Odoo ; jamais un bannissement) : "
+
+msgid "modules listed in the database whose folder is missing: Apps > Update Apps List (developer mode), or remove them"
+msgstr "modules inscrits dans la base dont le dossier manque : Applications > Mettre à jour la liste des applications (mode développeur), ou les retirer"

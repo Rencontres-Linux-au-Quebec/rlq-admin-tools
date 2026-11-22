@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.99.20261120.161509"
+readonly SCRIPT_VERSION="2.100.20261122.170000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -2397,7 +2397,9 @@ scan_ips() {
         if (is_script(l)) nscript[ip]++
         else if (f == "" && l ~ /mozilla\/5\.0/) nbrowser[ip]++
         if (f != "" && index("|" fams[ip] "|", "|" f "|") == 0) { fams[ip] = (fams[ip] == "" ? f : fams[ip] "|" f); nf[ip]++ }
-        if (code ~ /^[45]/) nerr[ip]++
+        # 2.100: a 404 on a static file of Odoo (icon of a module listed in Apps but missing on the disk, deleted image, old bundle) is what a
+        # browser gets in normal use (2026-11-22: an internal user opening Apps, 40 icons in 404 in 2 s): not an error of the visitor
+        if (code ~ /^[45]/ && !(code == 404 && path ~ static_re && path !~ /\.\.|\/\./)) nerr[ip]++
         if (path ~ sens_re) { nprobe[ip]++; if (nprobe[ip] <= 3) probes[ip] = probes[ip] (probes[ip] == "" ? "" : ", ") path }
     }
     END {

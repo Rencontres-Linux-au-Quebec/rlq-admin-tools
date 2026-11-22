@@ -6190,3 +6190,59 @@ class AppLogLive207(unittest.TestCase):
         self.assertNotIn("[pas dans sitemap.xml]", locale)
         self.assertIn("[pas dans sitemap.xml]", visiteur)
         self.assertIn("[sonde de ce serveur]", ANSI.sub("", forme.format_value(self.nginx("/.env"), {}, False)))
+
+
+class AppLogLive208(unittest.TestCase):
+    """1.208 : les 404 qu'un navigateur d'Odoo reçoit sans rien sonder (icônes des modules du menu Applications sans code sur le disque, images
+    supprimées, pages cachées, liens du site lui-même) ne comptent jamais pour le « balayage » de THRESHOLD_404. D'après odoo18, 2026-11-22 16:50."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_208", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.ancien_sitemap = self.m.SITEMAP
+        self.m.SITEMAP = AppLogLive142.Fixe({"/autre"})
+        self.m.SITEMAP.m_path = self.m.sitemap_path
+
+    def tearDown(self):
+        self.m.SITEMAP = self.ancien_sitemap
+
+    def nginx(self, chemin, ip="69.157.88.222", referer="https://www.example.org/odoo/action-38", host="www.example.org"):
+        return self.m.Line(f'2026-11-22T16:50:02.000000-0500 odoo18 http: {ip} - - "GET {chemin} HTTP/1.1" 404 9780 "{referer}" '
+                           f'"Mozilla/5.0 (Windows NT 10.0; Win64; x64)" host={host} rl=900')
+
+    MODULES = ["om_hr_payroll", "om_hospital", "openeducat_core", "openeducat_attendance", "plm", "payroll", "caldav_sync", "cetmix_tower"]
+
+    def test_208_icones_du_menu_applications_jamais_un_balayage(self):
+        m = self.m
+        s = m.Stats(5.0)
+        for mod in self.MODULES:
+            s.ajouter(self.nginx(f"/{mod}/static/description/icon.png"), {}, None)
+        self.assertEqual(s.ip_not_found, {})
+        self.assertEqual(sum(s.browser_404.values()), len(self.MODULES))
+        self.assertEqual(sum(s.not_found.values()), len(self.MODULES))              # still counted and shown as 404
+        self.assertNotIn("69.157.88.222", [ip for ip, _ in s.to_ban()])
+        self.assertIn("404 d'icônes de modules sans code sur le disque", "\n".join(T(l) for l in s.health()[1]))
+
+    def test_208_regles(self):
+        m = self.m
+        sans = lambda chemin: m.browser_404(self.nginx(chemin, referer="-").text, chemin)
+        for chemin in ("/om_hospital/static/description/icon.png", "/en_CA/openeducat_core/static/description/icon.png", "/web/image/123-abc/x.png",
+                       "/web/assets/1/abc/web.assets_frontend.min.js", "/chat/80/T7kyKvEKT5", "/en_CA/event/rencontre-12"):
+            self.assertTrue(sans(chemin), chemin)
+        for chemin in ("/x/static/../../etc/passwd", "/.env", "/wp-login.php", "/admin/static/.git/config", "/page-inconnue", "/cgi-bin/x.sh"):
+            self.assertFalse(sans(chemin), chemin)
+        page = "/page-inconnue"                                                       # a link of the site itself: same host in the Referer
+        self.assertTrue(m.browser_404(self.nginx(page, referer="https://www.example.org/a-propos").text, page))
+        self.assertFalse(m.browser_404(self.nginx(page, referer="https://ailleurs.example.com/").text, page))
+
+    def test_208_balayage_reel_inchange(self):
+        m = self.m
+        s = m.Stats(5.0)
+        for chemin in ("/backup.zip", "/old", "/test", "/dump.sql.gz", "/site.tar", "/www.zip"):
+            s.ajouter(self.nginx(chemin, ip="203.0.113.9", referer="-"), {}, None)
+        self.assertGreaterEqual(len(s.ip_not_found.get("203.0.113.9", ())), m.THRESHOLD_404 - 1)

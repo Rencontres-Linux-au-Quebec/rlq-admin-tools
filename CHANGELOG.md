@@ -492,6 +492,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.208.20261122.170000 - 404 of a browser of Odoo (icons of the Apps menu...) never a probe sweep
+
+- Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 16:53 (odoo18): an internal user opening Apps (/odoo/action-38) gets about 40 different 404 in 2 s on /MODULE/static/description/icon.png (modules listed in the database without code on the disk: openeducat_*, om_*, account_avatax_*...); with THRESHOLD_404 = 5 different pages, the address was proposed for a ban as a "probe sweep". Request: internal users must not be banned for that.
+- Changes (app-log-live.py): new BROWSER_404_RE, SAME_SITE_REFERER_RE, MISSING_ICON_RE and browser_404() (same rules as the filter of fail2ban, nginx-hardening.sh step 9c, 2.120-2.122: static files of a module, /web/image, /web/assets, /web/content, /website/image, pages hidden to a visitor such as /chat/ID/TOKEN or an unpublished event, and any 404 reached from a link of the site itself); Stats.ajouter(): such a 404 goes to the new counter browser_404 (in COUNTERS) instead of ip_not_found (the sweep of the ban proposals); it is still counted and shown as a 404. Health indicator "404 of icons of modules without code on the disk", shown only when there is one, with the fix (Apps > Update Apps List, or remove the modules). lang/app-log-live.fr.po: 2 texts. nginx-tools-tests/test_app_log_live.py: class AppLogLive208 (3 tests).
+- Bugs fixed: symptom: an internal user proposed for a ban after opening Apps. Diagnosis: every different 404 counted toward THRESHOLD_404, even the icons that Odoo itself asks for modules missing on the disk. Fix: these 404 are no longer a sweep.
+- Safeguards and edge cases: never ".." nor a name starting with a dot (/x/static/../../etc/passwd, /admin/static/.git/config still count); a suspicious URL (SUSPECT_RE: .env, wp-login...) stays suspicious; a Referer of another host does not count as a link of the site; a real sweep (/backup.zip, /old, /test...) is unchanged.
+- Checks performed: py_compile; AppLogLive208 [OK]; nginx-tools-tests/test_app_log_live.py compared with main: see the pull request.
+- Action required: none (git pull in /opt/rlq-admin-tools; restart a running app-log-live.py). To stop the 404 themselves: in Odoo, Apps > Update Apps List (developer mode).
+
 ### 1.207.20261122.163000 - 4xx answers to this server itself counted apart ([test of this server])
 
 - Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 16:19 (odoo18): at 11:22:44, from 127.0.0.1, /rlq/session/check 401 then the example URLs of the tests of the repository (Tux-FleurDeLys image, /plan-commandite, /chat/80/..., icons of modules not installed), each 303 then 404, shown as "[not in sitemap.xml]" and counted with the 404 of the visitors. Only the suspicious URLs asked by this server (1.173, probes) were set apart.
@@ -6409,6 +6418,15 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: copy nginx-link-page.conf.example to /etc/default/nginx-link-page.conf, fill in the group's values, then run sudo nginx-link-page.sh --update. Note: HSTS (hsts.conf) is a server-level header; the /liens/ location declares its own headers, so HSTS is not repeated there.
 
 ## nginx-log-audit.sh
+
+### 2.100.20261122.170000 - 404 on static files of Odoo no longer counted in the error rate
+
+- Reason for the request: same case as app-log-live.py 1.208 (2026-11-22 16:53): an internal user opening Apps gets about 40 404 on the icons of modules missing on the disk; the investigation (section [10], --investigate) counted them in "Taux d'erreurs", a strong sign of hostility (20 errors or more and half of the requests).
+- Changes (nginx-log-audit.sh): in the awk of the investigation, a 404 on a path of STATIC_RE (static files of Odoo, /web/image, /web/assets...) without ".." nor "/." no longer counts in nerr. nginx-tools-tests/test_nginx_log_audit.py: 1 test (40 icons in 404: "Taux d'erreurs : 0/45"; witness: 40 pages in 404 stay "élevé").
+- Bugs fixed: symptom: an internal user could get the strong sign "Taux d'erreurs élevé" after opening Apps, one step towards the threshold 3 of the score. Diagnosis: every 4xx counted as an error of the visitor. Fix: the 404 of static files are not errors of the visitor.
+- Safeguards and edge cases: the other 4xx and 5xx still count; ".." and hidden names still count; the sensitive files (SENSITIVE_RE) are counted apart as before.
+- Checks performed: bash -n; the new test [OK]; nginx-tools-tests/test_nginx_log_audit.py: see the pull request.
+- Action required: none.
 
 ### 2.99.20261120.161509 - Scanners of .php files and forged User-Agents no longer proposed for lifting
 
