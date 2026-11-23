@@ -22,13 +22,13 @@
 #   -c, --config FILE            this configuration file ONLY (default: /etc/default/collect-all-advise.conf, then
 #                                ~/.collect-all-advise.conf if it exists; the command line has priority)
 #   --days N                     analysis window in days, from 1 to 366 (default: 2)
-#   --dest DIR                   folder of the reports and of the archive (default: /home/dcp9370/audit/rlq-admin-tools)
+#   --dest DIR                   folder of the reports and of the archive (default: audit/collect-all-advise in the sudo user home)
 #   -h, --help                   show this help and exit
 #   --lang fr|en                 language of the messages (default: LANGUAGE of the configuration file, then LC_ALL / LC_MESSAGES / LANG)
 #   --name REGEX                 only the guests whose name matches REGEX (default: bbb)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
-#   --program PATH               app-log-live.py on the guests (default: /usr/local/bin/app-log-live.py)
+#   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
 #   --version                    show the version and exit
 #
@@ -37,10 +37,10 @@
 #   ANONYMIZE=yes               yes or no (--anonymize / --no-anonymize)
 #   ARCHIVE=yes                 yes or no (--no-archive)
 #   DAYS=2                      analysis window in days (--days)
-#   DEST=/home/dcp9370/audit/rlq-admin-tools   folder (--dest)
+#   DEST=...                    folder (--dest; default: audit/collect-all-advise in the sudo user home)
 #   LANGUAGE=auto               fr, en or auto (--lang)
 #   NAME_REGEX=bbb              guests to collect (--name)
-#   PROGRAM=/usr/local/bin/app-log-live.py     program on the guests (--program)
+#   PROGRAM=/opt/rlq-admin-tools/app-log-live.py   program on the guests (--program)
 #   SSH_USER=root               account of the virtual machines (--ssh-user)
 #   VM_HOST_<VMID>=ADDRESS      ssh address of a virtual machine, for example VM_HOST_201=10.0.0.21
 #
@@ -48,7 +48,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.1.20261123.103337"
+readonly SCRIPT_VERSION="1.2.20261123.104634"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -128,13 +128,44 @@ lire_config() {
 }
 
 # creer_config: no configuration file yet: the default one is written (root: ETC_DEFAULT, otherwise ~/.NAME.conf).
+# home_sudo: home folder of the user who ran sudo (SUDO_USER), otherwise of the current user.
+home_sudo() {
+    local h=""
+    if [[ -n "${SUDO_USER:-}" ]]; then h="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"; fi
+    echo "${h:-${HOME:-/root}}"
+}
+
+# dest_defaut: the default folder of the reports (audit/collect-all-advise in the home folder of the sudo user).
+dest_defaut() {
+    echo "$(home_sudo)/audit/$SCRIPT_NAME"
+}
+
+# creer_config: no configuration file yet. On a terminal the questions are asked (Enter keeps the default); otherwise the
+# default values are written. root: ETC_DEFAULT, otherwise ~/.NAME.conf. An existing file is never overwritten.
 creer_config() {
-    local cible="${HOME:-/root}/.$SCRIPT_NAME.conf"
-    if (( EUID == 0 )); then cible="$ETC_DEFAULT/$SCRIPT_NAME.conf"; fi
+    local cible dest prog ssh_user regex reponse="" interactif=0
+    if (( EUID == 0 )); then cible="$ETC_DEFAULT/$SCRIPT_NAME.conf"; else cible="${HOME:-/root}/.$SCRIPT_NAME.conf"; fi
     mkdir -p "$(dirname "$cible")" 2>/dev/null || return 0
     if [[ -e "$cible" ]]; then return 0; fi
-    cat > "$cible" 2>/dev/null <<'CONF' || return 0
-# collect-all-advise.conf - created by collect-all-advise.sh with its default values (the command line has priority).
+    dest="$(dest_defaut)"
+    prog="/opt/rlq-admin-tools/app-log-live.py"
+    ssh_user="root"
+    regex="bbb"
+    if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then interactif=1; fi   # COLLECT_NO_PROMPT=1: never ask (tests, cron)
+    if (( interactif == 1 )); then
+        echo "Premier lancement : répondez aux questions (Entrée = valeur par défaut)." >&2
+        echo "First run: answer the questions (Enter = default value)." >&2
+        read -r -p "Dossier des rapports / reports folder [$dest]: " reponse </dev/tty || reponse=""
+        dest="${reponse:-$dest}"
+        read -r -p "app-log-live.py sur les machines / on the guests [$prog]: " reponse </dev/tty || reponse=""
+        prog="${reponse:-$prog}"
+        read -r -p "Compte SSH des VM / SSH account of the VMs [$ssh_user]: " reponse </dev/tty || reponse=""
+        ssh_user="${reponse:-$ssh_user}"
+        read -r -p "Machines (expression, .* pour toutes) / guests (regex, .* for all) [$regex]: " reponse </dev/tty || reponse=""
+        regex="${reponse:-$regex}"
+    fi
+    cat > "$cible" 2>/dev/null <<CONF || return 0
+# collect-all-advise.conf - created by collect-all-advise.sh (the command line has priority).
 # yes: pseudonyms in the reports (IP addresses, e-mails, names); no: the real values.
 ANONYMIZE=yes
 # yes: the reports are packed in one archive collect-all-advise.HOST.AAAA-MM-JJ.tar.xz; no: the folder only.
@@ -142,15 +173,15 @@ ARCHIVE=yes
 # analysis window in days, from 1 to 366.
 DAYS=2
 # folder of the reports and of the archive.
-DEST=/home/dcp9370/audit/rlq-admin-tools
+DEST=$dest
 # fr, en or auto (auto: the locale).
 LANGUAGE=auto
 # guests whose name matches this regular expression (bbb: BigBlueButton; .* : every guest).
-NAME_REGEX=bbb
+NAME_REGEX=$regex
 # app-log-live.py on the guests.
-PROGRAM=/usr/local/bin/app-log-live.py
+PROGRAM=$prog
 # account used for the virtual machines; it needs sudo without a password.
-SSH_USER=root
+SSH_USER=$ssh_user
 # optional: ssh address of a virtual machine, when its automatic detection fails (VM_HOST_<VMID>=ADDRESS).
 # VM_HOST_201=10.0.0.21
 CONF
@@ -315,9 +346,9 @@ choisir_langue "$@"
 
 DO_CHANGELOG=0; DO_HELP=0; DO_VERSION=0
 DAYS="${CFG[DAYS]:-2}"
-DEST="${CFG[DEST]:-/home/dcp9370/audit/rlq-admin-tools}"
+DEST="${CFG[DEST]:-$(dest_defaut)}"
 NAME_RE="${CFG[NAME_REGEX]:-bbb}"
-PROGRAM="${CFG[PROGRAM]:-/usr/local/bin/app-log-live.py}"
+PROGRAM="${CFG[PROGRAM]:-/opt/rlq-admin-tools/app-log-live.py}"
 SSH_USER="${CFG[SSH_USER]:-root}"
 ANONYMIZE_OPT="--anonymize"
 if [[ "$(oui_non "${CFG[ANONYMIZE]:-yes}")" == 0 ]]; then ANONYMIZE_OPT="--no-anonymize"; fi

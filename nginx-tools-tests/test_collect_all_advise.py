@@ -72,6 +72,9 @@ class CollectAllAdvise(unittest.TestCase):
         self.etc = os.path.join(self.d, "etc")
         os.makedirs(self.etc)
         self.env["NGINX_TOOLS_ETC_DEFAULT"] = self.etc
+        self.env["COLLECT_NO_PROMPT"] = "1"            # no question on the terminal in the tests
+        self.env["SUDO_USER"] = ""                     # the default folder is the home of the current user
+        self.env["HOME"] = self.d
         self.env.pop("LC_ALL", None)
         self.env.pop("LC_MESSAGES", None)
 
@@ -153,6 +156,9 @@ class CollectAllAdvise(unittest.TestCase):
         texte = open(cible, encoding="utf-8").read()
         self.assertIn("DAYS=2", texte)
         self.assertIn("NAME_REGEX=bbb", texte)
+        self.assertIn("PROGRAM=/opt/rlq-admin-tools/app-log-live.py", texte)
+        self.assertIn("DEST=" + os.path.join(self.d, "audit", "collect-all-advise"), texte)
+        self.assertNotIn("dcp9370", texte)
         self.assertIn("Configuration créée", r.stderr)
         r = self.lancer("--days", "2", "--dest", self.dest)
         self.assertIn("Configuration lue", r.stderr)          # the second run reads the file created by the first one

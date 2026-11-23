@@ -492,6 +492,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.2.20261123.104634 - First run asks the questions; no personal value in the program
+
+- Reason for the request: the default configuration must not contain the values of one installation. On the first run, the program must ask for them (default value in brackets, Enter keeps it).
+- Changes (collect-all-advise.sh):
+  - creer_config(): on a terminal, asks four questions (reports folder, app-log-live.py on the guests, SSH account of the VMs, guest filter) and writes the answers. Without a terminal (cron, tests, COLLECT_NO_PROMPT=1) the defaults are written without a question.
+  - Default values: DEST = audit/collect-all-advise in the home folder of the sudo user (SUDO_USER); PROGRAM = /opt/rlq-admin-tools/app-log-live.py; SSH_USER = root; NAME_REGEX = bbb.
+  - home_sudo() and dest_defaut(): home folder of the sudo user, otherwise of the current user.
+  - Removed: the personal folder and the /usr/local/bin path that were in the code, the help and the template.
+- Bugs fixed: the default configuration contained the values of one installation (folder and program path).
+- Safeguards and edge cases:
+  - The questions are read from /dev/tty only; COLLECT_NO_PROMPT=1 disables them (tests, cron).
+  - An existing configuration file is never overwritten and never asked again.
+  - The answers are written as they are; the file is read like any other configuration file (KEY=VALUE, never executed).
+- Checks: the 10 tests of test_collect_all_advise.py pass (the default configuration test now checks the generic defaults and the absence of personal values). The questions were tested through a pseudo-terminal with simulated answers; the second run read the file without asking.
+- Action required: none. The first run on the Proxmox host asks the four questions; answer them there.
+
 ### 1.1.20261123.103337 - Automatic detection of the VM addresses and default configuration file
 
 - Reason for the request: on the first run, the program reported "VM ... no address" for each VM, because the addresses had to be written by hand in the configuration, which did not exist yet. Request: detect all the guests automatically, and create the default configuration.
