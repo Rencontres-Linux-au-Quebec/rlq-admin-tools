@@ -24,12 +24,14 @@
 #   --days N                     analysis window in days, from 1 to 366 (default: 2)
 #   --dest DIR                   folder of the reports and of the archive (default: audit/collect-all-advise in the sudo user home)
 #   -h, --help                   show this help and exit
+#   --install-timer              install the systemd service and timer: run every day at TIMER_TIME (root)
 #   --lang fr|en                 language of the messages (default: LANGUAGE of the configuration file, then LC_ALL / LC_MESSAGES / LANG)
 #   --name REGEX                 only the guests whose name matches REGEX (default: bbb)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
 #   --no-security                no check of the security updates
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
+#   --remove-timer               disable and remove the systemd timer (root)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
 #   --version                    show the version and exit
 #
@@ -40,7 +42,9 @@
 #   SECURITY=yes                yes or no (--no-security): check of the pending security updates of the host and the guests
 #   DAYS=2                      analysis window in days (--days)
 #   DEST=...                    folder (--dest; default: audit/collect-all-advise in the sudo user home)
-#   LANGUAGE=auto               fr, en or auto (--lang)
+#   LANGUAGE=fr                 fr or en: language of the messages AND of the reports (--lang)
+#   TIMER=no                    yes or no: a systemd timer runs the collection every day (--install-timer)
+#   TIMER_TIME=03:30            time of the daily run, HH:MM (local time of the host)
 #   NAME_REGEX=bbb              guests to collect (--name)
 #   PROGRAM=/opt/rlq-admin-tools/app-log-live.py   program on the guests (--program)
 #   SSH_USER=root               account of the virtual machines (--ssh-user)
@@ -50,7 +54,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.3.20261123.105820"
+readonly SCRIPT_VERSION="1.4.20261123.112123"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -58,6 +62,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 ETC_DEFAULT="${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}"
+SYSTEMD_DIR="${NGINX_TOOLS_SYSTEMD_DIR:-/etc/systemd/system}"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     C_RED=$'\x1b[1;31m'; C_GREEN=$'\x1b[1;32m'; C_YELLOW=$'\x1b[1;33m'; C_CYAN=$'\x1b[1;36m'; C_RESET=$'\x1b[0m'
@@ -95,7 +100,7 @@ t() {
 # oui_non VALUE: 1 for yes / oui / true / 1 / on, 0 otherwise.
 oui_non() {
     case "${1,,}" in
-        yes|oui|true|1|on|vrai) echo 1 ;;
+        yes|oui|o|y|true|1|on|vrai) echo 1 ;;
         *) echo 0 ;;
     esac
 }
@@ -142,10 +147,27 @@ dest_defaut() {
     echo "$(home_sudo)/audit/$SCRIPT_NAME"
 }
 
-# creer_config: no configuration file yet. On a terminal the questions are asked (Enter keeps the default); otherwise the
-# default values are written. root: ETC_DEFAULT, otherwise ~/.NAME.conf. An existing file is never overwritten.
+# lang_donnee: 0 when --lang is on the command line (the language is then not asked on the first run).
+lang_donnee() {
+    local a
+    for a in "${args[@]}"; do
+        case "$a" in --lang|--lang=*) return 0 ;; esac
+    done
+    return 1
+}
+
+# lire_reponse QUESTION DEFAUT: one answer read on the terminal; Enter gives DEFAUT.
+lire_reponse() {
+    local reponse=""
+    read -r -p "$1" reponse </dev/tty || reponse=""
+    printf '%s' "${reponse:-$2}"
+}
+
+# creer_config: no configuration file yet. On a terminal the language is asked first (fr or en: the messages AND the reports),
+# then the other questions, in that language only (Enter keeps the default). Without a terminal the default values are written.
+# root: ETC_DEFAULT, otherwise ~/.NAME.conf. An existing file is never overwritten.
 creer_config() {
-    local cible dest prog ssh_user regex reponse="" interactif=0
+    local cible dest prog ssh_user regex jours minuteur="no" heure="03:30" reponse="" interactif=0
     if (( EUID == 0 )); then cible="$ETC_DEFAULT/$SCRIPT_NAME.conf"; else cible="${HOME:-/root}/.$SCRIPT_NAME.conf"; fi
     mkdir -p "$(dirname "$cible")" 2>/dev/null || return 0
     if [[ -e "$cible" ]]; then return 0; fi
@@ -153,18 +175,37 @@ creer_config() {
     prog="/opt/rlq-admin-tools/app-log-live.py"
     ssh_user="root"
     regex="bbb"
+    jours=2
+    choisir_langue "${args[@]}"
     if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then interactif=1; fi   # COLLECT_NO_PROMPT=1: never ask (tests, cron)
     if (( interactif == 1 )); then
-        echo "Premier lancement : répondez aux questions (Entrée = valeur par défaut)." >&2
-        echo "First run: answer the questions (Enter = default value)." >&2
-        read -r -p "Dossier des rapports / reports folder [$dest]: " reponse </dev/tty || reponse=""
-        dest="${reponse:-$dest}"
-        read -r -p "app-log-live.py sur les machines / on the guests [$prog]: " reponse </dev/tty || reponse=""
-        prog="${reponse:-$prog}"
-        read -r -p "Compte SSH des VM / SSH account of the VMs [$ssh_user]: " reponse </dev/tty || reponse=""
-        ssh_user="${reponse:-$ssh_user}"
-        read -r -p "Machines (expression, .* pour toutes) / guests (regex, .* for all) [$regex]: " reponse </dev/tty || reponse=""
-        regex="${reponse:-$regex}"
+        if ! lang_donnee; then
+            reponse="$(lire_reponse "Langue des messages et des rapports / messages and reports language (fr, en) [$LANGUE] : " "$LANGUE")"
+            case "${reponse,,}" in
+                en*) LANGUE="en" ;;
+                *) LANGUE="fr" ;;
+            esac
+        fi
+        echo "$(t "Premier lancement : répondez aux questions (Entrée = valeur par défaut)." \
+            "First run: answer the questions (Enter = default value).")" >&2
+        dest="$(lire_reponse "$(t "Dossier des rapports [$dest] : " "Reports folder [$dest]: ")" "$dest")"
+        while :; do
+            jours="$(lire_reponse "$(t "Nombre de jours analysés, de 1 à 366 [$jours] : " "Number of days analysed, 1 to 366 [$jours]: ")" "$jours")"
+            valider_jours "$jours" && break
+            echo "$(t "Valeur refusée : un nombre de 1 à 366 est attendu." "Refused value: a number from 1 to 366 is expected.")" >&2
+        done
+        prog="$(lire_reponse "$(t "app-log-live.py sur les machines [$prog] : " "app-log-live.py on the guests [$prog]: ")" "$prog")"
+        ssh_user="$(lire_reponse "$(t "Compte SSH des VM [$ssh_user] : " "SSH account of the VMs [$ssh_user]: ")" "$ssh_user")"
+        regex="$(lire_reponse "$(t "Machines (expression, .* pour toutes) [$regex] : " "Guests (regex, .* for all) [$regex]: ")" "$regex")"
+        if [[ "$(oui_non "$(lire_reponse "$(t "Lancer chaque jour automatiquement (minuteur systemd) ? [o/N] : " \
+            "Run every day automatically (systemd timer)? [y/N]: ")" "n")")" == 1 ]]; then
+            minuteur="yes"
+            while :; do
+                heure="$(lire_reponse "$(t "Heure du lancement HH:MM [$heure] : " "Start time HH:MM [$heure]: ")" "$heure")"
+                [[ "$heure" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
+                echo "$(t "Heure refusée : HH:MM attendu (ex. 03:30)." "Refused time: HH:MM expected (e.g. 03:30).")" >&2
+            done
+        fi
     fi
     cat > "$cible" 2>/dev/null <<CONF || return 0
 # collect-all-advise.conf - created by collect-all-advise.sh (the command line has priority).
@@ -173,21 +214,30 @@ ANONYMIZE=yes
 # yes: the reports are packed in one archive collect-all-advise.HOST.AAAA-MM-JJ.tar.xz; no: the folder only.
 ARCHIVE=yes
 # analysis window in days, from 1 to 366.
-DAYS=2
+DAYS=$jours
 # folder of the reports and of the archive.
 DEST=$dest
-# fr, en or auto (auto: the locale).
-LANGUAGE=auto
+# fr or en: language of the messages AND of the reports (given to app-log-live.py as APP_LOG_LIVE_LANG).
+LANGUAGE=$LANGUE
 # guests whose name matches this regular expression (bbb: BigBlueButton; .* : every guest).
 NAME_REGEX=$regex
 # app-log-live.py on the guests.
 PROGRAM=$prog
 # account used for the virtual machines; it needs sudo without a password.
 SSH_USER=$ssh_user
+# yes: a systemd timer runs the collection every day at TIMER_TIME (installed with --install-timer); no: no timer.
+TIMER=$minuteur
+# time of the daily run, HH:MM (local time of the host).
+TIMER_TIME=$heure
 # optional: ssh address of a virtual machine, when its automatic detection fails (VM_HOST_<VMID>=ADDRESS).
 # VM_HOST_201=10.0.0.21
 CONF
     CONFIG_CREEE="$cible"
+    CFG[DAYS]="$jours"; CFG[DEST]="$dest"; CFG[LANGUAGE]="$LANGUE"; CFG[NAME_REGEX]="$regex"
+    CFG[PROGRAM]="$prog"; CFG[SSH_USER]="$ssh_user"; CFG[TIMER]="$minuteur"; CFG[TIMER_TIME]="$heure"
+    if [[ "$minuteur" == "yes" ]]; then
+        installer_minuteur || true
+    fi
 }
 
 # choisir_langue ARGUMENTS...: --lang, then LANGUAGE of the configuration file, then the locale (fr by default).
@@ -222,12 +272,14 @@ aide() {
 --days N                     fenêtre d'analyse en jours, de 1 à 366 (défaut 2) / analysis window in days, 1 to 366 (default 2)
 --dest DIR                   dossier des rapports et de l'archive / folder of the reports and of the archive
 -h, --help                   affiche cette aide et quitte / show this help and exit
---lang fr|en                 langue des messages / language of the messages
+--install-timer              installe le service et le minuteur systemd (quotidien, root) / install the systemd service and timer (daily, root)
+--lang fr|en                 langue des messages et des rapports / language of the messages and the reports
 --name REGEX                 seulement les machines dont le nom correspond (défaut bbb) / only the guests whose name matches (default bbb)
 --no-anonymize               garde les vraies adresses, courriels et noms / keep the real addresses, e-mails and names
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
 --no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
+--remove-timer               supprime le minuteur systemd (root) / remove the systemd timer (root)
 --ssh-user USER              compte des VM (sudo sans mot de passe) / account of the VMs (sudo without a password)
 --version                    affiche la version et quitte / show the version and exit
 EOF
@@ -265,7 +317,7 @@ sur_machine() {
         lxc) pct exec "$id" -- bash -c "$commande" ;;
         vm)
             printf -v remote '%q' "$commande"
-            ssh -o BatchMode=yes "$SSH_USER@$adresse" "sudo bash -c $remote" ;;
+            ssh -o BatchMode=yes "$SSH_USER@$adresse" "sudo bash -c $remote" </dev/null ;;
     esac
 }
 
@@ -306,19 +358,103 @@ mises_a_jour_securite() {
     done
 }
 
+# derniere_sortie FILE: the last lines written by a failed command (the reason), indented.
+derniere_sortie() {
+    [[ -s "$1" ]] || return 0
+    tail -n 3 "$1" | sed 's/^/    /'
+}
+
+# signaler_aucune NATURE SEEN SELECTED: when no guest is selected, says how many were seen and which expression selects them.
+signaler_aucune() {
+    local nature="$1" vus="$2" retenus="$3"
+    if (( retenus == 0 )); then
+        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $nature : $(t "aucune machine en marche ne correspond à « $NAME_RE » (machines vues : $vus)" \
+            "no running guest matches \"$NAME_RE\" (guests seen: $vus)")"
+    fi
+}
+
+# SYSTEMD_DIR: unit files of the timer (/etc/systemd/system; NGINX_TOOLS_SYSTEMD_DIR for the tests).
+# installer_minuteur: a service that runs this script (its configuration is read from /etc/default) and a timer that starts
+# it every day at TIMER_TIME, enabled now. Root only.
+installer_minuteur() {
+    local heure="${CFG[TIMER_TIME]:-03:30}" script
+    if (( EUID != 0 )); then
+        echo "[ATTN] $(t "le minuteur s'installe en root : sudo $SCRIPT_FILE --install-timer" \
+            "the timer is installed as root: sudo $SCRIPT_FILE --install-timer")" >&2
+        return 1
+    fi
+    if ! [[ "$heure" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; then
+        echo "[ATTN] $(t "TIMER_TIME refusé (HH:MM attendu) : $heure" "TIMER_TIME refused (HH:MM expected): $heure")" >&2
+        return 1
+    fi
+    script="$(readlink -f "${BASH_SOURCE[0]}")"
+    mkdir -p "$SYSTEMD_DIR"
+    cat > "$SYSTEMD_DIR/$SCRIPT_NAME.service" <<UNIT
+[Unit]
+Description=collect-all-advise: --advise reports of the BigBlueButton guests (configuration: /etc/default/$SCRIPT_NAME.conf)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=COLLECT_NO_PROMPT=1
+ExecStart=$script
+TimeoutStartSec=infinity
+UNIT
+    cat > "$SYSTEMD_DIR/$SCRIPT_NAME.timer" <<UNIT
+[Unit]
+Description=collect-all-advise every day at $heure
+
+[Timer]
+OnCalendar=*-*-* $heure:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+    if command -v systemctl >/dev/null 2>&1; then
+        if ! { systemctl daemon-reload && systemctl enable --now "$SCRIPT_NAME.timer"; }; then
+            echo "[ATTN] $(t "systemctl n'a pas activé le minuteur (voir : systemctl status $SCRIPT_NAME.timer)" \
+                "systemctl could not enable the timer (see: systemctl status $SCRIPT_NAME.timer)")" >&2
+            return 1
+        fi
+    fi
+    echo "[OK] $(t "minuteur installé : chaque jour à $heure (service $SCRIPT_NAME.service)" \
+        "timer installed: every day at $heure (service $SCRIPT_NAME.service)")"
+}
+
+# desinstaller_minuteur: disables and removes the service and the timer. Root only.
+desinstaller_minuteur() {
+    if (( EUID != 0 )); then
+        echo "[ATTN] $(t "la suppression du minuteur se fait en root : sudo $SCRIPT_FILE --remove-timer" \
+            "the timer is removed as root: sudo $SCRIPT_FILE --remove-timer")" >&2
+        return 1
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable --now "$SCRIPT_NAME.timer" >/dev/null 2>&1 || true
+    fi
+    rm -f "$SYSTEMD_DIR/$SCRIPT_NAME.service" "$SYSTEMD_DIR/$SCRIPT_NAME.timer"
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    echo "[OK] $(t "minuteur supprimé" "timer removed")"
+}
+
 collecter_lxc() {
     local vmid="$1" name="$2" dossier="$3" rapport sortie
     rapport="/tmp/$SCRIPT_NAME-$STAMP-$vmid.md"
     sortie="$dossier/advise-$STAMP.txt"
     mkdir -p "$dossier"
     pct exec "$vmid" -- rm -f "$rapport" >/dev/null 2>&1 || true
-    if pct exec "$vmid" -- "$PROGRAM" --advise --days "$DAYS" --export-ai "$rapport" "$ANONYMIZE_OPT" --no-follow --no-keys >"$sortie" 2>&1 \
-       && pct pull "$vmid" "$rapport" "$dossier/export-ai-$STAMP.md"; then
+    if pct exec "$vmid" -- env "APP_LOG_LIVE_LANG=$LANGUE" "$PROGRAM" --advise --days "$DAYS" --export-ai "$rapport" "$ANONYMIZE_OPT" \
+           --no-follow --no-keys >"$sortie" 2>&1 </dev/null \
+       && pct pull "$vmid" "$rapport" "$dossier/export-ai-$STAMP.md" </dev/null; then
         printf '%s\n' "[OK] LXC $vmid $name -> $dossier/export-ai-$STAMP.md"
         SECU_CIBLES+=("lxc $vmid - $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
         printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "LXC" "LXC") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
+        derniere_sortie "$sortie"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
     fi
     pct exec "$vmid" -- rm -f "$rapport" >/dev/null 2>&1 || true
@@ -354,16 +490,18 @@ collecter_vm() {
     fi
     mkdir -p "$dossier"
     sortie="$dossier/advise-$STAMP.txt"
-    if ssh -o BatchMode=yes "$cible" "sudo $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" >"$sortie" 2>&1 \
-       && ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md"; then
+    if ssh -o BatchMode=yes "$cible" "sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" \
+           >"$sortie" 2>&1 </dev/null \
+       && ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md" </dev/null; then
         printf '%s\n' "[OK] VM $vmid $name ($adresse) -> $dossier/export-ai-$STAMP.md"
         SECU_CIBLES+=("vm $vmid $adresse $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
         printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
+        derniere_sortie "$sortie"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
     fi
-    ssh -o BatchMode=yes "$cible" "sudo rm -f $rapport" >/dev/null 2>&1 || true
+    ssh -o BatchMode=yes "$cible" "sudo rm -f $rapport" >/dev/null 2>&1 </dev/null || true
 }
 
 # archiver: DEST/collect-all-advise.HOST.AAAA-MM-JJ.tar.xz with the *.md reports of this run (a suffix -2, -3... if the day has one).
@@ -404,7 +542,7 @@ fi
 lire_config
 choisir_langue "$@"
 
-DO_CHANGELOG=0; DO_HELP=0; DO_VERSION=0
+DO_CHANGELOG=0; DO_HELP=0; DO_VERSION=0; DO_TIMER=""
 DAYS="${CFG[DAYS]:-2}"
 DEST="${CFG[DEST]:-$(dest_defaut)}"
 NAME_RE="${CFG[NAME_REGEX]:-bbb}"
@@ -432,6 +570,7 @@ while [[ $# -gt 0 ]]; do
             DEST="$2"; shift 2 ;;
         --dest=*) DEST="${1#--dest=}"; shift ;;
         -h|--help) DO_HELP=1; shift ;;
+        --install-timer) DO_TIMER="install"; shift ;;
         --lang)
             if [[ $# -lt 2 ]]; then echo "$(t "option --lang : fr ou en attendu" "option --lang: fr or en expected")" >&2; exit 2; fi
             shift 2 ;;
@@ -447,6 +586,7 @@ while [[ $# -gt 0 ]]; do
             if [[ $# -lt 2 ]]; then echo "$(t "option --program : chemin attendu" "option --program: path expected")" >&2; exit 2; fi
             PROGRAM="$2"; shift 2 ;;
         --program=*) PROGRAM="${1#--program=}"; shift ;;
+        --remove-timer) DO_TIMER="remove"; shift ;;
         --ssh-user)
             if [[ $# -lt 2 ]]; then echo "$(t "option --ssh-user : utilisateur attendu" "option --ssh-user: user expected")" >&2; exit 2; fi
             SSH_USER="$2"; shift 2 ;;
@@ -462,6 +602,8 @@ done
 if (( DO_VERSION == 1 )); then echo "$SCRIPT_FILE version $SCRIPT_VERSION"; exit 0; fi
 if (( DO_HELP == 1 )); then aide; exit 0; fi
 if (( DO_CHANGELOG == 1 )); then afficher_changelog || exit 1; exit 0; fi
+if [[ "$DO_TIMER" == "install" ]]; then installer_minuteur; exit $?; fi
+if [[ "$DO_TIMER" == "remove" ]]; then desinstaller_minuteur; exit $?; fi
 
 if ! valider_jours "$DAYS"; then
     echo "$(t "--days : un nombre de jours de 1 à 366 est attendu (reçu : " "--days: a number of days from 1 to 366 is expected (got: ")$DAYS)" >&2
@@ -495,21 +637,29 @@ INTERACTIF=""
 if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then INTERACTIF=1; fi
 
 # LXC containers (pct list: VMID STATUS LOCK NAME, the name is the last column).
+LXC_VUS=0; LXC_RETENUS=0
 if command -v pct >/dev/null 2>&1; then
-    while read -r vmid status name; do
+    while read -r vmid status name <&3; do
+        LXC_VUS=$((LXC_VUS + 1))
         [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || continue
+        LXC_RETENUS=$((LXC_RETENUS + 1))
         collecter_lxc "$vmid" "$name" "$RUN/lxc-$vmid-$name"
-    done < <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
+    done 3< <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
+    signaler_aucune "LXC" "$LXC_VUS" "$LXC_RETENUS"
 else
     echo "$(t "pct introuvable : pas de conteneur LXC collecté" "pct not found: no LXC container collected")" >&2
 fi
 
 # Virtual machines (qm list: VMID NAME STATUS ...).
+VM_VUES=0; VM_RETENUES=0
 if command -v qm >/dev/null 2>&1; then
-    while read -r vmid status name; do
+    while read -r vmid status name <&3; do
+        VM_VUES=$((VM_VUES + 1))
         [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || continue
+        VM_RETENUES=$((VM_RETENUES + 1))
         collecter_vm "$vmid" "$name" "$RUN/vm-$vmid-$name"
-    done < <(qm list | awk 'NR > 1 {print $1, $3, $2}')
+    done 3< <(qm list | awk 'NR > 1 {print $1, $3, $2}')
+    signaler_aucune "VM" "$VM_VUES" "$VM_RETENUES"
 else
     echo "$(t "qm introuvable : pas de machine virtuelle collectée" "qm not found: no virtual machine collected")" >&2
 fi

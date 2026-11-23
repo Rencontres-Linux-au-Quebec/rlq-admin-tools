@@ -33,7 +33,7 @@ printf 'VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID\\n201 b
 SSH = """#!/bin/bash
 # ssh [options] TARGET COMMAND : the command runs here (the VM is simulated)
 while [[ "$1" == -* ]]; do if [[ "$1" == "-o" ]]; then shift; fi; shift; done
-echo "$1" >> "$SSH_LOG"
+echo "$1 $2" >> "$SSH_LOG"   # target and command
 shift
 exec bash -c "$1"
 """
@@ -56,6 +56,7 @@ APP = """#!/bin/bash
 # fake app-log-live.py: writes the report given to --export-ai, and records its arguments
 dest=""
 echo "$*" >> "$APP_LOG"
+echo "LANG=${APP_LOG_LIVE_LANG:-}" >> "$APP_LOG"
 while [[ $# -gt 0 ]]; do
     if [[ "$1" == "--export-ai" ]]; then dest="$2"; shift; fi
     shift
@@ -210,6 +211,59 @@ class CollectAllAdvise(unittest.TestCase):
         r = self.lancer("--changelog")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("1.0.", re.sub(r"\x1b\[[0-9;]*m", "", r.stdout))
+
+
+    def test_langue_des_rapports_donnee_au_programme(self):
+        config = "LANGUAGE=en\nVM_HOST_201=10.0.0.21\n"
+        r = self.lancer("--days", "2", "--dest", self.dest, config=config)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("LANG=en", open(self.app_log).read())          # the container, through pct exec
+        self.assertIn("sudo env APP_LOG_LIVE_LANG=en", open(self.ssh_log).read())   # the VM, through ssh
+        r = self.lancer("--days", "2", "--dest", self.dest, "--lang", "fr", config=config)
+        self.assertIn("LANG=fr", open(self.app_log).read())          # --lang wins over the configuration
+
+    def test_aucune_machine_correspondante_signalee(self):
+        r = self.lancer("--days", "2", "--dest", self.dest, "--name", "zzz-pas-de-machine")
+        sortie = re.sub(r"\x1b\[[0-9;]*m", "", r.stdout + r.stderr)
+        self.assertIn("aucune machine en marche ne correspond", sortie)
+        self.assertIn("zzz-pas-de-machine", sortie)
+
+    def test_rapport_en_echec_affiche_la_raison(self):
+        r = self.lancer("--days", "2", "--dest", self.dest, "--program", "/chemin/inexistant/app-log-live.py",
+                        config="VM_HOST_201=10.0.0.21\n")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("No such file", r.stdout)                      # the reason of the failure is shown, not only the path
+
+    def test_minuteur_installe_en_root_refuse_sinon(self):
+        dossier_systemd = os.path.join(self.d, "systemd")
+        journal = os.path.join(self.d, "systemctl.log")
+        with open(os.path.join(self.bin, "systemctl"), "w") as f:
+            f.write('#!/bin/bash\necho "$*" >> "$SYSTEMCTL_LOG"\n')
+        os.chmod(os.path.join(self.bin, "systemctl"), 0o755)
+        self.env["NGINX_TOOLS_SYSTEMD_DIR"] = dossier_systemd
+        self.env["SYSTEMCTL_LOG"] = journal
+        r = self.lancer("--install-timer", "--days", "2", "--dest", self.dest, config="TIMER_TIME=03:30\n")
+        if os.geteuid() != 0:
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("en root", r.stdout + r.stderr)
+            self.assertFalse(os.path.exists(os.path.join(dossier_systemd, "collect-all-advise.timer")))
+            return
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        minuteur = open(os.path.join(dossier_systemd, "collect-all-advise.timer"), encoding="utf-8").read()
+        self.assertIn("OnCalendar=*-*-* 03:30:00", minuteur)
+        service = open(os.path.join(dossier_systemd, "collect-all-advise.service"), encoding="utf-8").read()
+        self.assertIn("Environment=COLLECT_NO_PROMPT=1", service)
+        self.assertIn("ExecStart=" + os.path.realpath(PROG), service)
+        self.assertIn("enable --now collect-all-advise.timer", open(journal).read())
+        r = self.lancer("--remove-timer", config="TIMER_TIME=03:30\n")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(dossier_systemd, "collect-all-advise.timer")))
+
+    def test_heure_du_minuteur_refusee_si_invalide(self):
+        self.env["NGINX_TOOLS_SYSTEMD_DIR"] = os.path.join(self.d, "systemd")
+        r = self.lancer("--install-timer", config="TIMER_TIME=25:99\n")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("TIMER_TIME refusé", r.stdout + r.stderr) if os.geteuid() == 0 else self.assertIn("en root", r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

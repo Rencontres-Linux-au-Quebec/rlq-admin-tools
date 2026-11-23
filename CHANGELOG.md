@@ -492,6 +492,41 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.4.20261123.112123 - Language of the reports, days, daily timer, reasons of the failures
+
+- Reason for the request: the first-run questions were shown in French and English side by side; the language of the reports must
+  be chosen and kept in /etc/default; the number of days must be asked; the containers were not collected and a regular run must
+  be planned with a timer.
+- Changes (collect-all-advise.sh):
+  - First run: the language (fr or en) is asked first, then the other questions in that language only. The answer is written as
+    LANGUAGE in /etc/default/collect-all-advise.conf and gives the language of the messages AND of the reports (APP_LOG_LIVE_LANG
+    is passed to app-log-live.py, through pct exec and sudo env over ssh). --lang keeps priority; the language is not asked then.
+  - First run: the number of days (1 to 366, default 2) is asked, and DAYS is written in the configuration.
+  - First run: asks whether to run every day (systemd timer) and at which time (HH:MM, default 03:30). Keys TIMER and TIMER_TIME.
+  - New option --install-timer: writes collect-all-advise.service (runs this script, COLLECT_NO_PROMPT=1, no question) and
+    collect-all-advise.timer (OnCalendar at TIMER_TIME, Persistent=true), then enables the timer. Root only.
+  - New option --remove-timer: disables and removes the two units. Root only.
+  - Failed LXC or VM: the last three lines of the output of the failed command are shown under the message (the reason).
+  - No running guest matching --name: the message gives the number of guests seen and the expression used.
+  - Loops over pct list and qm list read on file descriptor 3, and the commands run with </dev/null.
+  - Options --install-timer and --remove-timer added to the help, the header and the change log.
+- Bugs fixed:
+  - Symptom: no LXC line at all in the run, and the two failed VMs without any reason shown.
+  - Diagnosis: the containers were not reported as selected and the failure messages only gave the path of the output file. The
+    command inside the loop could also read the list of guests (stdin); the cause on the real host is not confirmed.
+  - Fix: the list is read on file descriptor 3, the commands get </dev/null, the number of guests seen and the reason of each
+    failure are printed.
+- Safeguards and edge cases:
+  - The timer is installed and removed only as root; otherwise a message says how to run it with sudo.
+  - TIMER_TIME is checked (HH:MM, 00:00 to 23:59) before the unit files are written.
+  - The unit files are written only in SYSTEMD_DIR (/etc/systemd/system; NGINX_TOOLS_SYSTEMD_DIR for the tests).
+  - The timer run never asks a question and never installs a security update (it reports them only).
+- Checks: module test_collect_all_advise (language passed to the program, reason of a failed run, message when no guest matches,
+  timer installed and removed as root or refused otherwise, invalid TIMER_TIME).
+- Action required: after the update, run once: sudo /path/collect-all-advise.sh --install-timer (or answer yes to the timer question
+  when the configuration is created again). Check with: systemctl list-timers collect-all-advise.timer
+  Answer the new LANGUAGE question as needed; the value is kept in /etc/default/collect-all-advise.conf.
+
 ### 1.3.20261123.105820 - Security updates of the host and the guests, installed only after a yes
 
 - Reason for the request: after the collection, the program must say whether security updates are pending on the Proxmox host and on each collected guest, and ask whether to install them.
