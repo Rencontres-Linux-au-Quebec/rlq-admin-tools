@@ -7669,6 +7669,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## system-hardening.sh
 
+### 1.4.20261123.165500 - Collect account on a VM (--collect-account, --collect-key)
+
+- Reason for the request: collect-all-advise.sh reaches the virtual machines by ssh with an account that has sudo; the VMs accept
+  only key logins, and the account must be created the same way on every new VM, as part of the hardening, in the right order.
+- Changes (system-hardening.sh):
+  - New options --collect-account NAME and --collect-key FILE (together, with --update, --check or --rollback). On a VM only:
+    the account is created once (useradd -m -s /bin/bash, no password), its key line is added once to ~/.ssh/authorized_keys with
+    the options no-agent-forwarding, no-port-forwarding, no-X11-forwarding and no-pty, and /etc/sudoers.d/rlq-collect-NAME gives
+    sudo without password (NOPASSWD: ALL, needed by collect-all-advise.sh for the reports and the security updates).
+  - --check reports the account and its sudo rule; --rollback removes the sudo rule and the key line, the account stays.
+  - On a Proxmox host or in an LXC container the option is not applied (collect-all-advise.sh uses pct exec there).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The name must be a short Unix name (lower case, digits, _ and -, 32 characters at most); the key file must hold a public key
+    (checked with ssh-keygen -l); the sudo rule is checked with visudo before it is installed (mode 440).
+  - An existing account is kept, its other keys are not touched; the key is added only once.
+  - The rules of auditd already watch /etc/sudoers.d and the ssh keys: each change is recorded and reported by the daily summary.
+  - The header statement "writes only its own files" is extended to this exception.
+- Checks: module test_system_hardening (account, sudo rule and key on a VM; refusal on an LXC container; invalid key refused;
+  rollback keeps the account and another key; key missing refused); ShellCheck 0.11.0 on the script: no finding.
+- Action required: on each new VM, run system-hardening.sh --update --collect-account NAME --collect-key FILE, with the public key
+  of the Proxmox host (ssh-keygen created on the host first), before the first run of collect-all-advise.sh.
+
 ### 1.3.20261120.094840 - AIDE: git object stores of the sources excluded, baseline created again when the exclusions change
 
 - Reason for the request: host-perf-audit.py on proxmox1, night of 2026-11-20: AIDE in the containers 105 and 104 read again every night the git packs of the Odoo sources (7.9, 4.2, 2.6 GB in 105; 3.8, 1.8, 1.2 GB in 104), one of the main causes of the disk waits of the night on the SATA disks.
