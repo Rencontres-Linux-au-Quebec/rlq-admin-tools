@@ -8,7 +8,7 @@
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# collect-all-advise.sh - run on the Proxmox host. On every running guest whose name matches --name (BigBlueButton by
+# collect-all-advise.sh - run on the Proxmox host. On every running guest whose name matches --name (BigBlueButton and Odoo by
 # default), it runs "app-log-live.py --advise --days N --export-ai FILE": the LXC containers with pct exec, the virtual
 # machines with ssh (sudo). The Markdown reports are copied into DEST/STAMP/, then archived in one file:
 #   DEST/collect-all-advise.HOST.AAAA-MM-JJ.tar.xz   (only the *.md reports; read with: tar -tJf FILE)
@@ -26,7 +26,7 @@
 #   -h, --help                   show this help and exit
 #   --install-timer              install the systemd service and timer: run every day at TIMER_TIME (root)
 #   --lang fr|en                 language of the messages (default: LANGUAGE of the configuration file, then LC_ALL / LC_MESSAGES / LANG)
-#   --name REGEX                 only the guests whose name matches REGEX (default: bbb)
+#   --name REGEX                 only the guests whose name matches REGEX (default: bbb|odoo)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
 #   --no-security                no check of the security updates
@@ -45,7 +45,7 @@
 #   LANGUAGE=fr                 fr or en: language of the messages AND of the reports (--lang)
 #   TIMER=no                    yes or no: a systemd timer runs the collection every day (--install-timer)
 #   TIMER_TIME=03:30            time of the daily run, HH:MM (local time of the host)
-#   NAME_REGEX=bbb              guests to collect (--name)
+#   NAME_REGEX=bbb|odoo         guests to collect (--name)
 #   PROGRAM=/opt/rlq-admin-tools/app-log-live.py   program on the guests (--program)
 #   SSH_USER=root               account of the virtual machines (--ssh-user)
 #   VM_HOST_<VMID>=ADDRESS      ssh address of a virtual machine, for example VM_HOST_201=10.0.0.21
@@ -54,7 +54,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.4.20261123.112123"
+readonly SCRIPT_VERSION="1.5.20261123.133800"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -174,7 +174,7 @@ creer_config() {
     dest="$(dest_defaut)"
     prog="/opt/rlq-admin-tools/app-log-live.py"
     ssh_user="root"
-    regex="bbb"
+    regex="bbb|odoo"
     jours=2
     choisir_langue "${args[@]}"
     if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then interactif=1; fi   # COLLECT_NO_PROMPT=1: never ask (tests, cron)
@@ -219,7 +219,7 @@ DAYS=$jours
 DEST=$dest
 # fr or en: language of the messages AND of the reports (given to app-log-live.py as APP_LOG_LIVE_LANG).
 LANGUAGE=$LANGUE
-# guests whose name matches this regular expression (bbb: BigBlueButton; .* : every guest).
+# guests whose name matches this regular expression (bbb|odoo: BigBlueButton and Odoo; .* : every guest).
 NAME_REGEX=$regex
 # app-log-live.py on the guests.
 PROGRAM=$prog
@@ -274,7 +274,7 @@ aide() {
 -h, --help                   affiche cette aide et quitte / show this help and exit
 --install-timer              installe le service et le minuteur systemd (quotidien, root) / install the systemd service and timer (daily, root)
 --lang fr|en                 langue des messages et des rapports / language of the messages and the reports
---name REGEX                 seulement les machines dont le nom correspond (défaut bbb) / only the guests whose name matches (default bbb)
+--name REGEX                 seulement les machines dont le nom correspond (défaut bbb|odoo) / only the guests whose name matches (default bbb|odoo)
 --no-anonymize               garde les vraies adresses, courriels et noms / keep the real addresses, e-mails and names
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
 --no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
@@ -391,7 +391,7 @@ installer_minuteur() {
     mkdir -p "$SYSTEMD_DIR"
     cat > "$SYSTEMD_DIR/$SCRIPT_NAME.service" <<UNIT
 [Unit]
-Description=collect-all-advise: --advise reports of the BigBlueButton guests (configuration: /etc/default/$SCRIPT_NAME.conf)
+Description=collect-all-advise: --advise reports of the BigBlueButton and Odoo guests (configuration: /etc/default/$SCRIPT_NAME.conf)
 Wants=network-online.target
 After=network-online.target
 
@@ -545,7 +545,7 @@ choisir_langue "$@"
 DO_CHANGELOG=0; DO_HELP=0; DO_VERSION=0; DO_TIMER=""
 DAYS="${CFG[DAYS]:-2}"
 DEST="${CFG[DEST]:-$(dest_defaut)}"
-NAME_RE="${CFG[NAME_REGEX]:-bbb}"
+NAME_RE="${CFG[NAME_REGEX]:-bbb|odoo}"
 PROGRAM="${CFG[PROGRAM]:-/opt/rlq-admin-tools/app-log-live.py}"
 SSH_USER="${CFG[SSH_USER]:-root}"
 ANONYMIZE_OPT="--anonymize"

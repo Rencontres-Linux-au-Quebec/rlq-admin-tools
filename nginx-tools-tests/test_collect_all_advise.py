@@ -134,7 +134,7 @@ class CollectAllAdvise(unittest.TestCase):
         sortie = r.stdout
         self.assertIn("LXC 101 bbb-lxc1", sortie)
         self.assertNotIn("bbb-lxc2", sortie)           # stopped
-        self.assertNotIn("web-odoo", sortie)           # not a BigBlueButton name
+        self.assertIn("web-odoo", sortie)              # an Odoo name: collected by default (bbb|odoo)
         self.assertNotIn("bbb-vm2", sortie)            # stopped VM
         self.assertIn("--anonymize", open(self.app_log).read())
         dossiers = [n for n in os.listdir(self.dest) if n.isdigit() or re.match(r"\d{8}-\d{6}$", n)]
@@ -169,7 +169,8 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertTrue(os.path.isfile(cible), r.stderr)
         texte = open(cible, encoding="utf-8").read()
         self.assertIn("DAYS=2", texte)
-        self.assertIn("NAME_REGEX=bbb", texte)
+        self.assertIn("NAME_REGEX=bbb|odoo", texte)
+        self.assertIn("LANGUAGE=", texte)
         self.assertIn("PROGRAM=/opt/rlq-admin-tools/app-log-live.py", texte)
         self.assertIn("DEST=" + os.path.join(self.d, "audit", "collect-all-advise"), texte)
         self.assertNotIn("dcp9370", texte)

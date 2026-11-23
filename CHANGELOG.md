@@ -492,6 +492,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.5.20261123.133800 - Default guests: BigBlueButton and Odoo (VM and LXC)
+
+- Reason for the request: the program must cover all the Odoo and BigBlueButton guests (VM and LXC containers), not only the names
+  starting with bbb; on the Proxmox host of the Rencontres, the Odoo containers were not selected.
+- Changes (collect-all-advise.sh):
+  - Default guest filter is now bbb|odoo (--name, NAME_REGEX, first-run question, help, header, timer description).
+  - Only running guests are selected; the other guests (for example tailscale, yuno) are not collected unless --name matches them.
+- Bugs fixed: none; the filter was too narrow for the Odoo containers.
+- Safeguards and edge cases:
+  - An existing configuration keeps its NAME_REGEX; to get the new default, change NAME_REGEX in /etc/default/collect-all-advise.conf
+    or delete the file to be asked again.
+  - A guest matched by the filter whose app-log-live.py fails is reported as failed with the reason (the last lines of the output).
+- Checks: module test_collect_all_advise (default run collects web-odoo; configuration written with NAME_REGEX=bbb|odoo).
+- Action required: none, unless your configuration already has NAME_REGEX=bbb: then set NAME_REGEX=bbb|odoo in
+  /etc/default/collect-all-advise.conf.
+
 ### 1.4.20261123.112123 - Language of the reports, days, daily timer, reasons of the failures
 
 - Reason for the request: the first-run questions were shown in French and English side by side; the language of the reports must
