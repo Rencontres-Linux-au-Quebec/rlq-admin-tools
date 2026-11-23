@@ -490,6 +490,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
+## collect-all-advise.sh
+
+### 1.0.20261123.101934 - New: one archive of the --advise --days N reports of all the BigBlueButton guests
+
+- Reason for the request: the administrator runs app-log-live.py --advise --days N --export-ai on every LXC container and virtual machine of BigBlueButton from the Proxmox host, then sends the reports for analysis. The reports must be collected in one place and packed in one archive that Claude can read (tar.xz).
+- Changes (collect-all-advise.sh, new program; tests in nginx-tools-tests/test_collect_all_advise.py):
+  - For each running guest whose name matches --name (default bbb): LXC containers with pct exec / pct pull; virtual machines with ssh and sudo (address VM_HOST_<VMID> in the configuration).
+  - The program is run with --advise --days N --export-ai FILE, with --anonymize (default) or --no-anonymize.
+  - Reports go to DEST/AAAAMMJJ-HHMMSS/<kind>-<vmid>-<name>/export-ai-<stamp>.md, then to one archive DEST/collect-all-advise.<uname -n>.AAAA-MM-JJ.tar.xz containing only the *.md files (a suffix -2, -3... if the day already has one).
+  - Options: --anonymize, --changelog, -c/--config, --days, --dest, -h/--help, --lang, --name, --no-anonymize, --no-archive, --program, --ssh-user, --version.
+  - Configuration: /etc/default/collect-all-advise.conf, then ~/.collect-all-advise.conf (read, never executed; the last one wins; the command line has priority). Keys: ANONYMIZE, ARCHIVE, DAYS, DEST, LANGUAGE, NAME_REGEX, PROGRAM, SSH_USER, VM_HOST_<VMID>.
+- Bugs fixed: none (new program). Bugs found while testing, fixed before the release: a name check that stopped the run under "set -e" (a bash test returning 1); a local variable used in the same "local" statement that defined it (unbound variable).
+- Safeguards and edge cases:
+  - --days accepts only an integer from 1 to 366 (0, 367, -1 and text are refused, status 2).
+  - --name is a regular expression used only to filter the names; it is refused when it does not compile.
+  - A guest that is stopped, or whose name does not match, is not touched. A VM without a configured address is reported and skipped (status 1 at the end).
+  - The report is removed from the guest (/tmp) after it is copied; the archive is not created when no report was collected.
+  - The configuration is read with a KEY=VALUE parser; it is never sourced.
+- Checks: 8 tests of nginx-tools-tests/test_collect_all_advise.py with fake pct, qm, ssh and sudo commands (version and help, --days validation, configuration and command line, collection of LXC and VM with the name filter, archive contents, VM without address, --no-archive, archive of the same day, --changelog).
+- Action required: copy collect-all-advise.sh to the Proxmox host (for example /home/dcp9370/bin/), check --program (path of app-log-live.py on the guests) and the VM_HOST_<VMID> addresses in /etc/default/collect-all-advise.conf, and make sure ssh and sudo work without a password for the VM account (SSH_USER).
+
 ## app-log-live.py
 
 ### 1.208.20261122.170000 - 404 of a browser of Odoo (icons of the Apps menu...) never a probe sweep
