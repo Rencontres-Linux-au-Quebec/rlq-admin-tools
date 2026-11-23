@@ -492,6 +492,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.7.20261123.154600 - ShellCheck error fixed in the colour variables (GitHub Actions)
+
+- Reason for the request: the GitHub Actions workflow runs ShellCheck 0.11.0 with a blocking level on errors; the run failed on
+  SC1087 (use braces when a variable is followed by "[").
+- Changes (collect-all-advise.sh): the colour variables followed by "[ATTN]" are written with braces (${C_RED}[ATTN]), in 7 messages.
+  No change of behaviour.
+- Bugs fixed: symptom: CI red on collect-all-advise.sh; diagnosis: "$C_YELLOW[ATTN]" read as an array index by bash and ShellCheck;
+  fix: braces around the variable names.
+- Safeguards and edge cases: colours are still disabled when the output is redirected or NO_COLOR is set.
+- Checks: ShellCheck 0.11.0 with "-S error" (the blocking level of the workflow): no error; module test_collect_all_advise.
+- Action required: none.
+
 ### 1.6.20261123.134500 - Configuration files read: state of each file and summary of the options
 
 - Reason for the request: as the other programs, the run must say which configuration files were read in /etc/default and in the

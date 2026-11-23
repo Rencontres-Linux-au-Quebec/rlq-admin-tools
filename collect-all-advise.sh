@@ -54,7 +54,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.6.20261123.134500"
+readonly SCRIPT_VERSION="1.7.20261123.154600"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -338,7 +338,7 @@ mises_a_jour_securite() {
             printf '%s\n' "[OK] $nom : $(t "aucune mise à jour de sécurité en attente" "no security update pending")"
             continue
         fi
-        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $nom : $(t "mises à jour de sécurité en attente" "security updates pending") : $pkgs"
+        printf '%s\n' "${C_YELLOW}[ATTN]$C_RESET $nom : $(t "mises à jour de sécurité en attente" "security updates pending") : $pkgs"
         if [[ -z "$INTERACTIF" ]]; then
             printf '%s\n' "$(t "  (pas de terminal : rien n'est installé ; relancez sur un terminal pour répondre)" "  (no terminal: nothing installed; run again on a terminal to answer)")"
             continue
@@ -350,7 +350,7 @@ mises_a_jour_securite() {
                 if sur_machine "$kind" "$id" "$adresse" "DEBIAN_FRONTEND=noninteractive apt-get install -y -q --only-upgrade $pkgs" >/dev/null 2>&1; then
                     printf '%s\n' "[OK] $nom : $(t "mises à jour de sécurité installées (aucun redémarrage)" "security updates installed (no reboot)")"
                 else
-                    printf '%s\n' "$C_RED[ATTN]$C_RESET $nom : $(t "échec de l'installation" "installation failed")"
+                    printf '%s\n' "${C_RED}[ATTN]$C_RESET $nom : $(t "échec de l'installation" "installation failed")"
                 fi ;;
             *)
                 printf '%s\n' "$(t "  $nom : non installé" "  $nom: not installed")" ;;
@@ -368,7 +368,7 @@ derniere_sortie() {
 signaler_aucune() {
     local nature="$1" vus="$2" retenus="$3"
     if (( retenus == 0 )); then
-        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $nature : $(t "aucune machine en marche ne correspond à « $NAME_RE » (machines vues : $vus)" \
+        printf '%s\n' "${C_YELLOW}[ATTN]$C_RESET $nature : $(t "aucune machine en marche ne correspond à « $NAME_RE » (machines vues : $vus)" \
             "no running guest matches \"$NAME_RE\" (guests seen: $vus)")"
     fi
 }
@@ -453,7 +453,7 @@ collecter_lxc() {
         SECU_CIBLES+=("lxc $vmid - $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
-        printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "LXC" "LXC") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "LXC" "LXC") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
         derniere_sortie "$sortie"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
     fi
@@ -484,7 +484,7 @@ collecter_vm() {
     adresse="$(adresse_vm "$vmid" "$name")"
     cible="$SSH_USER@$adresse"
     if [[ -z "$adresse" ]]; then
-        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "adresse introuvable (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS) : ignorée" "no address found (no VM_HOST_$vmid, no guest agent, no DNS): skipped")"
+        printf '%s\n' "${C_YELLOW}[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "adresse introuvable (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS) : ignorée" "no address found (no VM_HOST_$vmid, no guest agent, no DNS): skipped")"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
         return 0
     fi
@@ -497,7 +497,7 @@ collecter_vm() {
         SECU_CIBLES+=("vm $vmid $adresse $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
-        printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
         derniere_sortie "$sortie"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
     fi
@@ -516,7 +516,7 @@ archiver() {
         n=$((n + 1))
     done
     if ! (cd "$RUN" && find . -name '*.md' -print0 | tar --null -T - -cJf "$archive"); then
-        printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "archive non créée" "archive not created") : $archive"
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "archive non créée" "archive not created") : $archive"
         return 1
     fi
     printf '%s\n' "[OK] $(t "archive" "archive") : $archive"
