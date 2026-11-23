@@ -28,6 +28,7 @@
 #   --name REGEX                 only the guests whose name matches REGEX (default: bbb)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
+#   --no-security                no check of the security updates
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
 #   --version                    show the version and exit
@@ -36,6 +37,7 @@
 # read, never executed). KEY=VALUE lines, with # comments:
 #   ANONYMIZE=yes               yes or no (--anonymize / --no-anonymize)
 #   ARCHIVE=yes                 yes or no (--no-archive)
+#   SECURITY=yes                yes or no (--no-security): check of the pending security updates of the host and the guests
 #   DAYS=2                      analysis window in days (--days)
 #   DEST=...                    folder (--dest; default: audit/collect-all-advise in the sudo user home)
 #   LANGUAGE=auto               fr, en or auto (--lang)
@@ -48,7 +50,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.2.20261123.104634"
+readonly SCRIPT_VERSION="1.3.20261123.105820"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -224,6 +226,7 @@ aide() {
 --name REGEX                 seulement les machines dont le nom correspond (défaut bbb) / only the guests whose name matches (default bbb)
 --no-anonymize               garde les vraies adresses, courriels et noms / keep the real addresses, e-mails and names
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
+--no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
 --ssh-user USER              compte des VM (sudo sans mot de passe) / account of the VMs (sudo without a password)
 --version                    affiche la version et quitte / show the version and exit
@@ -248,6 +251,61 @@ valider_jours() {
 }
 
 # collecter_lxc VMID NAME DIR: run the program in the container, copy the report out, remove it from the container.
+# SECU_CIBLES: the machines to check for security updates, each "KIND ID ADDRESS NAME" ("hote - - NAME", "lxc VMID - NAME", "vm VMID ADDRESS NAME").
+SECU_CIBLES=()
+
+# COMMANDE_SECURITE: the pending security updates, one package name per line (the package lists are refreshed first).
+COMMANDE_SECURITE='apt-get update -qq >/dev/null 2>&1; apt-get -s upgrade 2>/dev/null | grep "^Inst" | grep -e "-security" | cut -d " " -f 2'
+
+# sur_machine KIND ID ADDRESS COMMAND: runs COMMAND as root on the host (hote), in an LXC container (pct exec) or on a VM (ssh, sudo).
+sur_machine() {
+    local kind="$1" id="$2" adresse="$3" commande="$4" remote
+    case "$kind" in
+        hote) bash -c "$commande" ;;
+        lxc) pct exec "$id" -- bash -c "$commande" ;;
+        vm)
+            printf -v remote '%q' "$commande"
+            ssh -o BatchMode=yes "$SSH_USER@$adresse" "sudo bash -c $remote" ;;
+    esac
+}
+
+# mises_a_jour_securite: lists the pending security updates of each machine and, on a terminal only, asks before installing them
+# (apt-get install --only-upgrade of these packages). Nothing is installed without an answer; no reboot is done.
+mises_a_jour_securite() {
+    local cible kind id adresse nom pkgs rep
+    echo "$(t "Mises à jour de sécurité :" "Security updates:")" >&2
+    for cible in "${SECU_CIBLES[@]}"; do
+        read -r kind id adresse nom <<<"$cible" || true
+        if [[ "$kind" == "hote" && "$EUID" != 0 ]]; then
+            printf '%s\n' "[ATTN] $nom : $(t "lancez en root pour vérifier l'hôte" "run as root to check the host")"
+            continue
+        fi
+        pkgs="$(sur_machine "$kind" "$id" "$adresse" "$COMMANDE_SECURITE" 2>/dev/null | tr '\n' ' ' || true)"
+        pkgs="${pkgs%" "}"
+        if [[ -z "$pkgs" ]]; then
+            printf '%s\n' "[OK] $nom : $(t "aucune mise à jour de sécurité en attente" "no security update pending")"
+            continue
+        fi
+        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $nom : $(t "mises à jour de sécurité en attente" "security updates pending") : $pkgs"
+        if [[ -z "$INTERACTIF" ]]; then
+            printf '%s\n' "$(t "  (pas de terminal : rien n'est installé ; relancez sur un terminal pour répondre)" "  (no terminal: nothing installed; run again on a terminal to answer)")"
+            continue
+        fi
+        read -r -p "$(t "Installer ces mises à jour de sécurité sur $nom ? [o/N] " "Install these security updates on $nom? [y/N] ")" rep </dev/tty || rep=""
+        echo >&2
+        case "${rep,,}" in
+            o|oui|y|yes)
+                if sur_machine "$kind" "$id" "$adresse" "DEBIAN_FRONTEND=noninteractive apt-get install -y -q --only-upgrade $pkgs" >/dev/null 2>&1; then
+                    printf '%s\n' "[OK] $nom : $(t "mises à jour de sécurité installées (aucun redémarrage)" "security updates installed (no reboot)")"
+                else
+                    printf '%s\n' "$C_RED[ATTN]$C_RESET $nom : $(t "échec de l'installation" "installation failed")"
+                fi ;;
+            *)
+                printf '%s\n' "$(t "  $nom : non installé" "  $nom: not installed")" ;;
+        esac
+    done
+}
+
 collecter_lxc() {
     local vmid="$1" name="$2" dossier="$3" rapport sortie
     rapport="/tmp/$SCRIPT_NAME-$STAMP-$vmid.md"
@@ -257,6 +315,7 @@ collecter_lxc() {
     if pct exec "$vmid" -- "$PROGRAM" --advise --days "$DAYS" --export-ai "$rapport" "$ANONYMIZE_OPT" --no-follow --no-keys >"$sortie" 2>&1 \
        && pct pull "$vmid" "$rapport" "$dossier/export-ai-$STAMP.md"; then
         printf '%s\n' "[OK] LXC $vmid $name -> $dossier/export-ai-$STAMP.md"
+        SECU_CIBLES+=("lxc $vmid - $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
         printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "LXC" "LXC") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
@@ -298,6 +357,7 @@ collecter_vm() {
     if ssh -o BatchMode=yes "$cible" "sudo $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" >"$sortie" 2>&1 \
        && ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md"; then
         printf '%s\n' "[OK] VM $vmid $name ($adresse) -> $dossier/export-ai-$STAMP.md"
+        SECU_CIBLES+=("vm $vmid $adresse $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
         printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
@@ -354,6 +414,8 @@ ANONYMIZE_OPT="--anonymize"
 if [[ "$(oui_non "${CFG[ANONYMIZE]:-yes}")" == 0 ]]; then ANONYMIZE_OPT="--no-anonymize"; fi
 ARCHIVE=1
 if [[ "$(oui_non "${CFG[ARCHIVE]:-yes}")" == 0 ]]; then ARCHIVE=0; fi
+SECURITY=1
+if [[ "$(oui_non "${CFG[SECURITY]:-yes}")" == 0 ]]; then SECURITY=0; fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -380,6 +442,7 @@ while [[ $# -gt 0 ]]; do
         --name=*) NAME_RE="${1#--name=}"; shift ;;
         --no-anonymize) ANONYMIZE_OPT="--no-anonymize"; shift ;;
         --no-archive) ARCHIVE=0; shift ;;
+        --no-security) SECURITY=0; shift ;;
         --program)
             if [[ $# -lt 2 ]]; then echo "$(t "option --program : chemin attendu" "option --program: path expected")" >&2; exit 2; fi
             PROGRAM="$2"; shift 2 ;;
@@ -427,6 +490,9 @@ RUN="$DEST/$STAMP"
 mkdir -p "$RUN"
 RAPPORTS_OK=0
 RAPPORTS_KO=0
+SECU_CIBLES=("hote - - $(uname -n)")
+INTERACTIF=""
+if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then INTERACTIF=1; fi
 
 # LXC containers (pct list: VMID STATUS LOCK NAME, the name is the last column).
 if command -v pct >/dev/null 2>&1; then
@@ -455,6 +521,10 @@ fi
 
 echo "$(t "Rapports collectés : $RAPPORTS_OK · en échec : $RAPPORTS_KO · dossier : $RUN" \
     "Reports collected: $RAPPORTS_OK · failed: $RAPPORTS_KO · folder: $RUN")"
+
+if (( SECURITY == 1 )); then
+    mises_a_jour_securite
+fi
 
 if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 )); then exit 1; fi
 exit 0
