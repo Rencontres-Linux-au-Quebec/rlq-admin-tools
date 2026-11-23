@@ -54,7 +54,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.5.20261123.133800"
+readonly SCRIPT_VERSION="1.6.20261123.134500"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -616,16 +616,30 @@ if (( rc_regex == 2 )); then
     exit 2
 fi
 
-# Configuration read, shown on standard error (the reports are on standard output of the run).
+# Configuration read, shown on standard error (the reports are on standard output of the run): each candidate file is
+# named with its state (read, absent, created), then the important options on two lines.
+cfg_etat() {
+    local f="$1"
+    if [[ " ${CONFIG_LUES[*]:-} " == *" $f "* ]]; then echo "$(t "lu" "read")"
+    elif [[ -n "$CONFIG_CREEE" && "$f" == "$CONFIG_CREEE" ]]; then echo "$(t "créé" "created")"
+    else echo "$(t "absent" "absent")"; fi
+}
+if [[ -n "$CONFIG_EXPLICITE" ]]; then
+    cfg_candidats=("$CONFIG_EXPLICITE")
+else
+    cfg_candidats=("$ETC_DEFAULT/$SCRIPT_NAME.conf" "${HOME:-/root}/.$SCRIPT_NAME.conf")
+fi
+cfg_resume=""
+for cfg_f in "${cfg_candidats[@]}"; do
+    cfg_resume+="$cfg_f ($(cfg_etat "$cfg_f")) ; "
+done
+echo "$(t "Configuration lue / configuration read : " "Configuration lue / configuration read: ")${cfg_resume%" ; "}" >&2
 if [[ -n "$CONFIG_CREEE" ]]; then
     echo "$(t "Configuration créée (valeurs par défaut) : " "Configuration created (default values): ")$CONFIG_CREEE" >&2
-elif (( ${#CONFIG_LUES[@]} == 0 )); then
-    echo "$(t "Configuration : aucun fichier (valeurs par défaut)" "Configuration: no file (default values)")" >&2
-else
-    echo "$(t "Configuration lue : " "Configuration read: ")${CONFIG_LUES[*]}" >&2
 fi
-echo "$(t "Fenêtre : $DAYS jour(s) · anonymisation : $ANONYMIZE_OPT · machines : $NAME_RE · dossier : $DEST" \
-    "Window: $DAYS day(s) · anonymization: $ANONYMIZE_OPT · guests: $NAME_RE · folder: $DEST")" >&2
+echo "  $(t "Options : fenêtre $DAYS jour(s) · langue $LANGUE · machines $NAME_RE · dossier $DEST"     "Options: window $DAYS day(s) · language $LANGUE · guests $NAME_RE · folder $DEST")" >&2
+echo "  $(t "Archive : $([[ $ARCHIVE == 1 ]] && echo oui || echo non) · sécurité : $([[ $SECURITY == 1 ]] && echo oui || echo non) · minuteur : ${CFG[TIMER]:-no} · anonymisation : $ANONYMIZE_OPT" \
+    "Archive: $([[ $ARCHIVE == 1 ]] && echo yes || echo no) · security: $([[ $SECURITY == 1 ]] && echo yes || echo no) · timer: ${CFG[TIMER]:-no} · anonymization: $ANONYMIZE_OPT")" >&2
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RUN="$DEST/$STAMP"

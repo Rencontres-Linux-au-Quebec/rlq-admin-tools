@@ -492,6 +492,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.6.20261123.134500 - Configuration files read: state of each file and summary of the options
+
+- Reason for the request: as the other programs, the run must say which configuration files were read in /etc/default and in the
+  home folder, and give a short summary of the important options.
+- Changes (collect-all-advise.sh): on standard error, a line names each candidate file with its state (read, absent, created):
+  /etc/default/collect-all-advise.conf, then ~/.collect-all-advise.conf (or only the file given with -c). Then two summary lines:
+  window, language, guests, folder; archive, security, timer, anonymization. The "Configuration created" line stays on the first run.
+- Bugs fixed: none.
+- Safeguards and edge cases: with -c, only that file is named; a file that exists but cannot be read is shown as absent.
+- Checks: test run with no file (created), then with the file (read); module test_collect_all_advise.
+- Action required: none.
+
 ### 1.5.20261123.133800 - Default guests: BigBlueButton and Odoo (VM and LXC)
 
 - Reason for the request: the program must cover all the Odoo and BigBlueButton guests (VM and LXC containers), not only the names
