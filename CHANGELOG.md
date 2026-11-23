@@ -492,6 +492,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.3.20261123.105820 - Security updates of the host and the guests, installed only after a yes
+
+- Reason for the request: after the collection, the program must say whether security updates are pending on the Proxmox host and on each collected guest, and ask whether to install them.
+- Changes (collect-all-advise.sh):
+  - mises_a_jour_securite(): for each machine (host, LXC containers, VMs), lists the pending security updates (apt-get -s upgrade, packages whose origin is -security; the package lists are refreshed first).
+  - On a terminal, asks for each machine that has updates pending; a yes installs only those packages (apt-get install --only-upgrade, DEBIAN_FRONTEND=noninteractive). Nothing else is upgraded and no reboot is done.
+  - sur_machine(): runs a command on the host, in an LXC container (pct exec) or on a VM (ssh, sudo).
+  - Option --no-security and configuration key SECURITY=yes disable the check.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal (cron, COLLECT_NO_PROMPT=1), the pending updates are reported and nothing is installed.
+  - The host is checked only when the program runs as root; otherwise a message asks for root.
+  - Only the packages listed as security updates are installed; a refused answer leaves the machine untouched.
+  - The program never reboots a machine: a kernel or library update may need a restart, which is left to the administrator (in particular during a BigBlueButton session).
+- Checks: 13 tests of test_collect_all_advise.py (with a fake apt-get: pending security update reported on the host, LXC and VM; nothing installed without an answer; --no-security; nothing pending). The install path was checked through a pseudo-terminal with answers "o": the three machines received apt-get install --only-upgrade openssl, and nothing else.
+- Action required: none for the program. Each yes installs the listed security updates on the machine concerned; check the answers before saying yes during a BigBlueButton session.
+
 ### 1.2.20261123.104634 - First run asks the questions; no personal value in the program
 
 - Reason for the request: the default configuration must not contain the values of one installation. On the first run, the program must ask for them (default value in brackets, Enter keeps it).

@@ -40,6 +40,18 @@ exec bash -c "$1"
 SUDO = """#!/bin/bash
 exec "$@"
 """
+APT = """#!/bin/bash
+# fake apt-get: one pending security update (openssl) and one normal update (vim); APT_NONE=1: nothing pending
+case "$*" in
+    *"-s upgrade"*)
+        if [[ -z "${APT_NONE:-}" ]]; then
+            echo "Inst openssl [3.0.1] (3.0.2 Debian-Security:12/stable-security [amd64])"
+            echo "Inst vim [1] (2 Debian:12 [amd64])"
+        fi ;;
+    *install*) echo "$*" >> "$APT_LOG" ;;
+esac
+exit 0
+"""
 APP = """#!/bin/bash
 # fake app-log-live.py: writes the report given to --export-ai, and records its arguments
 dest=""
@@ -60,7 +72,7 @@ class CollectAllAdvise(unittest.TestCase):
         self.dest = os.path.join(self.d, "audit")
         self.app_log = os.path.join(self.d, "app.log")
         self.ssh_log = os.path.join(self.d, "ssh.log")
-        for nom, contenu in (("pct", PCT), ("qm", QM), ("ssh", SSH), ("sudo", SUDO), ("app-log-live.py", APP)):
+        for nom, contenu in (("pct", PCT), ("qm", QM), ("ssh", SSH), ("sudo", SUDO), ("apt-get", APT), ("app-log-live.py", APP)):
             chemin = os.path.join(self.bin, nom)
             with open(chemin, "w") as f:
                 f.write(contenu)
@@ -73,6 +85,7 @@ class CollectAllAdvise(unittest.TestCase):
         os.makedirs(self.etc)
         self.env["NGINX_TOOLS_ETC_DEFAULT"] = self.etc
         self.env["COLLECT_NO_PROMPT"] = "1"            # no question on the terminal in the tests
+        self.env["APT_LOG"] = os.path.join(self.d, "apt.log")
         self.env["SUDO_USER"] = ""                     # the default folder is the home of the current user
         self.env["HOME"] = self.d
         self.env.pop("LC_ALL", None)
@@ -162,6 +175,24 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertIn("Configuration créée", r.stderr)
         r = self.lancer("--days", "2", "--dest", self.dest)
         self.assertIn("Configuration lue", r.stderr)          # the second run reads the file created by the first one
+
+    def test_mises_a_jour_de_securite_signalees_sans_installation(self):
+        r = self.lancer("--days", "2", "--dest", self.dest, config="VM_HOST_201=10.0.0.21\n")
+        self.assertIn("Mises à jour de sécurité", r.stdout + r.stderr)
+        self.assertIn("openssl", r.stdout)
+        self.assertNotIn("vim", r.stdout)                                  # not a security update
+        self.assertIn("bbb-lxc1 : " , r.stdout)                              # the container is checked too
+        self.assertIn("pas de terminal", r.stdout)
+        self.assertFalse(os.path.exists(self.env["APT_LOG"]), "rien ne doit être installé sans réponse")
+
+    def test_pas_de_verification_avec_no_security(self):
+        r = self.lancer("--days", "2", "--dest", self.dest, "--no-security", config="VM_HOST_201=10.0.0.21\n")
+        self.assertNotIn("Mises à jour de sécurité", r.stdout + r.stderr)
+
+    def test_aucune_mise_a_jour_de_securite(self):
+        self.env["APT_NONE"] = "1"
+        r = self.lancer("--days", "2", "--dest", self.dest, config="VM_HOST_201=10.0.0.21\n")
+        self.assertIn("aucune mise à jour de sécurité en attente", r.stdout)
 
     def test_no_archive_garde_seulement_le_dossier(self):
         r = self.lancer("--days", "2", "--dest", self.dest, "--no-archive", "--no-anonymize")
