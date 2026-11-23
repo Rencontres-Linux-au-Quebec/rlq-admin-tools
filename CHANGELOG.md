@@ -492,6 +492,81 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.7.20261123.154600 - ShellCheck error fixed in the colour variables (GitHub Actions)
+
+- Reason for the request: the GitHub Actions workflow runs ShellCheck 0.11.0 with a blocking level on errors; the run failed on
+  SC1087 (use braces when a variable is followed by "[").
+- Changes (collect-all-advise.sh): the colour variables followed by "[ATTN]" are written with braces (${C_RED}[ATTN]), in 7 messages.
+  No change of behaviour.
+- Bugs fixed: symptom: CI red on collect-all-advise.sh; diagnosis: "$C_YELLOW[ATTN]" read as an array index by bash and ShellCheck;
+  fix: braces around the variable names.
+- Safeguards and edge cases: colours are still disabled when the output is redirected or NO_COLOR is set.
+- Checks: ShellCheck 0.11.0 with "-S error" (the blocking level of the workflow): no error; module test_collect_all_advise.
+- Action required: none.
+
+### 1.6.20261123.134500 - Configuration files read: state of each file and summary of the options
+
+- Reason for the request: as the other programs, the run must say which configuration files were read in /etc/default and in the
+  home folder, and give a short summary of the important options.
+- Changes (collect-all-advise.sh): on standard error, a line names each candidate file with its state (read, absent, created):
+  /etc/default/collect-all-advise.conf, then ~/.collect-all-advise.conf (or only the file given with -c). Then two summary lines:
+  window, language, guests, folder; archive, security, timer, anonymization. The "Configuration created" line stays on the first run.
+- Bugs fixed: none.
+- Safeguards and edge cases: with -c, only that file is named; a file that exists but cannot be read is shown as absent.
+- Checks: test run with no file (created), then with the file (read); module test_collect_all_advise.
+- Action required: none.
+
+### 1.5.20261123.133800 - Default guests: BigBlueButton and Odoo (VM and LXC)
+
+- Reason for the request: the program must cover all the Odoo and BigBlueButton guests (VM and LXC containers), not only the names
+  starting with bbb; on the Proxmox host of the Rencontres, the Odoo containers were not selected.
+- Changes (collect-all-advise.sh):
+  - Default guest filter is now bbb|odoo (--name, NAME_REGEX, first-run question, help, header, timer description).
+  - Only running guests are selected; the other guests (for example tailscale, yuno) are not collected unless --name matches them.
+- Bugs fixed: none; the filter was too narrow for the Odoo containers.
+- Safeguards and edge cases:
+  - An existing configuration keeps its NAME_REGEX; to get the new default, change NAME_REGEX in /etc/default/collect-all-advise.conf
+    or delete the file to be asked again.
+  - A guest matched by the filter whose app-log-live.py fails is reported as failed with the reason (the last lines of the output).
+- Checks: module test_collect_all_advise (default run collects web-odoo; configuration written with NAME_REGEX=bbb|odoo).
+- Action required: none, unless your configuration already has NAME_REGEX=bbb: then set NAME_REGEX=bbb|odoo in
+  /etc/default/collect-all-advise.conf.
+
+### 1.4.20261123.112123 - Language of the reports, days, daily timer, reasons of the failures
+
+- Reason for the request: the first-run questions were shown in French and English side by side; the language of the reports must
+  be chosen and kept in /etc/default; the number of days must be asked; the containers were not collected and a regular run must
+  be planned with a timer.
+- Changes (collect-all-advise.sh):
+  - First run: the language (fr or en) is asked first, then the other questions in that language only. The answer is written as
+    LANGUAGE in /etc/default/collect-all-advise.conf and gives the language of the messages AND of the reports (APP_LOG_LIVE_LANG
+    is passed to app-log-live.py, through pct exec and sudo env over ssh). --lang keeps priority; the language is not asked then.
+  - First run: the number of days (1 to 366, default 2) is asked, and DAYS is written in the configuration.
+  - First run: asks whether to run every day (systemd timer) and at which time (HH:MM, default 03:30). Keys TIMER and TIMER_TIME.
+  - New option --install-timer: writes collect-all-advise.service (runs this script, COLLECT_NO_PROMPT=1, no question) and
+    collect-all-advise.timer (OnCalendar at TIMER_TIME, Persistent=true), then enables the timer. Root only.
+  - New option --remove-timer: disables and removes the two units. Root only.
+  - Failed LXC or VM: the last three lines of the output of the failed command are shown under the message (the reason).
+  - No running guest matching --name: the message gives the number of guests seen and the expression used.
+  - Loops over pct list and qm list read on file descriptor 3, and the commands run with </dev/null.
+  - Options --install-timer and --remove-timer added to the help, the header and the change log.
+- Bugs fixed:
+  - Symptom: no LXC line at all in the run, and the two failed VMs without any reason shown.
+  - Diagnosis: the containers were not reported as selected and the failure messages only gave the path of the output file. The
+    command inside the loop could also read the list of guests (stdin); the cause on the real host is not confirmed.
+  - Fix: the list is read on file descriptor 3, the commands get </dev/null, the number of guests seen and the reason of each
+    failure are printed.
+- Safeguards and edge cases:
+  - The timer is installed and removed only as root; otherwise a message says how to run it with sudo.
+  - TIMER_TIME is checked (HH:MM, 00:00 to 23:59) before the unit files are written.
+  - The unit files are written only in SYSTEMD_DIR (/etc/systemd/system; NGINX_TOOLS_SYSTEMD_DIR for the tests).
+  - The timer run never asks a question and never installs a security update (it reports them only).
+- Checks: module test_collect_all_advise (language passed to the program, reason of a failed run, message when no guest matches,
+  timer installed and removed as root or refused otherwise, invalid TIMER_TIME).
+- Action required: after the update, run once: sudo /path/collect-all-advise.sh --install-timer (or answer yes to the timer question
+  when the configuration is created again). Check with: systemctl list-timers collect-all-advise.timer
+  Answer the new LANGUAGE question as needed; the value is kept in /etc/default/collect-all-advise.conf.
+
 ### 1.3.20261123.105820 - Security updates of the host and the guests, installed only after a yes
 
 - Reason for the request: after the collection, the program must say whether security updates are pending on the Proxmox host and on each collected guest, and ask whether to install them.
