@@ -22,6 +22,9 @@
 # NO DANGER BY DEFAULT: without --update, it ONLY checks and changes nothing. --update installs the packages and writes ONLY files
 # of its own (52rlq-unattended-upgrades, 60-rlq-hardening.rules, 99_rlq_exclusions, system-hardening-notify.*), plus ONE line of
 # /etc/aide/aide.conf (Checksums, the old value kept in a comment above it): --rollback removes them and restores the line (the packages stay). Must be run as root for --update, --rollback and --baseline-update.
+# Exception, only with --collect-account NAME --collect-key FILE on a VM: an account NAME (key only, no password) and its sudo
+# rule /etc/sudoers.d/rlq-collect-NAME, for collect-all-advise.sh on the Proxmox host (ssh). --rollback removes the rule and the key
+# line, the account stays. LXC containers and the host need none (collect-all-advise.sh uses pct exec there).
 #
 # Usage : system-hardening.sh [OPTION]...
 #
@@ -29,6 +32,8 @@
 #   --baseline-update      accept the current files as the new AIDE baseline (after legitimate changes: updates, new modules)
 #   --changelog        show this program's change log
 #   --check            check only (default)
+#   --collect-account NAME  account for collect-all-advise.sh on a VM (with --collect-key; key only, sudo without password)
+#   --collect-key FILE  public key file of that account (one line: ssh-ed25519 AAAA... comment)
 #   -c, --config FILE  this configuration file ONLY (default: /etc/default/system-hardening.conf, then ~/.system-hardening.conf)
 #   -h, --help         show this help and exit
 #   --lang LANG        fr or en
@@ -52,7 +57,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: the real system commands stay out of reach.)
 export PATH
 
-readonly SCRIPT_VERSION="1.3.20261120.094840"
+readonly SCRIPT_VERSION="1.4.20261123.165500"
 readonly SCRIPT_NAME="system-hardening"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -174,6 +179,10 @@ usage() {
     opt "--baseline-update" "$(t "accepte les fichiers actuels comme nouvelle référence d'AIDE (après des changements voulus)" "accept the current files as the new AIDE baseline (after wanted changes)")"
     opt "--changelog" "$(t "journal des modifications de ce programme" "change log of this program")"
     opt "--check" "$(t "vérification seulement (par défaut)" "check only (default)")"
+    opt "--collect-account NAME" "$(t "compte de collecte (collect-all-advise.sh) sur une VM : clé seulement, sudo sans mot de passe ; avec --collect-key" \
+        "collect account (collect-all-advise.sh) on a VM: key only, sudo without password; with --collect-key")"
+    opt "--collect-key FILE" "$(t "fichier de la clé publique de ce compte (une ligne : ssh-ed25519 AAAA... commentaire)" \
+        "public key file of this account (one line: ssh-ed25519 AAAA... comment)")"
     opt "-c, --config FILE" "$(t "ce fichier de configuration SEUL (défaut : /etc/default/system-hardening.conf, puis ~/.system-hardening.conf)" \
         "this configuration file ONLY (default: /etc/default/system-hardening.conf, then ~/.system-hardening.conf)")"
     opt "--config-merge" "$(t "réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte" \
@@ -960,6 +969,8 @@ rollback() {
     local f removed=0
     if have systemctl && systemd_running && [[ -f "$NOTIFY_TIMER" ]]; then run systemctl disable --now system-hardening-notify.timer >/dev/null 2>&1 || true; fi
     if aide_checksums_restore; then pass "$(t "ligne Checksums d'origine remise :" "original Checksums line restored:") $AIDE_MAIN_CONF"; removed=1; fi
+    collect_rollback
+    if (( ROLLBACK_COLLECT == 1 )); then removed=1; fi
     for f in "$UU_FILE" "$AUDIT_FILE" "$AIDE_FILE" "$NOTIFY_TIMER" "$NOTIFY_SERVICE"; do
         if [[ -f "$f" ]]; then rm -f -- "$f"; pass "$(t "retiré :" "removed:") $f"; removed=1; fi
     done
@@ -969,6 +980,113 @@ rollback() {
     if have update-aide.conf; then run update-aide.conf >/dev/null 2>&1 || true; fi
     info "$(t "les paquets (unattended-upgrades, auditd, aide) et la base d'AIDE restent en place ; les retirer : apt purge aide auditd" \
         "the packages (unattended-upgrades, auditd, aide) and the AIDE database stay; to remove them: apt purge aide auditd")"
+}
+
+# ------------------------------------------------------------------------------------------------------------------------
+# Collect account (--collect-account NAME --collect-key FILE, on a VM, with --update): a key-only account with sudo without a
+# password, used by collect-all-advise.sh from the Proxmox host (ssh). Written: the account (created once), its key (one line,
+# added once) and /etc/sudoers.d/rlq-collect-NAME (checked with visudo before it is installed; the key line is kept in it, as a
+# comment, so that --rollback can remove the key). The account itself stays on rollback (its password stays locked).
+# ------------------------------------------------------------------------------------------------------------------------
+COLLECT_ACCOUNT=""
+COLLECT_KEY_FILE=""
+ROLLBACK_COLLECT=0
+SUDOERS_DIR="${SYSTEM_HARDENING_SUDOERS_DIR:-/etc/sudoers.d}"
+
+# collect_valid_name NAME: a short Unix account name (lower case, digits, _ and -).
+collect_valid_name() { [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
+collect_sudoers() { printf '%s/rlq-collect-%s' "$SUDOERS_DIR" "$1"; }
+# collect_key_line FILE: the first line of the file that is a public key (ssh-ed25519, ssh-rsa, ecdsa-..., sk-...).
+collect_key_line() { awk '$1 ~ /^(ssh-|ecdsa-|sk-)/ {print; exit}' "$1" 2>/dev/null || true; }
+# collect_key_blob LINE: the key itself (second field of a public key line).
+collect_key_blob() { awk '{print $2}' <<<"$1"; }
+
+collect_check() {
+    [[ -n "$COLLECT_ACCOUNT" ]] || return 0
+    title "$(t "Compte de collecte" "Collect account") ($COLLECT_ACCOUNT)"
+    if in_container || [[ "$MACHINE" != vm:* ]]; then
+        info "$(t "non prévu sur cette machine : seulement pour une VM (collect-all-advise.sh utilise pct exec pour les conteneurs)" \
+            "not needed on this machine: for a VM only (collect-all-advise.sh uses pct exec for the containers)")"
+        return 0
+    fi
+    if id -u "$COLLECT_ACCOUNT" >/dev/null 2>&1; then pass "$(t "compte présent" "account present")"
+    else fail "$(t "compte absent" "account missing") : system-hardening.sh --update --collect-account $COLLECT_ACCOUNT --collect-key FILE"; fi
+    if [[ -f "$(collect_sudoers "$COLLECT_ACCOUNT")" ]]; then pass "$(t "sudo sans mot de passe prévu" "sudo without password set")"
+    else fail "$(t "règle sudo absente" "sudo rule missing") : system-hardening.sh --update --collect-account $COLLECT_ACCOUNT --collect-key FILE"; fi
+}
+
+collect_apply() {
+    [[ -n "$COLLECT_ACCOUNT" ]] || return 0
+    title "$(t "Compte de collecte" "Collect account") ($COLLECT_ACCOUNT)"
+    if in_container || [[ "$MACHINE" != vm:* ]]; then
+        skip "$(t "non prévu sur cette machine : seulement pour une VM" "not needed on this machine: for a VM only")"
+        return 0
+    fi
+    local key_line blob home uid gid sudoers tmp
+    key_line="$(collect_key_line "$COLLECT_KEY_FILE")"
+    if [[ -z "$key_line" ]] || ! run ssh-keygen -l -f "$COLLECT_KEY_FILE" >/dev/null 2>&1; then
+        fail "$(t "clé publique invalide ou absente :" "public key invalid or missing:") $COLLECT_KEY_FILE"
+        return 0
+    fi
+    blob="$(collect_key_blob "$key_line")"
+    if id -u "$COLLECT_ACCOUNT" >/dev/null 2>&1; then
+        pass "$(t "compte déjà présent" "account already present"): $COLLECT_ACCOUNT"
+    elif run useradd -m -s /bin/bash -c "collect-all-advise (rlq-admin-tools)" "$COLLECT_ACCOUNT" >/dev/null 2>&1; then
+        pass "$(t "compte créé :" "account created:") $COLLECT_ACCOUNT"
+    else
+        fail "$(t "impossible de créer le compte" "cannot create the account") $COLLECT_ACCOUNT"
+        return 0
+    fi
+    IFS=: read -r _ _ uid gid _ home _ < <(getent passwd "$COLLECT_ACCOUNT") || true
+    if [[ -z "${home:-}" || ! -d "$home" ]]; then
+        fail "$(t "dossier personnel introuvable :" "home folder not found:") $COLLECT_ACCOUNT"
+        return 0
+    fi
+    install -d -m 700 "$home/.ssh"
+    touch "$home/.ssh/authorized_keys"
+    if ! grep -qF -- "$blob" "$home/.ssh/authorized_keys"; then
+        printf '%s\n' "no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty $key_line" >> "$home/.ssh/authorized_keys"
+        pass "$(t "clé ajoutée à" "key added to") $home/.ssh/authorized_keys"
+    else
+        pass "$(t "clé déjà présente dans" "key already in") $home/.ssh/authorized_keys"
+    fi
+    chmod 600 "$home/.ssh/authorized_keys"
+    run chown -R "$uid:$gid" "$home/.ssh"
+    sudoers="$(collect_sudoers "$COLLECT_ACCOUNT")"
+    mkdir -p "$SUDOERS_DIR"
+    tmp="$(mktemp)"
+    {
+        echo "# Written by system-hardening.sh --update --collect-account (rlq-admin-tools): removed by --rollback."
+        echo "# key: $key_line"
+        echo "$COLLECT_ACCOUNT ALL=(ALL) NOPASSWD: ALL"
+    } > "$tmp"
+    if run visudo -cf "$tmp" >/dev/null 2>&1 && install -m 440 "$tmp" "$sudoers"; then
+        pass "$(t "règle sudo écrite :" "sudo rule written:") $sudoers"
+    else
+        fail "$(t "règle sudo refusée par visudo, non installée :" "sudo rule refused by visudo, not installed:") $sudoers"
+    fi
+    rm -f -- "$tmp"
+}
+
+# collect_rollback: removes each rule rlq-collect-NAME and the key line it carries; the account stays.
+collect_rollback() {
+    local f nom key blob home uid gid
+    for f in "$SUDOERS_DIR"/rlq-collect-*; do
+        [[ -f "$f" ]] || continue
+        nom="${f##*/rlq-collect-}"
+        key="$(sed -n 's/^# key: //p' "$f" | head -1)"
+        rm -f -- "$f"
+        pass "$(t "retiré :" "removed:") $f"
+        ROLLBACK_COLLECT=1
+        IFS=: read -r _ _ uid gid _ home _ < <(getent passwd "$nom") || true
+        if [[ -n "$key" && -n "${home:-}" && -f "$home/.ssh/authorized_keys" ]]; then
+            blob="$(collect_key_blob "$key")"
+            grep -vF -- "$blob" "$home/.ssh/authorized_keys" > "$home/.ssh/authorized_keys.rlq-tmp" || true
+            cat "$home/.ssh/authorized_keys.rlq-tmp" > "$home/.ssh/authorized_keys"
+            rm -f -- "$home/.ssh/authorized_keys.rlq-tmp"
+            pass "$(t "clé retirée de" "key removed from") $home/.ssh/authorized_keys"
+        fi
+    done
 }
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -1007,6 +1125,14 @@ while [[ $# -gt 0 ]]; do
         --baseline-update) MODE="baseline-update"; shift ;;
         --changelog) DO_CHANGELOG=1; shift ;;
         --check) MODE="check"; shift ;;
+        --collect-account)
+            if [[ $# -lt 2 ]]; then { t "option --collect-account : nom de compte attendu" "option --collect-account: account name expected"; echo; } >&2; exit 2; fi
+            COLLECT_ACCOUNT="$2"; shift 2 ;;
+        --collect-account=*) COLLECT_ACCOUNT="${1#--collect-account=}"; shift ;;
+        --collect-key)
+            if [[ $# -lt 2 ]]; then { t "option --collect-key : fichier attendu" "option --collect-key: file expected"; echo; } >&2; exit 2; fi
+            COLLECT_KEY_FILE="$2"; shift 2 ;;
+        --collect-key=*) COLLECT_KEY_FILE="${1#--collect-key=}"; shift ;;
         -c|--config)
             if [[ $# -lt 2 ]]; then { t "option -c : fichier attendu" "option -c: file expected"; echo; } >&2; exit 2; fi
             shift 2 ;;                                  # read before (apps/_i18n.sh)
@@ -1034,6 +1160,21 @@ if (( DO_VERSION == 1 )); then echo "$SCRIPT_FILE version $SCRIPT_VERSION"; exit
 if (( DO_HELP == 1 )); then usage; exit 0; fi
 if (( DO_CHANGELOG == 1 )); then show_changelog || exit 1; exit 0; fi
 
+if [[ -n "$COLLECT_ACCOUNT$COLLECT_KEY_FILE" ]]; then
+    if [[ -z "$COLLECT_ACCOUNT" || -z "$COLLECT_KEY_FILE" ]]; then
+        { t "--collect-account et --collect-key vont ensemble" "--collect-account and --collect-key go together"; echo; } >&2
+        exit 2
+    fi
+    if ! collect_valid_name "$COLLECT_ACCOUNT"; then
+        { t "--collect-account : nom invalide (minuscules, chiffres, _ et -, 32 caractères au plus)"             "--collect-account: invalid name (lower case, digits, _ and -, 32 characters at most)"; echo; } >&2
+        exit 2
+    fi
+    if [[ ! -r "$COLLECT_KEY_FILE" ]]; then
+        { t "--collect-key : fichier introuvable ou illisible :" "--collect-key: file not found or unreadable:" ; echo "$COLLECT_KEY_FILE"; } >&2
+        exit 2
+    fi
+fi
+
 detect_system
 if [[ "$MODE" == notify ]]; then
     notify
@@ -1050,10 +1191,10 @@ fi
 case "$MODE" in
     update)
         if ! is_root; then echo "${C_RED}$(t "ERREUR : --update demande root (sudo)." "ERROR: --update needs root (sudo).")${C_RESET}" >&2; exit 1; fi
-        uu_apply; audit_apply; aide_apply; notify_apply ;;
+        uu_apply; audit_apply; aide_apply; notify_apply; collect_apply ;;
     rollback) rollback ;;
     baseline-update) aide_accept ;;
-    *) uu_check; audit_check; aide_check; notify_check ;;
+    *) uu_check; audit_check; aide_check; notify_check; collect_check ;;
 esac
 
 echo

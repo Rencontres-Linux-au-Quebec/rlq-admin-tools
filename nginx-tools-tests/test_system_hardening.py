@@ -334,5 +334,81 @@ class SystemHardening(EnvTest):
         self.assertIn("courriel non envoyé", err)
 
 
+    # --- collect account (--collect-account NAME --collect-key FILE, VM only) ----------------------------------------------
+    def preparer_compte(self, cle_contenu="ssh-ed25519 AAAAC3TESTKEY rlq@proxmox\n"):
+        home = self.path("home-collect", "x")[:-2]
+        os.makedirs(home, exist_ok=True)
+        self.sudoers = self.path("sudoers.d", "x")[:-2]
+        os.makedirs(self.sudoers, exist_ok=True)
+        marque = os.path.join(self.d, "compte.cree")
+        self.mock("id", f'[[ -f {marque} ]] && exit 0; exit 1')
+        self.mock("useradd", f'echo "$@" >> {self.d}/useradd.log; touch {marque}')
+        self.mock("getent", f'[[ -f {marque} ]] && echo "alice:x:1001:1001:collect:{home}:/bin/bash" && exit 0; exit 2')
+        self.mock("chown", f'echo "$@" >> {self.d}/chown.log')
+        self.mock("visudo", "exit 0")
+        self.mock("ssh-keygen", 'grep -q "^ssh-" "$3" && exit 0; exit 1')
+        cle = self.write("alice.pub", cle_contenu)
+        return home, cle
+
+    def test_compte_de_collecte_vm_cle_et_sudo(self):
+        self.machine("debian12", "kvm")
+        home, cle = self.preparer_compte()
+        env = {"SYSTEM_HARDENING_SUDOERS_DIR": self.sudoers}
+        rc, out, err = self.lancer("--update", "--collect-account", "alice", "--collect-key", cle, env_extra=env)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("-m -s /bin/bash", self.lire(os.path.join(self.d, "useradd.log")))
+        autorise = self.lire(os.path.join(home, ".ssh", "authorized_keys"))
+        self.assertEqual(autorise.count("AAAAC3TESTKEY"), 1)
+        self.assertTrue(autorise.startswith("no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty ssh-ed25519"))
+        regle = self.lire(os.path.join(self.sudoers, "rlq-collect-alice"))
+        self.assertIn("alice ALL=(ALL) NOPASSWD: ALL", regle)
+        self.assertIn("# key: ssh-ed25519 AAAAC3TESTKEY", regle)
+        rc, out, err = self.lancer("--update", "--collect-account", "alice", "--collect-key", cle, env_extra=env)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("compte déjà présent", out)
+        self.assertEqual(self.lire(os.path.join(home, ".ssh", "authorized_keys")).count("AAAAC3TESTKEY"), 1)   # added once
+
+    def test_compte_de_collecte_non_prevu_sur_lxc(self):
+        self.machine("debian12", "lxc")
+        home, cle = self.preparer_compte()
+        env = {"SYSTEM_HARDENING_SUDOERS_DIR": self.sudoers}
+        rc, out, err = self.lancer("--update", "--collect-account", "alice", "--collect-key", cle, env_extra=env)
+        self.assertIn("non prévu sur cette machine", out)
+        self.assertFalse(os.path.exists(os.path.join(self.sudoers, "rlq-collect-alice")))
+        self.assertFalse(os.path.exists(os.path.join(self.d, "useradd.log")))
+
+    def test_cle_publique_invalide_refusee(self):
+        self.machine("debian12", "kvm")
+        home, cle = self.preparer_compte(cle_contenu="ceci n'est pas une cle\n")
+        env = {"SYSTEM_HARDENING_SUDOERS_DIR": self.sudoers}
+        rc, out, err = self.lancer("--update", "--collect-account", "alice", "--collect-key", cle, env_extra=env)
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("clé publique invalide", out)
+        self.assertFalse(os.path.exists(os.path.join(self.sudoers, "rlq-collect-alice")))
+        self.assertFalse(os.path.exists(os.path.join(home, ".ssh", "authorized_keys")))
+
+    def test_rollback_retire_la_regle_et_la_cle_pas_le_compte(self):
+        self.machine("debian12", "kvm")
+        home, cle = self.preparer_compte()
+        env = {"SYSTEM_HARDENING_SUDOERS_DIR": self.sudoers}
+        self.lancer("--update", "--collect-account", "alice", "--collect-key", cle, env_extra=env)
+        autorise = os.path.join(home, ".ssh", "authorized_keys")
+        with open(autorise, "a", encoding="utf-8") as f:
+            f.write("ssh-ed25519 AAAAOTHERKEY autre@poste\n")
+        rc, out, err = self.lancer("--rollback", env_extra=env)
+        self.assertEqual(rc, 0, out + err)
+        self.assertFalse(os.path.exists(os.path.join(self.sudoers, "rlq-collect-alice")))
+        texte = self.lire(autorise)
+        self.assertNotIn("AAAAC3TESTKEY", texte)
+        self.assertIn("AAAAOTHERKEY", texte)                                             # another key of the account is kept
+        self.assertTrue(os.path.exists(os.path.join(self.d, "compte.cree")))            # the account stays
+
+    def test_collect_account_sans_cle_refuse(self):
+        self.machine("debian12", "kvm")
+        rc, out, err = self.lancer("--update", "--collect-account", "alice")
+        self.assertEqual(rc, 2)
+        self.assertIn("vont ensemble", err)
+
+
 if __name__ == "__main__":
     unittest.main()
