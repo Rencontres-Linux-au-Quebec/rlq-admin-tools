@@ -22,13 +22,13 @@
 #   -c, --config FILE            this configuration file ONLY (default: /etc/default/collect-all-advise.conf, then
 #                                ~/.collect-all-advise.conf if it exists; the command line has priority)
 #   --days N                     analysis window in days, from 1 to 366 (default: 2)
-#   --dest DIR                   folder of the reports and of the archive (default: /home/dcp9370/audit/rlq-admin-tools)
+#   --dest DIR                   folder of the reports and of the archive (default: audit/collect-all-advise in the sudo user home)
 #   -h, --help                   show this help and exit
 #   --lang fr|en                 language of the messages (default: LANGUAGE of the configuration file, then LC_ALL / LC_MESSAGES / LANG)
 #   --name REGEX                 only the guests whose name matches REGEX (default: bbb)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
-#   --program PATH               app-log-live.py on the guests (default: /usr/local/bin/app-log-live.py)
+#   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
 #   --version                    show the version and exit
 #
@@ -37,10 +37,10 @@
 #   ANONYMIZE=yes               yes or no (--anonymize / --no-anonymize)
 #   ARCHIVE=yes                 yes or no (--no-archive)
 #   DAYS=2                      analysis window in days (--days)
-#   DEST=/home/dcp9370/audit/rlq-admin-tools   folder (--dest)
+#   DEST=...                    folder (--dest; default: audit/collect-all-advise in the sudo user home)
 #   LANGUAGE=auto               fr, en or auto (--lang)
 #   NAME_REGEX=bbb              guests to collect (--name)
-#   PROGRAM=/usr/local/bin/app-log-live.py     program on the guests (--program)
+#   PROGRAM=/opt/rlq-admin-tools/app-log-live.py   program on the guests (--program)
 #   SSH_USER=root               account of the virtual machines (--ssh-user)
 #   VM_HOST_<VMID>=ADDRESS      ssh address of a virtual machine, for example VM_HOST_201=10.0.0.21
 #
@@ -48,13 +48,14 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.0.20261123.101934"
+readonly SCRIPT_VERSION="1.2.20261123.104634"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
+ETC_DEFAULT="${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     C_RED=$'\x1b[1;31m'; C_GREEN=$'\x1b[1;32m'; C_YELLOW=$'\x1b[1;33m'; C_CYAN=$'\x1b[1;36m'; C_RESET=$'\x1b[0m'
@@ -65,9 +66,23 @@ fi
 # First line of EVERY run, even with --help: the name and version (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "$SCRIPT_FILE v$SCRIPT_VERSION" ;; esac
 
+# PY_IPV4: first IPv4 address (not loopback, not link-local) in the answer of "qm guest cmd VMID network-get-interfaces".
+read -r -d '' PY_IPV4 <<'PY' || true
+import json, sys
+for interface in json.load(sys.stdin):
+    if interface.get("name") == "lo":
+        continue
+    for adresse in interface.get("ip-addresses", []):
+        ip = adresse.get("ip-address", "")
+        if adresse.get("ip-address-type") == "ipv4" and not ip.startswith(("127.", "169.254.")):
+            print(ip)
+            raise SystemExit
+PY
+
 declare -A CFG=()
 CONFIG_EXPLICITE=""
 CONFIG_LUES=()
+CONFIG_CREEE=""
 LANGUE="fr"
 
 # t FRENCH ENGLISH: the message in the language chosen (--lang, LANGUAGE, then the locale).
@@ -90,7 +105,7 @@ lire_config() {
     if [[ -n "$CONFIG_EXPLICITE" ]]; then
         fichiers=("$CONFIG_EXPLICITE")
     else
-        fichiers=("/etc/default/$SCRIPT_NAME.conf" "${HOME:-/root}/.$SCRIPT_NAME.conf")
+        fichiers=("$ETC_DEFAULT/$SCRIPT_NAME.conf" "${HOME:-/root}/.$SCRIPT_NAME.conf")
     fi
     for f in "${fichiers[@]}"; do
         [[ -r "$f" ]] || continue
@@ -107,6 +122,70 @@ lire_config() {
             [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]] && CFG["$cle"]="$valeur"
         done < "$f"
     done
+    if (( ${#CONFIG_LUES[@]} == 0 )) && [[ -z "$CONFIG_EXPLICITE" ]]; then
+        creer_config
+    fi
+}
+
+# creer_config: no configuration file yet: the default one is written (root: ETC_DEFAULT, otherwise ~/.NAME.conf).
+# home_sudo: home folder of the user who ran sudo (SUDO_USER), otherwise of the current user.
+home_sudo() {
+    local h=""
+    if [[ -n "${SUDO_USER:-}" ]]; then h="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"; fi
+    echo "${h:-${HOME:-/root}}"
+}
+
+# dest_defaut: the default folder of the reports (audit/collect-all-advise in the home folder of the sudo user).
+dest_defaut() {
+    echo "$(home_sudo)/audit/$SCRIPT_NAME"
+}
+
+# creer_config: no configuration file yet. On a terminal the questions are asked (Enter keeps the default); otherwise the
+# default values are written. root: ETC_DEFAULT, otherwise ~/.NAME.conf. An existing file is never overwritten.
+creer_config() {
+    local cible dest prog ssh_user regex reponse="" interactif=0
+    if (( EUID == 0 )); then cible="$ETC_DEFAULT/$SCRIPT_NAME.conf"; else cible="${HOME:-/root}/.$SCRIPT_NAME.conf"; fi
+    mkdir -p "$(dirname "$cible")" 2>/dev/null || return 0
+    if [[ -e "$cible" ]]; then return 0; fi
+    dest="$(dest_defaut)"
+    prog="/opt/rlq-admin-tools/app-log-live.py"
+    ssh_user="root"
+    regex="bbb"
+    if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then interactif=1; fi   # COLLECT_NO_PROMPT=1: never ask (tests, cron)
+    if (( interactif == 1 )); then
+        echo "Premier lancement : répondez aux questions (Entrée = valeur par défaut)." >&2
+        echo "First run: answer the questions (Enter = default value)." >&2
+        read -r -p "Dossier des rapports / reports folder [$dest]: " reponse </dev/tty || reponse=""
+        dest="${reponse:-$dest}"
+        read -r -p "app-log-live.py sur les machines / on the guests [$prog]: " reponse </dev/tty || reponse=""
+        prog="${reponse:-$prog}"
+        read -r -p "Compte SSH des VM / SSH account of the VMs [$ssh_user]: " reponse </dev/tty || reponse=""
+        ssh_user="${reponse:-$ssh_user}"
+        read -r -p "Machines (expression, .* pour toutes) / guests (regex, .* for all) [$regex]: " reponse </dev/tty || reponse=""
+        regex="${reponse:-$regex}"
+    fi
+    cat > "$cible" 2>/dev/null <<CONF || return 0
+# collect-all-advise.conf - created by collect-all-advise.sh (the command line has priority).
+# yes: pseudonyms in the reports (IP addresses, e-mails, names); no: the real values.
+ANONYMIZE=yes
+# yes: the reports are packed in one archive collect-all-advise.HOST.AAAA-MM-JJ.tar.xz; no: the folder only.
+ARCHIVE=yes
+# analysis window in days, from 1 to 366.
+DAYS=2
+# folder of the reports and of the archive.
+DEST=$dest
+# fr, en or auto (auto: the locale).
+LANGUAGE=auto
+# guests whose name matches this regular expression (bbb: BigBlueButton; .* : every guest).
+NAME_REGEX=$regex
+# app-log-live.py on the guests.
+PROGRAM=$prog
+# account used for the virtual machines; it needs sudo without a password.
+SSH_USER=$ssh_user
+# optional: ssh address of a virtual machine, when its automatic detection fails (VM_HOST_<VMID>=ADDRESS).
+# VM_HOST_201=10.0.0.21
+CONF
+    CONFIG_CREEE="$cible"
 }
 
 # choisir_langue ARGUMENTS...: --lang, then LANGUAGE of the configuration file, then the locale (fr by default).
@@ -186,12 +265,31 @@ collecter_lxc() {
     pct exec "$vmid" -- rm -f "$rapport" >/dev/null 2>&1 || true
 }
 
+# adresse_vm VMID NAME: the address of a virtual machine: VM_HOST_<VMID> of the configuration, otherwise its IPv4 address given
+# by the guest agent (qm guest cmd), otherwise the IPv4 address of its name in DNS (getent). Empty if none is found.
+adresse_vm() {
+    local vmid="$1" name="$2" ip=""
+    if [[ -n "${CFG[VM_HOST_$vmid]:-}" ]]; then
+        echo "${CFG[VM_HOST_$vmid]}"
+        return 0
+    fi
+    if command -v qm >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+        ip="$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | python3 -c "$PY_IPV4" 2>/dev/null || true)"
+    fi
+    if [[ -z "$ip" ]] && command -v getent >/dev/null 2>&1; then
+        ip="$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+    fi
+    echo "$ip"
+}
+
 # collecter_vm VMID NAME DIR: same through ssh; the report is read back on standard output.
 collecter_vm() {
-    local vmid="$1" name="$2" dossier="$3" adresse="${CFG[VM_HOST_$1]:-}" rapport="/tmp/$SCRIPT_NAME-$STAMP-$1.md"
-    local cible="$SSH_USER@$adresse" sortie
+    local vmid="$1" name="$2" dossier="$3" adresse rapport="/tmp/$SCRIPT_NAME-$STAMP-$1.md"
+    local cible sortie
+    adresse="$(adresse_vm "$vmid" "$name")"
+    cible="$SSH_USER@$adresse"
     if [[ -z "$adresse" ]]; then
-        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "adresse absente (VM_HOST_$vmid dans la configuration) : ignorée" "no address (VM_HOST_$vmid in the configuration): skipped")"
+        printf '%s\n' "$C_YELLOW[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "adresse introuvable (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS) : ignorée" "no address found (no VM_HOST_$vmid, no guest agent, no DNS): skipped")"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
         return 0
     fi
@@ -199,7 +297,7 @@ collecter_vm() {
     sortie="$dossier/advise-$STAMP.txt"
     if ssh -o BatchMode=yes "$cible" "sudo $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" >"$sortie" 2>&1 \
        && ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md"; then
-        printf '%s\n' "[OK] VM $vmid $name -> $dossier/export-ai-$STAMP.md"
+        printf '%s\n' "[OK] VM $vmid $name ($adresse) -> $dossier/export-ai-$STAMP.md"
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
     else
         printf '%s\n' "$C_RED[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
@@ -248,9 +346,9 @@ choisir_langue "$@"
 
 DO_CHANGELOG=0; DO_HELP=0; DO_VERSION=0
 DAYS="${CFG[DAYS]:-2}"
-DEST="${CFG[DEST]:-/home/dcp9370/audit/rlq-admin-tools}"
+DEST="${CFG[DEST]:-$(dest_defaut)}"
 NAME_RE="${CFG[NAME_REGEX]:-bbb}"
-PROGRAM="${CFG[PROGRAM]:-/usr/local/bin/app-log-live.py}"
+PROGRAM="${CFG[PROGRAM]:-/opt/rlq-admin-tools/app-log-live.py}"
 SSH_USER="${CFG[SSH_USER]:-root}"
 ANONYMIZE_OPT="--anonymize"
 if [[ "$(oui_non "${CFG[ANONYMIZE]:-yes}")" == 0 ]]; then ANONYMIZE_OPT="--no-anonymize"; fi
@@ -314,7 +412,9 @@ if (( rc_regex == 2 )); then
 fi
 
 # Configuration read, shown on standard error (the reports are on standard output of the run).
-if (( ${#CONFIG_LUES[@]} == 0 )); then
+if [[ -n "$CONFIG_CREEE" ]]; then
+    echo "$(t "Configuration créée (valeurs par défaut) : " "Configuration created (default values): ")$CONFIG_CREEE" >&2
+elif (( ${#CONFIG_LUES[@]} == 0 )); then
     echo "$(t "Configuration : aucun fichier (valeurs par défaut)" "Configuration: no file (default values)")" >&2
 else
     echo "$(t "Configuration lue : " "Configuration read: ")${CONFIG_LUES[*]}" >&2

@@ -22,6 +22,12 @@ case "$1" in
 esac
 """
 QM = """#!/bin/bash
+# qm guest cmd VMID network-get-interfaces: the guest agent of VM 201 answers 10.0.0.77 (NO_AGENT=1: no agent)
+if [[ "$1" == guest ]]; then
+    [[ -z "${NO_AGENT:-}" && "$3" == 201 ]] || exit 1
+    echo '[{"name":"lo","ip-addresses":[{"ip-address":"127.0.0.1","ip-address-type":"ipv4"}]},{"name":"eth0","ip-addresses":[{"ip-address":"10.0.0.77","ip-address-type":"ipv4"}]}]'
+    exit 0
+fi
 printf 'VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID\\n201 bbb-vm1               running    8192       40.00        1\\n202 bbb-vm2               stopped    8192       40.00        0\\n'
 """
 SSH = """#!/bin/bash
@@ -63,6 +69,12 @@ class CollectAllAdvise(unittest.TestCase):
                         SSH_LOG=self.ssh_log, HOME=self.d)
         self.env.pop("LANGUAGE", None)
         self.env["LANG"] = "fr_CA.UTF-8"
+        self.etc = os.path.join(self.d, "etc")
+        os.makedirs(self.etc)
+        self.env["NGINX_TOOLS_ETC_DEFAULT"] = self.etc
+        self.env["COLLECT_NO_PROMPT"] = "1"            # no question on the terminal in the tests
+        self.env["SUDO_USER"] = ""                     # the default folder is the home of the current user
+        self.env["HOME"] = self.d
         self.env.pop("LC_ALL", None)
         self.env.pop("LC_MESSAGES", None)
 
@@ -124,10 +136,32 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertTrue(noms, "archive vide")
         self.assertTrue(all(n.endswith(".md") for n in noms), noms)
 
+    def test_adresse_de_vm_detectee_par_l_agent_invite(self):
+        r = self.lancer("--days", "2", "--dest", self.dest)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("10.0.0.77", open(self.ssh_log).read())
+        self.assertIn("(10.0.0.77)", r.stdout)
+
     def test_vm_sans_adresse_signalee_et_code_retour_1(self):
+        self.env["NO_AGENT"] = "1"
         r = self.lancer("--days", "2", "--dest", self.dest)
         self.assertEqual(r.returncode, 1)
-        self.assertIn("adresse absente", r.stdout)
+        self.assertIn("adresse introuvable", r.stdout)
+
+    def test_configuration_par_defaut_creee_au_premier_lancement(self):
+        self.env["NO_AGENT"] = "1"
+        r = self.lancer("--days", "2", "--dest", self.dest)
+        cible = os.path.join(self.etc, "collect-all-advise.conf") if os.geteuid() == 0 else os.path.join(self.d, ".collect-all-advise.conf")
+        self.assertTrue(os.path.isfile(cible), r.stderr)
+        texte = open(cible, encoding="utf-8").read()
+        self.assertIn("DAYS=2", texte)
+        self.assertIn("NAME_REGEX=bbb", texte)
+        self.assertIn("PROGRAM=/opt/rlq-admin-tools/app-log-live.py", texte)
+        self.assertIn("DEST=" + os.path.join(self.d, "audit", "collect-all-advise"), texte)
+        self.assertNotIn("dcp9370", texte)
+        self.assertIn("Configuration créée", r.stderr)
+        r = self.lancer("--days", "2", "--dest", self.dest)
+        self.assertIn("Configuration lue", r.stderr)          # the second run reads the file created by the first one
 
     def test_no_archive_garde_seulement_le_dossier(self):
         r = self.lancer("--days", "2", "--dest", self.dest, "--no-archive", "--no-anonymize")
