@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.208.20261122.170000"
+__version__ = "1.209.20261123.081004"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4118,14 +4118,11 @@ def nginx_log_files(profile):
 def stream_command(args, profile, service, ns):
     """Command that produces the stream: journalctl (systemd journal), the converter of the Odoo file journal, or tail (file journals,
     BigBlueButton). 1.115 --log-nginx: the nginx logs of the site are merged with it in time order (apps/_logs_merge.py)."""
-    nginx_files = nginx_log_files(profile) if profile.get("APP_LOG_KIND") != "file" else []   # 1.116: always read (key x shows them); BigBlueButton: as before
+    nginx_files = nginx_log_files(profile)               # 1.116: always read (key x shows them); 1.209: BigBlueButton too, through the same merge as Odoo
     if profile.get("APP_LOG_KIND") == "file":
         files_read = []
         for pattern in (profile.get("APP_LOG_FILES") or "").split():
             files_read += sorted(glob.glob(pattern))
-        if not nginx_files:                                  # BigBlueButton: its nginx logs are followed here, unless merged below
-            for pattern in (profile.get("ACCESS_LOGS") or "").split():
-                files_read += sorted(glob.glob(os.path.join(NGINX_DIR, pattern)))
         files_read = [f for f in OrderedDict.fromkeys(files_read) if os.path.isfile(f)]
         base = (["tail", "-n", str(args.lines)] + (["-F"] if not args.no_follow else []) + files_read) if files_read else None
     else:
@@ -10264,6 +10261,8 @@ def main():
     except Exception as e:                                  # ProfileError (message in French)
         eprint(f"ERROR: {e}")
         return 2
+    if profile.get("APP_LOG_KIND") == "file":
+        args.log_nginx = True                               # 1.209 BigBlueButton: its nginx lines stay shown (as before), now in the Odoo format (time, INFO, nginx, country, address)
     if profile.get("APP_NAME") == "bbb":
         regler_cms(CMS, True)                               # BigBlueButton: any CMS is suspicious
     service, ns = args.service, args.namespace or ""
