@@ -492,6 +492,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.209.20261123.081004 - BigBlueButton nginx lines normalized like Odoo (time, INFO, country, address)
+
+- Reason for the request: on a BigBlueButton server, the nginx access lines shown by app-log-live.py were raw (date in brackets at the end, no time column, no level, no country or address column), while the Odoo lines use the time / program / level / address / HTTP columns. Request: normalize the BigBlueButton output the same way as Odoo.
+- Changes (app-log-live.py):
+  - stream_command(): on a file journal (BigBlueButton), the access and error logs of the site are no longer appended raw to the tail command; they go through apps/_logs_merge.py like the Odoo nginx logs, which gives each line the journal prefix (local time, host, "http") that Line() reads (program "http", level INFO, database "nginx", logger "request").
+  - main(): on a file journal, args.log_nginx is forced to True, so the nginx lines stay visible as they were before (key x still hides them, as on Odoo).
+  - The bbb-web.log lines (application stream) are unchanged: they are still printed by tail.
+- Bugs fixed: symptom: BigBlueButton nginx lines showed the raw log text, with no time column, no level and no address column. Diagnosis: nginx_log_files() was skipped for file journals (APP_LOG_KIND "file"), and the ACCESS_LOGS were added to the tail command as plain text, so Line() found no journal prefix and nginx_fields() returned at once. Fix: the same merge path as Odoo.
+- Safeguards and edge cases:
+  - No file of the site: nginx_log_files() returns an empty list, so the command is the tail of bbb-web.log alone, as before.
+  - An nginx line whose date is not recognized is kept as it is by apps/_logs_merge.py (no time, no change).
+  - Error lines of nginx (ERROR_LOGS) are converted with their [error] tag, as on Odoo.
+  - Only the display of BigBlueButton changes; no ban, no score and no fail2ban rule is touched.
+- Checks:
+  - Simulation with the four access lines of the report (raw nginx format) through "app-log-live.py --app bbb --no-follow": each line now starts with "2026-11-23 07:23:58.00 <host> http INFO <address> H1.1 <status> <size>", as on Odoo.
+  - Test test_bigbluebutton_suit_les_journaux_en_fichiers updated: it checked the old raw layout; it now checks the time prefix, the "http INFO" fields, the "H1.1 200" columns and the absence of the raw date.
+  - Tests run: test_app_log_live (full module), test_logs_merge, test_conventions, plus the BigBlueButton and CMS tests.
+- Action required: none on the server. The new layout applies after the program is updated; nginx-hardening.sh does not need to be rerun.
+
 ### 1.208.20261122.170000 - 404 of a browser of Odoo (icons of the Apps menu...) never a probe sweep
 
 - Reason for the request: output of app-log-live.py sent by the administrator on 2026-11-22 at 16:53 (odoo18): an internal user opening Apps (/odoo/action-38) gets about 40 different 404 in 2 s on /MODULE/static/description/icon.png (modules listed in the database without code on the disk: openeducat_*, om_*, account_avatax_*...); with THRESHOLD_404 = 5 different pages, the address was proposed for a ban as a "probe sweep". Request: internal users must not be banned for that.

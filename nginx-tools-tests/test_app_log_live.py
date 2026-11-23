@@ -1207,8 +1207,12 @@ class AppLogLive(EnvTest):
             f.write(f'{DNS} - - [02/Oct/2026:03:02:14 +0000] "GET /bigbluebutton/api HTTP/1.1" 200 5\n'
                     f'{DNS} - alice [02/Oct/2026:03:02:15 +0000] "GET /bigbluebutton/api HTTP/1.1" 200 5\n')
         rc, out, err = self.lancer("--app", "bbb", "--no-isp", env_extra={"APP_LOG_LIVE_NGINX_DIR": nginx})
-        self.assertIn(f"srv.exemple.org [US {DNS}]".ljust(45) + ' [02/Oct/2026:03:02:14 +0000] "GET', out)
-        self.assertIn(f"srv.exemple.org [US {DNS}]".ljust(45) + ' - alice [02/Oct/2026:03:02:15 +0000] "GET', out)
+        linhas = [l for l in out.splitlines() if "/bigbluebutton/api" in l]          # 1.209: the nginx lines use the Odoo format (no raw date, no "- -")
+        self.assertEqual(len(linhas), 2, out)
+        self.assertIn("US " + DNS, linhas[0])
+        self.assertNotIn("- -", linhas[0], "« - - » retiré quand l'utilisateur est vide")
+        self.assertNotIn("[02/Oct/2026", linhas[0])
+        self.assertIn("alice", linhas[1], "un utilisateur authentifié reste visible")
 
     def test_url_de_get_et_de_post_alignes(self):
         """[3] « GET » (3 lettres) est suivi d'un espace de plus : le URL d'un GET ou d'un PUT commence à la même colonne que celui d'un POST ou d'un HEAD."""
@@ -2364,7 +2368,10 @@ class AppLogLive(EnvTest):
             f.write(f'{DNS} - - [02/Oct/2026:03:02:14 +0000] "GET /bigbluebutton/api HTTP/1.1" 200 5\n')
         rc, out, err = self.lancer("--app", "bbb", "--no-isp", env_extra={"APP_LOG_LIVE_NGINX_DIR": nginx})
         self.assertEqual(rc, 0, err)
-        self.assertIn(f'srv.exemple.org [{DNS}]'.ljust(45) + ' [02/Oct/2026:03:02:14 +0000] "GET  /bigbluebutton/api HTTP/1.1" 200 5', out)      # name + [address] on 42 characters
+        ligne = next((l for l in out.splitlines() if "/bigbluebutton/api" in l), "")
+        self.assertRegex(ligne, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{2} \S+ http INFO ", out)     # 1.209: time, host, program and level as on Odoo
+        self.assertIn("H1.1 200", ligne)                                                                 # HTTP version and status, in the Odoo columns
+        self.assertNotIn("[02/Oct/2026", ligne, "la date brute du journal nginx n'est plus affichée")
         self.assertNotIn("Historique des connexions", err, "BigBlueButton : pas de comptes Odoo")
         self.assertNotIn("Présence", out)
         self.assertFalse(os.path.exists(os.path.join(self.d, "runuser.log")))
