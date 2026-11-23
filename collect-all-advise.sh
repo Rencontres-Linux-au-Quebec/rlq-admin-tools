@@ -54,7 +54,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.7.20261123.154600"
+readonly SCRIPT_VERSION="1.8.20261123.160500"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -65,9 +65,9 @@ ETC_DEFAULT="${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}"
 SYSTEMD_DIR="${NGINX_TOOLS_SYSTEMD_DIR:-/etc/systemd/system}"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-    C_RED=$'\x1b[1;31m'; C_GREEN=$'\x1b[1;32m'; C_YELLOW=$'\x1b[1;33m'; C_CYAN=$'\x1b[1;36m'; C_RESET=$'\x1b[0m'
+    C_RED=$'\x1b[1;31m'; C_YELLOW=$'\x1b[1;33m'; C_CYAN=$'\x1b[1;36m'; C_RESET=$'\x1b[0m'
 else
-    C_RED=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""; C_RESET=""
+    C_RED=""; C_YELLOW=""; C_CYAN=""; C_RESET=""
 fi
 
 # First line of EVERY run, even with --help: the name and version (--version displays it itself).
@@ -186,13 +186,13 @@ creer_config() {
                 *) LANGUE="fr" ;;
             esac
         fi
-        echo "$(t "Premier lancement : répondez aux questions (Entrée = valeur par défaut)." \
+        printf '%s\n' "$(t "Premier lancement : répondez aux questions (Entrée = valeur par défaut)." \
             "First run: answer the questions (Enter = default value).")" >&2
         dest="$(lire_reponse "$(t "Dossier des rapports [$dest] : " "Reports folder [$dest]: ")" "$dest")"
         while :; do
             jours="$(lire_reponse "$(t "Nombre de jours analysés, de 1 à 366 [$jours] : " "Number of days analysed, 1 to 366 [$jours]: ")" "$jours")"
             valider_jours "$jours" && break
-            echo "$(t "Valeur refusée : un nombre de 1 à 366 est attendu." "Refused value: a number from 1 to 366 is expected.")" >&2
+            printf '%s\n' "$(t "Valeur refusée : un nombre de 1 à 366 est attendu." "Refused value: a number from 1 to 366 is expected.")" >&2
         done
         prog="$(lire_reponse "$(t "app-log-live.py sur les machines [$prog] : " "app-log-live.py on the guests [$prog]: ")" "$prog")"
         ssh_user="$(lire_reponse "$(t "Compte SSH des VM [$ssh_user] : " "SSH account of the VMs [$ssh_user]: ")" "$ssh_user")"
@@ -203,7 +203,7 @@ creer_config() {
             while :; do
                 heure="$(lire_reponse "$(t "Heure du lancement HH:MM [$heure] : " "Start time HH:MM [$heure]: ")" "$heure")"
                 [[ "$heure" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
-                echo "$(t "Heure refusée : HH:MM attendu (ex. 03:30)." "Refused time: HH:MM expected (e.g. 03:30).")" >&2
+                printf '%s\n' "$(t "Heure refusée : HH:MM attendu (ex. 03:30)." "Refused time: HH:MM expected (e.g. 03:30).")" >&2
             done
         fi
     fi
@@ -260,9 +260,9 @@ choisir_langue() {
 
 aide() {
     local o
-    echo "$(t "Usage" "Usage") : $SCRIPT_FILE [$(t "OPTION" "OPTION")]..."
+    printf '%s\n' "$(t "Usage" "Usage") : $SCRIPT_FILE [$(t "OPTION" "OPTION")]..."
     echo
-    echo "$(t "Options (triées par ordre alphabétique) :" "Options (sorted alphabetically):")"
+    printf '%s\n' "$(t "Options (triées par ordre alphabétique) :" "Options (sorted alphabetically):")"
     while IFS= read -r o; do
         printf '  %s%s%s\n' "$C_CYAN" "$o" "$C_RESET"
     done <<'EOF'
@@ -284,7 +284,7 @@ aide() {
 --version                    affiche la version et quitte / show the version and exit
 EOF
     echo
-    echo "$(t "Configuration : /etc/default/collect-all-advise.conf, puis ~/.collect-all-advise.conf (le dernier l'emporte)." \
+    printf '%s\n' "$(t "Configuration : /etc/default/collect-all-advise.conf, puis ~/.collect-all-advise.conf (le dernier l'emporte)." \
         "Configuration: /etc/default/collect-all-advise.conf, then ~/.collect-all-advise.conf (the last one wins).")"
 }
 
@@ -325,7 +325,7 @@ sur_machine() {
 # (apt-get install --only-upgrade of these packages). Nothing is installed without an answer; no reboot is done.
 mises_a_jour_securite() {
     local cible kind id adresse nom pkgs rep
-    echo "$(t "Mises à jour de sécurité :" "Security updates:")" >&2
+    printf '%s\n' "$(t "Mises à jour de sécurité :" "Security updates:")" >&2
     for cible in "${SECU_CIBLES[@]}"; do
         read -r kind id adresse nom <<<"$cible" || true
         if [[ "$kind" == "hote" && "$EUID" != 0 ]]; then
@@ -536,7 +536,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     esac
 done
 if [[ -n "$CONFIG_EXPLICITE" && ! -r "$CONFIG_EXPLICITE" ]]; then
-    echo "$(t "fichier de configuration introuvable ou illisible : " "configuration file not found or unreadable: ")$CONFIG_EXPLICITE" >&2
+    printf '%s\n' "$(t "fichier de configuration introuvable ou illisible : " "configuration file not found or unreadable: ")$CONFIG_EXPLICITE" >&2
     exit 2
 fi
 lire_config
@@ -562,38 +562,38 @@ while [[ $# -gt 0 ]]; do
         -c|--config) shift 2 ;;
         --config=*) shift ;;
         --days)
-            if [[ $# -lt 2 ]]; then echo "$(t "option --days : nombre de jours attendu" "option --days: number of days expected")" >&2; exit 2; fi
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --days : nombre de jours attendu" "option --days: number of days expected")" >&2; exit 2; fi
             DAYS="$2"; shift 2 ;;
         --days=*) DAYS="${1#--days=}"; shift ;;
         --dest)
-            if [[ $# -lt 2 ]]; then echo "$(t "option --dest : dossier attendu" "option --dest: folder expected")" >&2; exit 2; fi
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --dest : dossier attendu" "option --dest: folder expected")" >&2; exit 2; fi
             DEST="$2"; shift 2 ;;
         --dest=*) DEST="${1#--dest=}"; shift ;;
         -h|--help) DO_HELP=1; shift ;;
         --install-timer) DO_TIMER="install"; shift ;;
         --lang)
-            if [[ $# -lt 2 ]]; then echo "$(t "option --lang : fr ou en attendu" "option --lang: fr or en expected")" >&2; exit 2; fi
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --lang : fr ou en attendu" "option --lang: fr or en expected")" >&2; exit 2; fi
             shift 2 ;;
         --lang=*) shift ;;
         --name)
-            if [[ $# -lt 2 ]]; then echo "$(t "option --name : expression attendue" "option --name: expression expected")" >&2; exit 2; fi
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --name : expression attendue" "option --name: expression expected")" >&2; exit 2; fi
             NAME_RE="$2"; shift 2 ;;
         --name=*) NAME_RE="${1#--name=}"; shift ;;
         --no-anonymize) ANONYMIZE_OPT="--no-anonymize"; shift ;;
         --no-archive) ARCHIVE=0; shift ;;
         --no-security) SECURITY=0; shift ;;
         --program)
-            if [[ $# -lt 2 ]]; then echo "$(t "option --program : chemin attendu" "option --program: path expected")" >&2; exit 2; fi
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --program : chemin attendu" "option --program: path expected")" >&2; exit 2; fi
             PROGRAM="$2"; shift 2 ;;
         --program=*) PROGRAM="${1#--program=}"; shift ;;
         --remove-timer) DO_TIMER="remove"; shift ;;
         --ssh-user)
-            if [[ $# -lt 2 ]]; then echo "$(t "option --ssh-user : utilisateur attendu" "option --ssh-user: user expected")" >&2; exit 2; fi
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --ssh-user : utilisateur attendu" "option --ssh-user: user expected")" >&2; exit 2; fi
             SSH_USER="$2"; shift 2 ;;
         --ssh-user=*) SSH_USER="${1#--ssh-user=}"; shift ;;
         --version) DO_VERSION=1; shift ;;
         *)
-            echo "$(t "Option inconnue : " "Unknown option: ")$1" >&2
+            printf '%s\n' "$(t "Option inconnue : " "Unknown option: ")$1" >&2
             aide >&2
             exit 2 ;;
     esac
@@ -606,13 +606,15 @@ if [[ "$DO_TIMER" == "install" ]]; then installer_minuteur; exit $?; fi
 if [[ "$DO_TIMER" == "remove" ]]; then desinstaller_minuteur; exit $?; fi
 
 if ! valider_jours "$DAYS"; then
-    echo "$(t "--days : un nombre de jours de 1 à 366 est attendu (reçu : " "--days: a number of days from 1 to 366 is expected (got: ")$DAYS)" >&2
+    printf '%s\n' "$(t "--days : un nombre de jours de 1 à 366 est attendu (reçu : " "--days: a number of days from 1 to 366 is expected (got: ")$DAYS)" >&2
     exit 2
 fi
 # --name is a regular expression used only to filter the guest names (never executed): it must compile (bash status 2 otherwise).
-rc_regex=0; [[ "" =~ $NAME_RE ]] 2>/dev/null || rc_regex=$?
+# regex_valide: 0 when NAME_RE compiles (the test is only a compile check, never matched against a name).
+regex_valide() { [[ "" =~ $NAME_RE ]] 2>/dev/null; }
+rc_regex=0; regex_valide || rc_regex=$?
 if (( rc_regex == 2 )); then
-    echo "$(t "--name : expression refusée : " "--name: expression refused: ")$NAME_RE" >&2
+    printf '%s\n' "$(t "--name : expression refusée : " "--name: expression refused: ")$NAME_RE" >&2
     exit 2
 fi
 
@@ -620,9 +622,9 @@ fi
 # named with its state (read, absent, created), then the important options on two lines.
 cfg_etat() {
     local f="$1"
-    if [[ " ${CONFIG_LUES[*]:-} " == *" $f "* ]]; then echo "$(t "lu" "read")"
-    elif [[ -n "$CONFIG_CREEE" && "$f" == "$CONFIG_CREEE" ]]; then echo "$(t "créé" "created")"
-    else echo "$(t "absent" "absent")"; fi
+    if [[ " ${CONFIG_LUES[*]:-} " == *" $f "* ]]; then printf '%s\n' "$(t "lu" "read")"
+    elif [[ -n "$CONFIG_CREEE" && "$f" == "$CONFIG_CREEE" ]]; then printf '%s\n' "$(t "créé" "created")"
+    else printf '%s\n' "$(t "absent" "absent")"; fi
 }
 if [[ -n "$CONFIG_EXPLICITE" ]]; then
     cfg_candidats=("$CONFIG_EXPLICITE")
@@ -633,9 +635,9 @@ cfg_resume=""
 for cfg_f in "${cfg_candidats[@]}"; do
     cfg_resume+="$cfg_f ($(cfg_etat "$cfg_f")) ; "
 done
-echo "$(t "Configuration lue / configuration read : " "Configuration lue / configuration read: ")${cfg_resume%" ; "}" >&2
+printf '%s\n' "$(t "Configuration lue / configuration read : " "Configuration lue / configuration read: ")${cfg_resume%" ; "}" >&2
 if [[ -n "$CONFIG_CREEE" ]]; then
-    echo "$(t "Configuration créée (valeurs par défaut) : " "Configuration created (default values): ")$CONFIG_CREEE" >&2
+    printf '%s\n' "$(t "Configuration créée (valeurs par défaut) : " "Configuration created (default values): ")$CONFIG_CREEE" >&2
 fi
 echo "  $(t "Options : fenêtre $DAYS jour(s) · langue $LANGUE · machines $NAME_RE · dossier $DEST"     "Options: window $DAYS day(s) · language $LANGUE · guests $NAME_RE · folder $DEST")" >&2
 echo "  $(t "Archive : $([[ $ARCHIVE == 1 ]] && echo oui || echo non) · sécurité : $([[ $SECURITY == 1 ]] && echo oui || echo non) · minuteur : ${CFG[TIMER]:-no} · anonymisation : $ANONYMIZE_OPT" \
@@ -661,7 +663,7 @@ if command -v pct >/dev/null 2>&1; then
     done 3< <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
     signaler_aucune "LXC" "$LXC_VUS" "$LXC_RETENUS"
 else
-    echo "$(t "pct introuvable : pas de conteneur LXC collecté" "pct not found: no LXC container collected")" >&2
+    printf '%s\n' "$(t "pct introuvable : pas de conteneur LXC collecté" "pct not found: no LXC container collected")" >&2
 fi
 
 # Virtual machines (qm list: VMID NAME STATUS ...).
@@ -675,7 +677,7 @@ if command -v qm >/dev/null 2>&1; then
     done 3< <(qm list | awk 'NR > 1 {print $1, $3, $2}')
     signaler_aucune "VM" "$VM_VUES" "$VM_RETENUES"
 else
-    echo "$(t "qm introuvable : pas de machine virtuelle collectée" "qm not found: no virtual machine collected")" >&2
+    printf '%s\n' "$(t "qm introuvable : pas de machine virtuelle collectée" "qm not found: no virtual machine collected")" >&2
 fi
 
 ARCHIVE_OK=1
@@ -683,7 +685,7 @@ if (( ARCHIVE == 1 && RAPPORTS_OK > 0 )); then
     archiver || ARCHIVE_OK=0
 fi
 
-echo "$(t "Rapports collectés : $RAPPORTS_OK · en échec : $RAPPORTS_KO · dossier : $RUN" \
+printf '%s\n' "$(t "Rapports collectés : $RAPPORTS_OK · en échec : $RAPPORTS_KO · dossier : $RUN" \
     "Reports collected: $RAPPORTS_OK · failed: $RAPPORTS_KO · folder: $RUN")"
 
 if (( SECURITY == 1 )); then

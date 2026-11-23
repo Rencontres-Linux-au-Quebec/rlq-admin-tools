@@ -492,6 +492,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.8.20261123.160500 - ShellCheck: all findings fixed (warnings and style)
+
+- Reason for the request: after the blocking error was fixed (1.7), the ShellCheck findings that remained (informational level in
+  the workflow) had to be fixed too.
+- Changes (collect-all-advise.sh):
+  - SC2005: messages written with printf '%s\n' "$(t ...)" instead of echo "$(t ...)" (same text on standard output or error).
+  - SC2034: unused variable C_GREEN removed.
+  - SC2319: the --name compile check moved into the function regex_valide, so the status is not read after a condition.
+- Bugs fixed: none; no change of behaviour.
+- Safeguards and edge cases: colours are still disabled when the output is redirected or NO_COLOR is set; the --name check still
+  refuses an expression that does not compile (status 2).
+- Checks: ShellCheck 0.11.0 on the script: no finding at any level; module test_collect_all_advise.
+- Action required: none.
+
 ### 1.7.20261123.154600 - ShellCheck error fixed in the colour variables (GitHub Actions)
 
 - Reason for the request: the GitHub Actions workflow runs ShellCheck 0.11.0 with a blocking level on errors; the run failed on
