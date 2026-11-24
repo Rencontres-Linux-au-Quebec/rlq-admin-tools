@@ -48,7 +48,10 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.29.20261123.193948"
+__version__ = "1.30.20261123.232741"
+
+# 1.30: lines that explain an error in the output of a guest command (shown when its exit code is not 0)
+ERROR_LINE_RE = re.compile(r"unknown|inconnue|invalid|invalide|not found|introuvable|no such|denied|refus|error|erreur|fatal|failed|échec|impossible", re.IGNORECASE)
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2688,7 +2691,15 @@ def guest_run(args, names, running):
         for line in fails[:5]:
             print(f"      {line[:200]}")
         if code not in (0, None):
-            # a non-zero exit code without any [FAIL] line (usage error, unknown option, crash): show the reason
+            # a non-zero exit code without any [FAIL] line (usage error, unknown option, crash): show the reason.
+            # 1.30: the error lines come first (the usage text printed after an unknown option hides them in the tail)
+            erreurs = [l.strip() for l in out.splitlines() if ERROR_LINE_RE.search(l) and not re.search(r"\[(?:FAIL|ÉCHEC)\]", l)]
+            if erreurs:
+                print("      error lines of the output:")
+                for line in erreurs[:5]:
+                    print(f"        {line[:200]}")
+                if len(erreurs) > 5:
+                    print("        ... more in the complete output")
             tail = [l.rstrip() for l in out.splitlines() if l.strip()][-8:]
             print("      last lines of the output:")
             for line in tail:

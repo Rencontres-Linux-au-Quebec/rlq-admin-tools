@@ -648,6 +648,22 @@ esac''')
         self.assertEqual(open(trace).read(), "433\n")
         self.assertNotIn("Traceback", err)
 
+    def test_erreur_avant_l_aide_visible(self):
+        """1.30 : exit code not 0 without [FAIL] lines: the error line ("Unknown option") is shown first, even when the usage text
+        printed after it fills the last lines of the output."""
+        self.hote_sante()
+        usage = "".join(f"  --option-{i} text of the usage\\n" for i in range(12))
+        self.mock("pct", f'''case "$*" in
+  *"if [ -x"*) printf "FOUND\\nsystem-hardening.sh version 1.4\\n";;
+  *--update*) printf "Unknown option: --yes\\n{usage}"; exit 2;;
+esac''')
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101", "--yes", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("[FAIL] 101 (odoo18): exit code 2", out)
+        self.assertIn("      error lines of the output:\n        Unknown option: --yes\n", out)
+        self.assertIn("      last lines of the output:\n", out)
+        self.assertNotIn("Traceback", err)
+
     def test_copie_de_la_suite_dans_les_invites(self):
         """1.18 --guest-sync : le dossier de la suite copié dans /opt/rlq-admin-tools de chaque invité (conteneur : pct exec avec l'archive en entrée ;
         VM : morceaux de moins de 1 Mio par l'agent invité, empreinte vérifiée) ; l'ancienne copie gardée ; l'invité qui porte la source laissé tel quel ;
