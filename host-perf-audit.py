@@ -48,7 +48,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.28.20261120.082620"
+__version__ = "1.29.20261123.193948"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2687,6 +2687,15 @@ def guest_run(args, names, running):
         print(f"  {tag(level)} {vmid} ({name}): exit code {code}, {human_duration(int(seconds))} · {len(fails)} failures, {len(warns)} warnings" + (f" · {summary}" if summary else ""))
         for line in fails[:5]:
             print(f"      {line[:200]}")
+        if code not in (0, None):
+            # a non-zero exit code without any [FAIL] line (usage error, unknown option, crash): show the reason
+            tail = [l.rstrip() for l in out.splitlines() if l.strip()][-8:]
+            print("      last lines of the output:")
+            for line in tail:
+                print(f"        {line[:200]}")
+            if not tail:
+                print("        (no output)")
+            print(f"      full output: {path}")
         results.append((vmid, name, version, code, seconds, fails, warns, summary, out, path))
     report = os.path.join(folder, f"report-{os.uname().nodename}-{os.path.basename(folder)}.md")      # 1.18: the host in the name
     lines = [f"# host-perf-audit.py v{__version__} - command in the guests", "", f"- Host: {os.uname().nodename}", f"- Command: `{command}`",
