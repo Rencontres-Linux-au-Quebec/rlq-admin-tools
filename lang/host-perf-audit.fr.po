@@ -1963,6 +1963,12 @@ msgstr "  Tâches de Proxmox pendant ces heures : "
 msgid "  Compare these hours with the slow hours of the sites (app-log-live.py --advise in the guests): when nobody uses them then, move or lighten the work of those hours (backups to another disk or Proxmox Backup Server, AIDE exclusions, dumps at other times) instead of buying SSD; measure the busy hours of the day before deciding."
 msgstr "  Comparer ces heures avec les heures lentes des sites (app-log-live.py --advise dans les invités) : si personne ne les utilise alors, déplacer ou alléger le travail de ces heures (sauvegardes vers un autre disque ou Proxmox Backup Server, exclusions d'AIDE, copies des bases à d'autres heures) au lieu d'acheter des SSD ; mesurer les heures chargées de la journée avant de décider."
 
+msgid "      error lines of the output:"
+msgstr "      lignes d'erreur de la sortie :"
+
+msgid "        ... more in the complete output"
+msgstr "        ... d'autres dans la sortie complète"
+
 msgid "      last lines of the output:"
 msgstr "      dernières lignes de la sortie :"
 

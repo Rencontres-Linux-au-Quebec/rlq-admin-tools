@@ -2600,6 +2600,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.30.20261123.232741 - Guest command with a non-zero exit code: the error lines are shown first
+
+- Reason for the request: on 2026-11-23 (request of the administrator, after the run of system-hardening.sh --update --yes), the
+  output of version 1.29 showed only the last 8 lines of the output of the five guests (exit code 2). Those lines were the end of the
+  usage text printed by system-hardening.sh; the line that gave the reason ("Unknown option: --yes") was above and was not shown.
+- Changes (host-perf-audit.py):
+  - New constant ERROR_LINE_RE (case-insensitive: unknown, inconnue, invalid, not found, introuvable, no such, denied, refus, error,
+    erreur, fatal, failed, echec, impossible).
+  - When the exit code is not 0, the lines matching ERROR_LINE_RE that have no [FAIL] mark are printed first, under
+    "error lines of the output:" (at most 5, then "... more in the complete output"); then the last 8 lines, as in 1.29.
+  - lang/host-perf-audit.fr.po: 3 new texts (error lines title, truncation line; the truncation line is translated).
+  - nginx-tools-tests/test_host_perf_audit.py: test_erreur_avant_l_aide_visible (guest answers "Unknown option: --yes" then 12 lines of
+    usage with exit code 2; the error line must be shown under its title, and the program must not crash).
+- Bugs fixed: symptom: exit code 2 in the guests with the reason missing from the report. Diagnosis: the reason was printed before the
+  usage text, so it was outside the last 8 lines. Fix: the error lines are printed before the tail.
+- Safeguards and edge cases: lines already shown as [FAIL] are not repeated; the error lines are limited to 5 and 200 characters each;
+  an exit code of 0 or no code prints nothing new; the complete output stays in the .log file and in the report.
+- Checks: py_compile of the program and of the test; module test_host_perf_audit (run by the testeur agent).
+- Action required: none. system-hardening.sh has no --yes option: on the guests use "--guest-command \"/opt/rlq-admin-tools/system-hardening.sh --update\"" without --yes.
+
 ### 1.29.20261123.193948 - Guest command with a non-zero exit code: the last lines of its output are shown
 
 - Reason for the request: on 2026-11-23, `--guest-run` reported « exit code 2 » for the VMs 430 and 433 with « 0 failures, 0 warnings »
