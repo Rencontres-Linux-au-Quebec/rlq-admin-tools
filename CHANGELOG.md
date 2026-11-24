@@ -2600,6 +2600,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.29.20261123.193948 - Guest command with a non-zero exit code: the last lines of its output are shown
+
+- Reason for the request: on 2026-11-23, `--guest-run` reported « exit code 2 » for the VMs 430 and 433 with « 0 failures, 0 warnings »
+  and no line to explain it: the reason was only in the file kept for the run.
+- Changes (host-perf-audit.py): when the exit code of the command in a guest is not 0, the last 8 lines of its output are printed under
+  the guest, then the path of the complete output. Printed also when the command has [FAIL] lines.
+- Bugs fixed: symptom: exit code 2 without any reason on the screen. Diagnosis: the output was kept, but only the [FAIL] and [ATTN]
+  lines were shown. Fix: the last lines of the output are shown when the exit code is not 0.
+- Safeguards and edge cases: an empty output is shown as « (no output) » with the path of the file; the output is limited to 200
+  characters per line; the messages are in lang/host-perf-audit.fr.po.
+- Checks: module test_host_perf_audit and test_i18n; compilation of the program.
+- Action required: none. For system-hardening.sh, do not pass --yes with --update: that option does not exist there (it asks no question).
+
 ### 1.28.20261120.082620 - SSD verdict: waits concentrated in a few hours are not a whole day
 
 - Reason for the request: proxmox1, 2026-11-20, measurement of 8 h at night: "ARE SSD DISKS JUSTIFIED? YES" (disk wait 7.1 %) while the afternoon before gave "NO" (0.7 %). The waits came from the backup of guest 105, the integrity checks (AIDE) and the dumps of the databases, at hours when the sites were not used (Odoo PROD waited 0.2 % of its time).
