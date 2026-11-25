@@ -48,9 +48,51 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.30.20261123.232741"
+__version__ = "1.31.20261125.075418"
 
 # 1.30: lines that explain an error in the output of a guest command (shown when its exit code is not 0)
+# 1.31: known causes in the output of a guest command, and what to do (shown under the guest and in the report)
+GUEST_HINTS = [
+    (r"unknown option|option inconnue|unrecognized option", "an option of --guest-command does not exist in this version: run the program with --help in the guest and fix --guest-command"),
+    (r"host key verification failed", "the host key of the machine is not known: as root, connect once with ssh (same address and port), check the fingerprint, accept it"),
+    (r"permission denied \(publickey", "the SSH key is refused: the public key of root of this host must be in authorized_keys of the account on the machine"),
+    (r"connection timed out|connection refused|no route to host", "the machine does not answer on this port: check the SSH port (Port in /root/.ssh/config), the firewall and the address"),
+    (r"command not found|no such file or directory", "a program or a file is missing in the guest: copy the suite first (--guest-sync) or install the missing package"),
+    (r"courriel.{0,30}non configuré|mail.{0,30}not configured|--mail-setup|SMTP_HOST|NOTIFY_EMAIL_TO", "the mail notifications are not configured: in the guest, run nginx-hardening.sh --update --mail-setup (it sets SMTP_HOST and NOTIFY_EMAIL_TO)"),
+    (r"nginx: \[emerg\]|nginx -t|configuration file .* test failed", "nginx refused the new configuration (the previous one was kept): run nginx -t in the guest to see the line in fault"),
+    (r"Traceback \(most recent call last\)", "the program stopped on an internal error: send the complete output (path below) for analysis"),
+    (r"a password is required|sudo: .*password", "sudo asks for a password: the account needs a sudoers rule without a password (system-hardening.sh --collect-account)"),
+    (r"could not get lock|dpkg was interrupted|unable to acquire the dpkg", "apt or dpkg is busy or was interrupted in the guest: wait for the other update, or run dpkg --configure -a"),
+]
+GUEST_HINTS = [(re.compile(rx, re.IGNORECASE), advice) for rx, advice in GUEST_HINTS]
+
+
+def guest_hints(out):
+    """1.31: the pieces of advice whose cause is found in the output, in the order of GUEST_HINTS, each once."""
+    return [advice for rx, advice in GUEST_HINTS if rx.search(out or "")]
+
+
+def tagged_with_detail(out, tag_re, limit=5):
+    """1.31: the lines marked by tag_re, each with the lines indented under it that carry no mark (the detail the programs print below
+    a [FAIL] or [ATTN] line: the reason, the file, the command to run), at most 3 lines of detail each."""
+    lines, found = out.splitlines(), []
+    for i, line in enumerate(lines):
+        if not tag_re.search(line):
+            continue
+        indent = len(line) - len(line.lstrip())
+        detail = []
+        for nxt in lines[i + 1:i + 4]:
+            if not nxt.strip() or re.search(r"\[(?:OK|FAIL|ÉCHEC|ATTN|WARN|ATTENTION|INFO|i)\]", nxt):
+                break
+            if len(nxt) - len(nxt.lstrip()) <= indent:
+                break
+            detail.append(nxt.strip())
+        found.append((line.strip(), detail))
+        if len(found) >= limit:
+            break
+    return found
+
+
 ERROR_LINE_RE = re.compile(r"unknown|inconnue|invalid|invalide|not found|introuvable|no such|denied|refus|error|erreur|fatal|failed|échec|impossible", re.IGNORECASE)
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -2688,8 +2730,26 @@ def guest_run(args, names, running):
             f.write(f"# {command}\n# guest {vmid} ({name}), {version}\n# exit code {code}, {seconds:.0f} s\n\n{out}")
         level = "bad" if code not in (0,) or fails else "warn" if warns else "ok"
         print(f"  {tag(level)} {vmid} ({name}): exit code {code}, {human_duration(int(seconds))} · {len(fails)} failures, {len(warns)} warnings" + (f" · {summary}" if summary else ""))
-        for line in fails[:5]:
-            print(f"      {line[:200]}")
+        fail_re, warn_re = re.compile(r"\[(?:FAIL|ÉCHEC)\]"), re.compile(r"\[(?:ATTN|WARN|ATTENTION)\]")
+        for label, items, total in (("failures", tagged_with_detail(out, fail_re), len(fails)), ("warnings", tagged_with_detail(out, warn_re), len(warns))):
+            if not items:
+                continue
+            print(f"      {label}:")                                      # 1.31: the warnings too, each with its detail
+            for line, detail in items:
+                print(f"        {line[:200]}")
+                for d in detail:
+                    print(f"            {d[:200]}")
+            if total > len(items):
+                print("        ... more in the complete output")
+        hints = guest_hints(out) if (code not in (0,) or fails or warns) else []
+        if hints:
+            print("      what to do:")
+            for advice in hints:
+                print(f"        - {advice}")
+        if code in (0,) and (fails or warns):
+            print(f"      full output: {path}")
+        if code is None:
+            print("      no exit code: the command did not end in time (30 minutes) or the guest agent did not answer")
         if code not in (0, None):
             # a non-zero exit code without any [FAIL] line (usage error, unknown option, crash): show the reason.
             # 1.30: the error lines come first (the usage text printed after an unknown option hides them in the tail)
@@ -2717,7 +2777,13 @@ def guest_run(args, names, running):
     for vmid, name, version, code, seconds, fails, warns, summary, out, _p in results:
         lines += ["", f"## {vmid} ({name})", ""]
         if fails or warns:
-            lines += ["Failures and warnings:", "", "```"] + fails + warns + ["```", ""]
+            lines += ["Failures and warnings:", "", "```"]
+            for line, detail in tagged_with_detail(out, re.compile(r"\[(?:FAIL|ÉCHEC|ATTN|WARN|ATTENTION)\]"), limit=50):
+                lines += [line] + ["    " + d for d in detail]
+            lines += ["```", ""]
+        hints = guest_hints(out) if (code not in (0,) or fails or warns) else []
+        if hints:
+            lines += ["What to do:", ""] + [f"- {h}" for h in hints] + [""]
         kept = out.rstrip("\n").splitlines()
         if len(kept) > 1500:
             kept = kept[:300] + [f"[... {len(kept) - 1500} lines left out, the whole output is in the .log file ...]"] + kept[-1200:]

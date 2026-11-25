@@ -664,6 +664,21 @@ esac''')
         self.assertIn("      last lines of the output:\n", out)
         self.assertNotIn("Traceback", err)
 
+    def test_avertissement_detaille_et_que_faire(self):
+        """1.31: exit code 0 with a warning: the [ATTN] line is shown with the lines indented under it, then the advice for the known cause
+        (mail not configured) and the path of the complete output."""
+        self.hote_sante()
+        self.mock("pct", '''case "$*" in
+  *"if [ -x"*) printf "FOUND\\nsystem-hardening.sh version 1.4\\n";;
+  *--update*) printf "[OK] étape 1\\n  [ATTN] courriel de la suite non configuré : nginx-hardening.sh --update --mail-setup\\n      SMTP_HOST et NOTIFY_EMAIL_TO vides\\n[OK] fin\\n"; exit 0;;
+esac''')
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101", "--yes", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 1, out + err)                                               # a warning gives 1, as before
+        self.assertIn("      warnings:\n        [ATTN] courriel de la suite non configuré : nginx-hardening.sh --update --mail-setup\n            SMTP_HOST et NOTIFY_EMAIL_TO vides\n", out)
+        self.assertIn("      what to do:\n        - the mail notifications are not configured: in the guest, run nginx-hardening.sh --update --mail-setup", out)
+        self.assertIn("      full output: ", out)
+        self.assertNotIn("Traceback", err)
+
     def test_copie_de_la_suite_dans_les_invites(self):
         """1.18 --guest-sync : le dossier de la suite copié dans /opt/rlq-admin-tools de chaque invité (conteneur : pct exec avec l'archive en entrée ;
         VM : morceaux de moins de 1 Mio par l'agent invité, empreinte vérifiée) ; l'ancienne copie gardée ; l'invité qui porte la source laissé tel quel ;
