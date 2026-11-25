@@ -564,6 +564,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.10.20261125.081811 - Before the collection, the suite is checked in the guests and its update is offered
+
+- Reason for the request: on 2026-11-25 the administrator asked that collect-all-advise.sh offer to update the scripts in the guests
+  before the collection (the fix of app-log-live.py 1.210 had to be copied by hand with host-perf-audit.py --guest-sync).
+- Changes (collect-all-advise.sh):
+  - The guests are selected first (list CIBLES), then checked, then collected (same order, same reports).
+  - New functions version_invite() (first line of "PROGRAM --version" in a guest: pct exec, or ssh with a 10 s connection time out),
+    version_num(), plus_ancienne() (major, minor, date, time compared as numbers) and verifier_suite().
+  - verifier_suite() compares app-log-live.py of each selected guest with the one of the folder of this program, lists the guests behind
+    or whose version cannot be read, then: SYNC=ask with a terminal: a question [o/N]; SYNC=ask without a terminal (timer): the command
+    to run is printed, nothing is copied; SYNC=yes (--sync): update without a question; SYNC=no (--no-sync): nothing is checked.
+  - The update is "host-perf-audit.py --guest-sync --guests IDS --sync-source FOLDER --yes" (the old copy stays as
+    /opt/rlq-admin-tools.previous in each guest).
+  - New options --no-sync and --sync (help and header, sorted); new key SYNC (default ask), also written at the first run.
+  - collecter_vm() gets the address found during the selection (no second lookup).
+  - nginx-tools-tests/test_collect_all_advise.py: the fake app-log-live.py answers --version (GUEST_VERSION); 3 new tests
+    (guests behind listed without a terminal, update with --sync, guests up to date and --no-sync).
+- Bugs fixed: none.
+- Safeguards and edge cases: no question without a terminal (the systemd timer never copies anything unless SYNC=yes); a failed update
+  is said and the collection goes on with the current versions; missing app-log-live.py or host-perf-audit.py next to this program:
+  no check; a guest whose version cannot be read is offered for the update too.
+- Checks: bash -n; ShellCheck -S style clean; test_collect_all_advise: 22 tests OK.
+- Action required: none. Run from the folder of the suite that is up to date (git pull first), e.g.
+  /var/lib/vz/subvol-105-disk-2/rlq-admin-tools/collect-all-advise.sh.
+
 ### 1.9.20261124.210233 - New option --verbose: each step and each command of the run is shown
 
 - Reason for the request: on 2026-11-24, the administrator ran collect-all-advise.sh on proxmox1: the run was long and nothing showed

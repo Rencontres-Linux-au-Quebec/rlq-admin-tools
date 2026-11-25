@@ -55,6 +55,7 @@ exit 0
 APP = """#!/bin/bash
 # fake app-log-live.py: writes the report given to --export-ai, and records its arguments
 dest=""
+if [[ "$1" == "--version" ]]; then echo "app-log-live.py v${GUEST_VERSION:-1.200.20261101.000000}"; exit 0; fi
 echo "$*" >> "$APP_LOG"
 echo "LANG=${APP_LOG_LIVE_LANG:-}" >> "$APP_LOG"
 while [[ $# -gt 0 ]]; do
@@ -248,6 +249,62 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertNotIn("[trace]", r.stdout)
         r = self.lancer("--days", "2", "--dest", self.dest, config="VM_HOST_201=10.0.0.21\n")
         self.assertNotIn("[trace]", r.stdout + r.stderr)
+
+    def suite_locale(self):
+        """1.10: a copy of the program in a folder of the suite with its own app-log-live.py (version of reference) and a fake
+        host-perf-audit.py that records its arguments."""
+        suite = os.path.join(self.d, "suite")
+        os.makedirs(suite)
+        shutil.copy(PROG, os.path.join(suite, "collect-all-advise.sh"))
+        self.sync_log = os.path.join(self.d, "sync.log")
+        for nom, contenu in (("app-log-live.py", '#!/bin/bash\necho "app-log-live.py v1.210.20261124.212059"\n'),
+                             ("host-perf-audit.py", f'#!/bin/bash\necho "$*" >> {self.sync_log}\n')):
+            with open(os.path.join(suite, nom), "w") as f:
+                f.write(contenu)
+            os.chmod(os.path.join(suite, nom), 0o755)
+        return os.path.join(suite, "collect-all-advise.sh")
+
+    def lancer_suite(self, prog, *args):
+        options = ["--program", os.path.join(self.bin, "app-log-live.py"), "--days", "2", "--dest", self.dest, *args]
+        chemin = os.path.join(self.d, "config.conf")
+        with open(chemin, "w") as f:
+            f.write("VM_HOST_201=10.0.0.21\n")
+        r = subprocess.run(["bash", prog, "-c", chemin, *options], capture_output=True, text=True, env=self.env, timeout=120)
+        return r, re.sub(r"\x1b\[[0-9;]*m", "", r.stdout + r.stderr)
+
+    def test_suite_en_retard_signalee_sans_terminal(self):
+        """1.10: SYNC=ask without a terminal: the guests behind are listed with the command to run; nothing is copied."""
+        prog = self.suite_locale()
+        r, sortie = self.lancer_suite(prog)
+        self.assertEqual(r.returncode, 0, sortie)
+        self.assertIn("Version de la suite sur cet hôte : app-log-live.py 1.210.20261124.212059", sortie)
+        self.assertIn("[ATTN] LXC 101 bbb-lxc1 : 1.200.20261101.000000 (plus ancienne)", sortie)
+        self.assertIn("[ATTN] VM 201 bbb-vm1 : 1.200.20261101.000000 (plus ancienne)", sortie)
+        self.assertIn("host-perf-audit.py --guest-sync --guests 101,103,201", sortie)
+        self.assertFalse(os.path.exists(self.sync_log))
+        self.assertIn("[OK] LXC 101 bbb-lxc1", sortie)                                  # the collection still runs
+
+    def test_suite_mise_a_jour_avec_sync(self):
+        """1.10: --sync: host-perf-audit.py --guest-sync is run for the guests behind, before the collection."""
+        prog = self.suite_locale()
+        r, sortie = self.lancer_suite(prog, "--sync")
+        self.assertEqual(r.returncode, 0, sortie)
+        appel = open(self.sync_log).read()
+        self.assertIn("--guest-sync --guests 101,103,201 --sync-source", appel)
+        self.assertIn("--yes", appel)
+        self.assertIn("[OK] suite mise à jour dans : 101,103,201", sortie)
+
+    def test_suite_a_jour_ou_no_sync(self):
+        """1.10: guests up to date: nothing offered; --no-sync: no check at all."""
+        prog = self.suite_locale()
+        self.env["GUEST_VERSION"] = "1.210.20261124.212059"
+        r, sortie = self.lancer_suite(prog, "--sync")
+        self.assertIn("[OK] la suite est à jour dans les machines choisies", sortie)
+        self.assertFalse(os.path.exists(self.sync_log))
+        del self.env["GUEST_VERSION"]
+        r, sortie = self.lancer_suite(prog, "--no-sync")
+        self.assertNotIn("Version de la suite", sortie)
+        self.assertFalse(os.path.exists(self.sync_log))
 
     def test_minuteur_installe_en_root_refuse_sinon(self):
         dossier_systemd = os.path.join(self.d, "systemd")
