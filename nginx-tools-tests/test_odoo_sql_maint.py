@@ -121,6 +121,34 @@ class AvecPostgreSQL(unittest.TestCase):
         subprocess.run(f"gunzip -c {export} | psql -X -q -h {self.d} -p {self.PORT} -U odoo -d testdb", shell=True, check=True, capture_output=True, timeout=60)
         self.assertEqual(self.psql("testdb", "SELECT count(*) FROM backup_page_history_steps"), "229")          # the export puts it back
 
+    def test_17_detection_de_la_base_odoo(self):
+        # 1.8: no database in the configuration. Two Odoo-like bases (ir_module_module) and one that is not Odoo.
+        # connection-test is used: it reads no table, so the bases need no Odoo schema beyond ir_module_module.
+        for base in ("odoo_a", "odoo_b", "zz_sans_odoo"):
+            self.psql("postgres", f"CREATE DATABASE {base};")
+        for base in ("odoo_a", "odoo_b"):
+            self.psql(base, "CREATE TABLE ir_module_module (id serial primary key, name varchar);")
+        conf = os.path.join(self.d, "sans-base.conf")
+        with open(conf, "w") as f:
+            f.write(f"PG_HOST={self.d}\nPG_PORT={self.PORT}\nPG_USER=odoo\nUI_LANG=en\n")
+        rc, out = lancer("--run", "connection-test", "--dry-run", conf=conf, entree="")
+        self.assertEqual(rc, 4, out)                                   # no terminal: nothing is guessed, nothing runs
+        self.assertIn("odoo_a", out)
+        self.assertIn("odoo_b", out)
+        self.assertNotIn("zz_sans_odoo", out)
+        self.assertNotIn("Query finished", out)
+        rc, out = lancer("--run", "connection-test", "--dry-run", "--yes", conf=conf)
+        self.assertEqual(rc, 4, out)                                   # two bases and --yes: refused, the user chooses
+        self.assertIn("choose one", out)
+        rc, out = lancer("--run", "connection-test", "--dry-run", "--database", "odoo_a", conf=conf)
+        self.assertEqual(rc, 0, out)                                   # explicit base: no detection, the query runs
+        self.assertIn("Query finished", out)
+        self.psql("odoo_b", "DROP TABLE ir_module_module;")            # now only one Odoo base: --yes accepts it
+        rc, out = lancer("--run", "connection-test", "--dry-run", "--yes", conf=conf)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Database detected and used: odoo_a", out)
+        self.assertIn("Query finished", out)
+
     def test_16_sauvegardes_planifiees(self):
         rc, out = lancer("--run", "backup-crons-disable", "--yes", conf=self.conf)
         self.assertEqual(rc, 0, out)

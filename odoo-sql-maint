@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.7.20261124.190500"
+__version__="1.8.20261124.192000"
 
 set -u
 set -o pipefail
@@ -107,6 +107,27 @@ MSG_EN[bad_language]="Unknown language: %s (use fr or en)."
 MSG_FR[bad_language]="Langue inconnue : %s (utilisez fr ou en)."
 MSG_EN[bad_query]="Unknown query: %s (see --list)"
 MSG_FR[bad_query]="Requete inconnue : %s (voir --list)"
+# 1.8: detection of the Odoo database when none is given
+MSG_EN[db_none]="No Odoo database found on this server (a database is Odoo when it has the table ir_module_module). Use --database NAME."
+MSG_FR[db_none]="Aucune base Odoo trouvee sur ce serveur (une base est Odoo si elle a la table ir_module_module). Utilisez --database NAME."
+MSG_EN[db_detect_fail]="Cannot list the databases of the server (connection, user, PG_HOST or PG_PORT). Use --database NAME."
+MSG_FR[db_detect_fail]="Impossible de lister les bases du serveur (connexion, utilisateur, PG_HOST ou PG_PORT). Utilisez --database NAME."
+MSG_EN[db_list]="No database given: the Odoo databases found on this server are listed below."
+MSG_FR[db_list]="Aucune base indiquee : les bases Odoo trouvees sur ce serveur sont listees ci-dessous."
+MSG_EN[db_pick]="Number of the database to use (empty = cancel): "
+MSG_FR[db_pick]="Numero de la base a utiliser (vide = annuler) : "
+MSG_EN[db_confirm]="Use the Odoo database '%s'? [y/N]: "
+MSG_FR[db_confirm]="Utiliser la base Odoo '%s' ? [o/N] : "
+MSG_EN[db_confirm_box]="Use the Odoo database '%s'?"
+MSG_FR[db_confirm_box]="Utiliser la base Odoo '%s' ?"
+MSG_EN[db_use]="Database detected and used: %s (use --database to choose another one)."
+MSG_FR[db_use]="Base detectee et utilisee : %s (utilisez --database pour en choisir une autre)."
+MSG_EN[db_ambiguous]="Several Odoo databases found (%s) and --yes given: choose one with --database NAME."
+MSG_FR[db_ambiguous]="Plusieurs bases Odoo trouvees (%s) et --yes donne : choisissez-en une avec --database NAME."
+MSG_EN[db_no_tty]="No terminal to confirm the database. Odoo databases found: %s. Use --database NAME, or --yes when there is only one."
+MSG_FR[db_no_tty]="Pas de terminal pour confirmer la base. Bases Odoo trouvees : %s. Utilisez --database NAME, ou --yes s'il n'y en a qu'une."
+MSG_EN[db_cancel]="No database chosen. Nothing was run."
+MSG_FR[db_cancel]="Aucune base choisie. Rien n'a ete execute."
 MSG_EN[refused_noyes]="Destructive query needs --yes when no terminal is attached."
 MSG_FR[refused_noyes]="Requete destructive : --yes requis sans terminal."
 MSG_EN[cancelled]="Cancelled."
@@ -644,6 +665,86 @@ dialog_run() {
   return "$rc"
 }
 
+# 1.8: without a database (no --database, no PG_DATABASE), the Odoo databases of the server are detected: a database is Odoo when it
+# has the table ir_module_module. One base is proposed for confirmation; several are listed and one is chosen. Without a terminal,
+# nothing is guessed: the list is shown and the run is refused, unless --yes is given and exactly one base was found.
+detect_odoo_databases() {  # prints the Odoo databases, one per line; returns 1 when the server cannot be queried
+  local names db
+  names="$(psql -X -q -t -A -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname;" 2>/dev/null)" || return 1
+  while IFS= read -r db; do
+    [[ -n "$db" ]] || continue
+    if [[ "$(psql -X -q -t -A -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$db" -c "SELECT to_regclass('public.ir_module_module') IS NOT NULL;" 2>/dev/null)" == "t" ]]; then
+      printf '%s\n' "$db"
+    fi
+  done <<< "$names"
+}
+
+# resolve_database UI(cli|dialog): sets PG_DATABASE to the detected Odoo database after the user has confirmed it. Returns 4 when refused.
+resolve_database() {
+  local ui="$1" listing db answer choice i
+  local -a found=()
+  if ! listing="$(detect_odoo_databases)"; then
+    notify "$ui" "$(t db_detect_fail)"
+    return 4
+  fi
+  while IFS= read -r db; do
+    [[ -n "$db" ]] && found+=("$db")
+  done <<< "$listing"
+  if [[ "${#found[@]}" -eq 0 ]]; then
+    notify "$ui" "$(t db_none)"
+    return 4
+  fi
+  if [[ "$ASSUME_YES" -eq 1 ]]; then
+    if [[ "${#found[@]}" -ne 1 ]]; then
+      notify "$ui" "$(t db_ambiguous "${found[*]}")"
+      return 4
+    fi
+    PG_DATABASE="${found[0]}"
+    printf '%s\n' "$(t db_use "$PG_DATABASE")" >&2
+    return 0
+  fi
+  if [[ "$ui" == "dialog" ]]; then
+    choice="${found[0]}"
+    if [[ "${#found[@]}" -gt 1 ]]; then
+      local -a items=()
+      for db in "${found[@]}"; do items+=("$db" "$db"); done
+      dialog_run choice --title "$(t title)" --menu "$(t db_pick)" 16 72 8 "${items[@]}" || return 4
+    fi
+    if ! "$DIALOG_BIN" --yesno "$(t db_confirm_box "$choice")" 8 72; then
+      notify dialog "$(t db_cancel)"
+      return 4
+    fi
+    PG_DATABASE="$choice"
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    printf '%s\n' "$(t db_no_tty "${found[*]}")" >&2
+    return 4
+  fi
+  printf '%s\n' "$(t db_list)" >&2
+  choice="${found[0]}"
+  if [[ "${#found[@]}" -gt 1 ]]; then
+    i=1
+    for db in "${found[@]}"; do
+      printf '  %s) %s\n' "$i" "$db" >&2
+      i=$((i + 1))
+    done
+    read -r -p "$(t db_pick)" answer
+    if [[ ! "$answer" =~ ^[0-9]+$ ]] || (( answer < 1 || answer > ${#found[@]} )); then
+      printf '%s\n' "$(t db_cancel)" >&2
+      return 4
+    fi
+    choice="${found[$((answer - 1))]}"
+  fi
+  read -r -p "$(t db_confirm "$choice")" answer
+  case "$answer" in
+    y|Y|o|O|yes|YES|oui|OUI) ;;
+    *) printf '%s\n' "$(t db_cancel)" >&2; return 4 ;;
+  esac
+  PG_DATABASE="$choice"
+  return 0
+}
+
 run_menu() {
   local choice action name
   local -a items
@@ -737,7 +838,7 @@ Usage / Utilisation: $PROGRAM [options]
 Options (alphabetical / ordre alphabetique):
   ${C_OPT}--changelog${C_RST}        Show this program's changelog / Afficher le journal de ce programme
   ${C_OPT}--config FILE${C_RST}      Read only FILE / Lire seulement FILE
-  ${C_OPT}--database NAME${C_RST}    Target database / Base cible
+  ${C_OPT}--database NAME${C_RST}    Target database (detected and confirmed when missing) / Base cible (detectee et confirmee si absente)
   ${C_OPT}--dry-run${C_RST}          With --run or --export-drop-table: roll back at the end / Avec --run ou --export-drop-table : annuler a la fin
   ${C_OPT}--export-drop-table T${C_RST} Export table T (no Odoo model uses it) to EXPORT_DIR, then drop it / Exporter la table T (aucun modele d'Odoo) dans EXPORT_DIR, puis la supprimer
   ${C_OPT}--help${C_RST}             Show this help / Afficher cette aide
@@ -831,12 +932,20 @@ main() {
   esac
 
   check_psql
+  # 1.8: no database given (no --database, no PG_DATABASE): detect the Odoo databases and ask which one to use
+  case "$ACTION" in
+    run|export-drop)
+      if [[ -z "$PG_DATABASE" ]]; then resolve_database cli || return $?; fi ;;
+    menu)
+      check_dialog; check_tty
+      if [[ -z "$PG_DATABASE" ]]; then resolve_database dialog || return $?; fi ;;
+  esac
   psql_base_args
 
   case "$ACTION" in
     run)  run_cli "$RUN_NAME"; return $? ;;
     export-drop) export_drop_table "$DROP_TABLE"; return $? ;;
-    menu) check_dialog; check_tty; run_menu ;;
+    menu) run_menu ;;
   esac
   return 0
 }
