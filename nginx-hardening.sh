@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.125.20261122.092248"
+readonly SCRIPT_VERSION="2.126.20261125.172540"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -147,6 +147,7 @@ ARCHIVE_DIR="${NGINX_HARDENING_ARCHIVE_DIR:-/var/backups/nginx-hardening/archive
 BACKUP_KEEP="${NGINX_HARDENING_BACKUP_KEEP:-20}"
 read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fail2ban}"
 ROLLBACK=0
+REVERT_BASE=0                    # 2.126: --revert-base (retour à la configuration de base, journal apps/_journal.sh)
 ROLLBACK_BACKUP=""
 ROLLBACK_YES=0                 # --yes: no question for --rollback, --disable-uri, --enable-uri and (2.125) the steps 0f and 9b bis of --update
 DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 15 min)
@@ -239,6 +240,8 @@ fi
 # Address lists (white list and places): /etc/default/nginx-tools-*.conf, never shipped in the archives - common reader apps/_listes.sh.
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
+# Journal des fichiers installés (2.126) : base de --revert-base.
+[[ -r "$SCRIPT_DIR/apps/_journal.sh" ]] && . "$SCRIPT_DIR/apps/_journal.sh"
 
 ARGS_INITIAUX=("$@")   # options recues (2.61) : le menu (--menu) relance ce programme avec les memes options
 while [[ $# -gt 0 ]]; do
@@ -247,6 +250,7 @@ while [[ $# -gt 0 ]]; do
         --check) CHECK_ONLY=1; shift ;;   # behavior by default now - kept for explicit compatibility
         --update) CHECK_ONLY=0; shift ;;  # applique reellement les changements (anciennement le defaut)
         --backup) ROLLBACK_BACKUP="${2:-}"; shift 2 ;;
+        --revert-base) REVERT_BASE=1; shift ;;
         --rollback) ROLLBACK=1; shift ;;
         --disable-uri) DISABLE_URI_LIST+=("${2:-}"); shift 2 ;;
         --dns-refresh) DNS_RAFRAICHIR=1; shift ;;
@@ -338,6 +342,7 @@ Options (par ordre alphabétique) :
   --rename-to NAME             nouveau nom DNS public : nginx et certificat Let's Encrypt sont refaits pour ce nom (sans --rename-from, l'ancien nom est cherché dans nginx)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
+  --revert-base                retire les fichiers installés par ce programme (journal) et remet leurs copies ; sur YunoHost, relance « yunohost tools regen-conf nginx » ; confirmation, sauf --yes
   --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation
   --test-rules                 teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
   --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)
@@ -569,6 +574,58 @@ echo
 PASS=0
 FAIL=0
 WARN=0
+
+# --- Retour à la configuration de base (--revert-base) : fichiers du journal, puis YunoHost si présent (2.126) ---
+revert_base_executer() {
+    echo "--- Retour à la configuration de base (journal : ${JOURNAL_FICHIER:-aucun}) ---"
+    if ! declare -F journal_restaurer >/dev/null; then
+        echo "  [FAIL] apps/_journal.sh introuvable : retour à la configuration de base impossible."
+        exit 1
+    fi
+    if [[ "$EUID" != "0" ]]; then
+        echo "  [FAIL] Retour à la configuration de base : root requis (sudo $0 --revert-base)."
+        exit 1
+    fi
+    echo "Fichiers concernés :"
+    journal_restaurer --dry-run | sed 's/^/  /' || true
+    if [[ ! -e "$JOURNAL_FICHIER" ]]; then
+        echo "  [OK]   Aucun journal : rien à remettre en place."
+        exit 0
+    fi
+    if [[ "$ROLLBACK_YES" != "1" ]]; then
+        if [[ ! -t 0 ]]; then
+            echo "  [FAIL] Sans terminal : relancer avec --yes pour remettre la configuration de base."
+            exit 1
+        fi
+        local rep_revert=""
+        read -r -p "Remettre la configuration de base (fichiers ci-dessus) ? [o/N] " rep_revert || rep_revert=""
+        [[ "$rep_revert" =~ ^[oOyY]$ ]] || { echo "Annulé : aucune modification."; exit 0; }
+    fi
+    if ! journal_restaurer | sed 's/^/  /'; then
+        echo "  [FAIL] Restauration incomplète : le journal est conservé ; corriger puis relancer --revert-base."
+        exit 1
+    fi
+    if [[ -e "${APP_DETECT_ROOT:-}/etc/yunohost/current_host" ]]; then
+        if run yunohost tools regen-conf nginx; then
+            echo "  [OK]   YunoHost : configuration nginx régénérée (yunohost tools regen-conf nginx)."
+        else
+            echo "  [FAIL] YunoHost : regen-conf nginx a échoué ; le journal est conservé."
+            exit 1
+        fi
+    fi
+    if nginx -t >/dev/null 2>&1 && run systemctl reload nginx; then
+        echo "  [OK]   nginx : configuration valide et rechargée."
+    else
+        echo "  [FAIL] nginx -t refuse la configuration de base : vérifier avant tout autre changement."
+        exit 1
+    fi
+    if journal_archiver; then echo "  [OK]   Journal archivé (il n'est jamais supprimé)."; fi
+    exit 0
+}
+
+if [[ "$REVERT_BASE" == "1" ]]; then
+    revert_base_executer
+fi
 
 # --- Application derriere nginx : profil apps/<nom>.conf, detecte ou force (--app=NOM, ou variable APP_PROFILE) ------
 APPS_DIR="$SCRIPT_DIR/apps"
@@ -2000,6 +2057,15 @@ else
                 gen_test=""
                 if gen_test=$(nginx -t 2>&1); then
                     pass "Configuration nginx générique installée (${#GEN_FAITS[@]} fichiers) ; nginx -t réussit."
+                    # 2.126: journal des fichiers installés, pour --revert-base (seulement après le succès de nginx -t)
+                    for item in "${GEN_FAITS[@]}"; do
+                        rel="${item#*:}"; dst="$GEN_DEST/$rel"
+                        if [[ "$item" == remplacer:* ]]; then
+                            journal_ajouter remplacer "$dst" "$dst.before-generic-$GEN_TS" || warn "Journal : $dst non consigné (--revert-base ne le retirera pas)."
+                        else
+                            journal_ajouter creer "$dst" "" || warn "Journal : $dst non consigné (--revert-base ne le retirera pas)."
+                        fi
+                    done
                     nginx_appliquer
                     echo "  nginx : $NGINX_APPLIQUE"
                 else
