@@ -1977,3 +1977,45 @@ msgstr "        (aucune sortie)"
 
 msgid "      full output: "
 msgstr "      sortie complète : "
+
+msgid "      failures:"
+msgstr "      échecs :"
+
+msgid "      warnings:"
+msgstr "      avertissements :"
+
+msgid "      what to do:"
+msgstr "      que faire :"
+
+msgid "      no exit code: the command did not end in time (30 minutes) or the guest agent did not answer"
+msgstr "      aucun code de retour : la commande n'a pas fini à temps (30 minutes) ou l'agent invité n'a pas répondu"
+
+msgid "an option of --guest-command does not exist in this version: run the program with --help in the guest and fix --guest-command"
+msgstr "une option de --guest-command n'existe pas dans cette version : lancer le programme avec --help dans l'invité et corriger --guest-command"
+
+msgid "the host key of the machine is not known: as root, connect once with ssh (same address and port), check the fingerprint, accept it"
+msgstr "la clé d'hôte de la machine n'est pas connue : en root, se connecter une fois avec ssh (même adresse et même port), vérifier l'empreinte, l'accepter"
+
+msgid "the SSH key is refused: the public key of root of this host must be in authorized_keys of the account on the machine"
+msgstr "la clé SSH est refusée : la clé publique de root de cet hôte doit être dans authorized_keys du compte sur la machine"
+
+msgid "the machine does not answer on this port: check the SSH port (Port in /root/.ssh/config), the firewall and the address"
+msgstr "la machine ne répond pas sur ce port : vérifier le port SSH (Port dans /root/.ssh/config), le pare-feu et l'adresse"
+
+msgid "a program or a file is missing in the guest: copy the suite first (--guest-sync) or install the missing package"
+msgstr "un programme ou un fichier manque dans l'invité : copier d'abord la suite (--guest-sync) ou installer le paquet manquant"
+
+msgid "the mail notifications are not configured: set SMTP_HOST and NOTIFY_EMAIL_TO in the configuration of the program in the guest"
+msgstr "les notifications par courriel ne sont pas configurées : régler SMTP_HOST et NOTIFY_EMAIL_TO dans la configuration du programme dans l'invité"
+
+msgid "nginx refused the new configuration (the previous one was kept): run nginx -t in the guest to see the line in fault"
+msgstr "nginx a refusé la nouvelle configuration (l'ancienne est gardée) : lancer nginx -t dans l'invité pour voir la ligne fautive"
+
+msgid "the program stopped on an internal error: send the complete output (path below) for analysis"
+msgstr "le programme s'est arrêté sur une erreur interne : envoyer la sortie complète (chemin ci-dessous) pour analyse"
+
+msgid "sudo asks for a password: the account needs a sudoers rule without a password (system-hardening.sh --collect-account)"
+msgstr "sudo demande un mot de passe : le compte a besoin d'une règle sudoers sans mot de passe (system-hardening.sh --collect-account)"
+
+msgid "apt or dpkg is busy or was interrupted in the guest: wait for the other update, or run dpkg --configure -a"
+msgstr "apt ou dpkg est occupé ou a été interrompu dans l'invité : attendre l'autre mise à jour, ou lancer dpkg --configure -a"

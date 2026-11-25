@@ -2718,6 +2718,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.31.20261125.075418 - Guest command: the warnings with their detail, and what to do for the known causes
+
+- Reason for the request: on 2026-11-25, --guest-run of "system-hardening.sh --update" on the five guests gave "[WARN] ... 0 failures,
+  1 warnings" for each guest, without the warning itself, its detail or what to do. Request: more help when there are errors, and more
+  detail on the errors and warnings.
+- Changes (host-perf-audit.py):
+  - New function tagged_with_detail(): each [FAIL] or [ATTN] line with the lines indented under it (at most 3: the reason, the file,
+    the command to run). The failures AND the warnings are now printed under the guest, under "failures:" and "warnings:" (at most 5 each,
+    then "... more in the complete output").
+  - New list GUEST_HINTS and function guest_hints(): known causes found in the output (unknown option, host key not known, SSH key
+    refused, port not answering, missing program or file, mail not configured, nginx refusing its configuration, Python traceback, sudo
+    asking for a password, apt or dpkg busy) give one line of advice each under "what to do:".
+  - The path of the complete output is printed also when the exit code is 0 but there are failures or warnings; no exit code (time out
+    or agent without answer) is said.
+  - The report (report-HOST-STAMP.md): the failures and warnings with their detail, and a "What to do:" list per guest.
+  - lang/host-perf-audit.fr.po: 14 new texts; nginx-tools-tests/test_host_perf_audit.py: test_avertissement_detaille_et_que_faire.
+- Bugs fixed: symptom: a warning counted but never shown. Diagnosis: only the [FAIL] lines were printed. Fix: the warnings are printed too.
+- Safeguards and edge cases: the detail stops at the next marked line, at an empty line or at a line that is not indented further; each
+  piece of advice is given once; the exit codes of the program are unchanged (a warning still gives 1).
+- Checks: py_compile; tests test_avertissement_detaille_et_que_faire, test_erreur_avant_l_aide_visible, test_commande_dans_les_invites,
+  test_traduction_francaise.
+- Action required: none.
+
 ### 1.30.20261123.232741 - Guest command with a non-zero exit code: the error lines are shown first
 
 - Reason for the request: on 2026-11-23 (request of the administrator, after the run of system-hardening.sh --update --yes), the
