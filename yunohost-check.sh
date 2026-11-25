@@ -13,7 +13,7 @@
 #   --external (autre machine)  : chaque application est jointe par son nom public, depuis Internet (--targets FICHIER).
 # Lecture seule : aucune donnée n'est envoyée, aucun formulaire n'est soumis, aucune connexion n'est tentée.
 # ========================================================================================================================
-SCRIPT_VERSION="0.1.20261125.175600"
+SCRIPT_VERSION="0.1.20261125.182600"
 SCRIPT_NAME="yunohost-check"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
@@ -53,6 +53,9 @@ fi
 OPT_MODE="internal"
 OPT_TARGETS=""
 OPT_LIST_FILE=""
+OPT_SAVE=""
+OPT_COMPARE=""
+CODE_OBTENU=""
 OPT_REPORT_ERR=0
 COMPTE_OK=0; COMPTE_SKIP=0; COMPTE_FAIL=0
 
@@ -67,11 +70,13 @@ Tests fonctionnels des applications YunoHost. Par défaut : mode interne, sur le
 
 Options (par ordre alphabétique) :
   --changelog                  affiche le journal des modifications de ce programme
+  --compare FICHIER            compare les codes HTTP à ceux enregistrés par --save ; signale les changements
   --external                   mode externe : joint les applications par leur nom public (avec --targets)
   --help                       affiche cette aide
   --internal                   mode interne : joint les applications sur 127.0.0.1 avec leur nom de domaine (défaut)
   --list FICHIER               écrit la liste des applications (TSV : nom, id, domaine, chemin) puis quitte
   --report-err                 ajoute en fin d'exécution un sommaire à copier-coller pour un diagnostic
+  --save FICHIER               enregistre le code HTTP de chaque cible (base de comparaison, écrasée)
   --targets FICHIER            liste TSV (domaine, chemin) pour --external (produite par --list)
   --timeout N                  délai par requête en secondes (défaut : $TIMEOUT ; clé TIMEOUT)
   --version                    affiche la version du programme
@@ -119,6 +124,7 @@ verifier_cible() {     # $1 domaine, $2 chemin, $3 mode (internal|external)
         opts+=(--resolve "$domaine:443:127.0.0.1")
     fi
     code=$(curl "${opts[@]}" "$url" 2>/dev/null) || code="000"
+    CODE_OBTENU="$code"
     if [[ "$code" == "000" ]]; then
         fail "$url : aucune réponse HTTPS (délai ou connexion refusée)."
         return 0
@@ -149,6 +155,25 @@ verifier_cible() {     # $1 domaine, $2 chemin, $3 mode (internal|external)
         fi
     fi
     return 0
+}
+
+enregistrer_ou_comparer() {    # $1 domaine, $2 chemin : --save écrit le code ; --compare signale un changement par rapport au fichier
+    local domaine="$1" chemin="$2" ancien=""
+    if [[ -n "$OPT_SAVE" ]]; then
+        printf '%s\t%s\t%s\n' "$domaine" "$chemin" "$CODE_OBTENU" >> "$OPT_SAVE" || fail "écriture impossible : $OPT_SAVE"
+    fi
+    if [[ -n "$OPT_COMPARE" ]]; then
+        ancien=$(awk -F'\t' -v d="$domaine" -v c="$chemin" '$1==d && $2==c {v=$3} END {print v}' "$OPT_COMPARE")
+        if [[ -z "$ancien" ]]; then
+            skip "$domaine$chemin : aucune référence dans $OPT_COMPARE."
+        elif [[ "$ancien" != "$CODE_OBTENU" ]]; then
+            if [[ "$CODE_OBTENU" =~ ^5 || "$CODE_OBTENU" == "000" ]]; then
+                fail "$domaine$chemin : régression, HTTP $ancien avant, $CODE_OBTENU maintenant."
+            else
+                skip "$domaine$chemin : changement, HTTP $ancien avant, $CODE_OBTENU maintenant."
+            fi
+        fi
+    fi
 }
 
 executer_tests() {    # $1 mode, $2 fichier TSV (ou vide : mode interne, liste lue sur le serveur)
@@ -183,6 +208,7 @@ executer_tests() {    # $1 mode, $2 fichier TSV (ou vide : mode interne, liste l
         fi
         echo "== ${nom}"
         verifier_cible "$domaine" "${chemin:-/}" "$mode"
+        enregistrer_ou_comparer "$domaine" "${chemin:-/}"
     done
     return 0
 }
@@ -212,7 +238,9 @@ while [[ $# -gt 0 ]]; do
         --help|-h) afficher_aide; exit 0 ;;
         --internal) OPT_MODE="internal"; shift ;;
         --list) OPT_LIST_FILE="${2:-}"; shift 2 ;;
+        --compare) OPT_COMPARE="${2:-}"; shift 2 ;;
         --report-err) OPT_REPORT_ERR=1; shift ;;
+        --save) OPT_SAVE="${2:-}"; shift 2 ;;
         --targets) OPT_TARGETS="${2:-}"; shift 2 ;;
         --timeout) TIMEOUT="${2:-15}"; shift 2 ;;
         --version) echo "$SCRIPT_NAME.sh $SCRIPT_VERSION"; exit 0 ;;
@@ -243,6 +271,8 @@ if [[ "$OPT_MODE" == external && -z "$OPT_TARGETS" ]]; then
     exit 2
 fi
 
+if [[ -n "$OPT_SAVE" ]]; then : > "$OPT_SAVE" || { echo "ERREUR: fichier non écrivable : $OPT_SAVE" >&2; exit 2; }; fi
+if [[ -n "$OPT_COMPARE" && ! -r "$OPT_COMPARE" ]]; then echo "ERREUR: fichier de référence illisible : $OPT_COMPARE" >&2; exit 2; fi
 executer_tests "$OPT_MODE" "$OPT_TARGETS" || exit 2
 (( OPT_REPORT_ERR )) && sommaire_erreurs
 echo

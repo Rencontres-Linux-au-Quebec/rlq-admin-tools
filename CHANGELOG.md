@@ -5024,6 +5024,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## yunohost-check.sh
 
+### 0.1.20261125.182600 - --save and --compare: before and after a change
+
+- Title: --save FILE records the HTTP code of each application; --compare FILE compares the current codes to that record.
+- Reason: to check that a change (or --revert-base) does not break an application, the state before the change must be compared with the state after it.
+- Changes: yunohost-check.sh: --save, --compare (options in alphabetical order in --help); enregistrer_ou_comparer() after each target. nginx-tools-tests/test_yunohost_check.py: 3 tests (no change, regression, change).
+- Bugs fixed: none.
+- Safeguards and edge cases: --save empties the file first and refuses an unwritable file. --compare refuses an unreadable file. A change to a 5xx or to no answer is a FAIL (regression); any other change is SKIP and does not stop the run. A target missing from the record is SKIP.
+- Checks performed: test_yunohost_check: 12 tests pass; --help options checked for alphabetical order.
+- Action required: run --save before the change on the server and --compare after it. Keep the file.
+
 ### 0.1.20261125.175600 - New functional tests of YunoHost applications (internal and external)
 
 - Title: new program yunohost-check.sh: tests each YunoHost application over HTTPS, from the server (internal) or from outside (external), and reports OK, SKIP or FAIL.

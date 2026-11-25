@@ -123,6 +123,33 @@ class YunohostCheck(unittest.TestCase):
         self.assertGreater(len(options), 5)
         self.assertEqual(options, sorted(options))
 
+    def test_save_puis_compare_sans_changement(self):
+        self.app("nextcloud", "ok.example.test")
+        base = os.path.join(self.tmp, "base.tsv")
+        rc, out = self.lancer("--save", base)
+        self.assertEqual(rc, 0, out)
+        rc, out = self.lancer("--compare", base)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("changement", out)
+
+    def test_compare_regression_bloque(self):
+        self.app("tiki", "bad.example.test", "/wiki")
+        base = os.path.join(self.tmp, "base.tsv")
+        with open(base, "w", encoding="utf-8") as f:
+            f.write("bad.example.test\t/wiki\t200\n")
+        rc, out = self.lancer("--compare", base)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("régression", out)
+
+    def test_compare_changement_non_bloquant(self):
+        self.app("nextcloud", "ok.example.test")
+        base = os.path.join(self.tmp, "base.tsv")
+        with open(base, "w", encoding="utf-8") as f:
+            f.write("ok.example.test\t/\t404\n")
+        rc, out = self.lancer("--compare", base)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("changement", out)
+
     def test_option_inconnue(self):
         rc, out = self.lancer("--n-existe-pas")
         self.assertEqual(rc, 2)
