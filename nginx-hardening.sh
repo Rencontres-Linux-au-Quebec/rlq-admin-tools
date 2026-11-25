@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.125.20261122.092248"
+readonly SCRIPT_VERSION="2.127.20261125.173800"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -147,6 +147,7 @@ ARCHIVE_DIR="${NGINX_HARDENING_ARCHIVE_DIR:-/var/backups/nginx-hardening/archive
 BACKUP_KEEP="${NGINX_HARDENING_BACKUP_KEEP:-20}"
 read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fail2ban}"
 ROLLBACK=0
+REVERT_BASE=0                    # 2.126: --revert-base (retour à la configuration de base, journal apps/_journal.sh)
 ROLLBACK_BACKUP=""
 ROLLBACK_YES=0                 # --yes: no question for --rollback, --disable-uri, --enable-uri and (2.125) the steps 0f and 9b bis of --update
 DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 15 min)
@@ -239,6 +240,8 @@ fi
 # Address lists (white list and places): /etc/default/nginx-tools-*.conf, never shipped in the archives - common reader apps/_listes.sh.
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
+# Journal des fichiers installés (2.126) : base de --revert-base.
+[[ -r "$SCRIPT_DIR/apps/_journal.sh" ]] && . "$SCRIPT_DIR/apps/_journal.sh"
 
 ARGS_INITIAUX=("$@")   # options recues (2.61) : le menu (--menu) relance ce programme avec les memes options
 while [[ $# -gt 0 ]]; do
@@ -247,6 +250,7 @@ while [[ $# -gt 0 ]]; do
         --check) CHECK_ONLY=1; shift ;;   # behavior by default now - kept for explicit compatibility
         --update) CHECK_ONLY=0; shift ;;  # applique reellement les changements (anciennement le defaut)
         --backup) ROLLBACK_BACKUP="${2:-}"; shift 2 ;;
+        --revert-base) REVERT_BASE=1; shift ;;
         --rollback) ROLLBACK=1; shift ;;
         --disable-uri) DISABLE_URI_LIST+=("${2:-}"); shift 2 ;;
         --dns-refresh) DNS_RAFRAICHIR=1; shift ;;
@@ -338,6 +342,7 @@ Options (par ordre alphabétique) :
   --rename-to NAME             nouveau nom DNS public : nginx et certificat Let's Encrypt sont refaits pour ce nom (sans --rename-from, l'ancien nom est cherché dans nginx)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
+  --revert-base                retire les fichiers installés par ce programme (journal) et remet leurs copies ; sur YunoHost, relance « yunohost tools regen-conf nginx » ; confirmation, sauf --yes
   --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation
   --test-rules                 teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
   --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)
@@ -569,6 +574,58 @@ echo
 PASS=0
 FAIL=0
 WARN=0
+
+# --- Retour à la configuration de base (--revert-base) : fichiers du journal, puis YunoHost si présent (2.126) ---
+revert_base_executer() {
+    echo "--- Retour à la configuration de base (journal : ${JOURNAL_FICHIER:-aucun}) ---"
+    if ! declare -F journal_restaurer >/dev/null; then
+        echo "  [FAIL] apps/_journal.sh introuvable : retour à la configuration de base impossible."
+        exit 1
+    fi
+    if [[ "$EUID" != "0" ]]; then
+        echo "  [FAIL] Retour à la configuration de base : root requis (sudo $0 --revert-base)."
+        exit 1
+    fi
+    echo "Fichiers concernés :"
+    journal_restaurer --dry-run | sed 's/^/  /' || true
+    if [[ ! -e "$JOURNAL_FICHIER" ]]; then
+        echo "  [OK]   Aucun journal : rien à remettre en place."
+        exit 0
+    fi
+    if [[ "$ROLLBACK_YES" != "1" ]]; then
+        if [[ ! -t 0 ]]; then
+            echo "  [FAIL] Sans terminal : relancer avec --yes pour remettre la configuration de base."
+            exit 1
+        fi
+        local rep_revert=""
+        read -r -p "Remettre la configuration de base (fichiers ci-dessus) ? [o/N] " rep_revert || rep_revert=""
+        [[ "$rep_revert" =~ ^[oOyY]$ ]] || { echo "Annulé : aucune modification."; exit 0; }
+    fi
+    if ! journal_restaurer | sed 's/^/  /'; then
+        echo "  [FAIL] Restauration incomplète : le journal est conservé ; corriger puis relancer --revert-base."
+        exit 1
+    fi
+    if [[ -e "${APP_DETECT_ROOT:-}/etc/yunohost/current_host" ]]; then
+        if run yunohost tools regen-conf nginx; then
+            echo "  [OK]   YunoHost : configuration nginx régénérée (yunohost tools regen-conf nginx)."
+        else
+            echo "  [FAIL] YunoHost : regen-conf nginx a échoué ; le journal est conservé."
+            exit 1
+        fi
+    fi
+    if nginx -t >/dev/null 2>&1 && run systemctl reload nginx; then
+        echo "  [OK]   nginx : configuration valide et rechargée."
+    else
+        echo "  [FAIL] nginx -t refuse la configuration de base : vérifier avant tout autre changement."
+        exit 1
+    fi
+    if journal_archiver; then echo "  [OK]   Journal archivé (il n'est jamais supprimé)."; fi
+    exit 0
+}
+
+if [[ "$REVERT_BASE" == "1" ]]; then
+    revert_base_executer
+fi
 
 # --- Application derriere nginx : profil apps/<nom>.conf, detecte ou force (--app=NOM, ou variable APP_PROFILE) ------
 APPS_DIR="$SCRIPT_DIR/apps"
@@ -1127,8 +1184,13 @@ durcir_bbb() {
             warn "Jail nginx-blocked-probes absente — --update l'installera (bannit les clients qui accumulent les refus)."
         else
             mkdir -p /etc/fail2ban/filter.d /etc/fail2ban/jail.d
-            filtre_blocked_probes > /etc/fail2ban/filter.d/nginx-blocked-probes.conf
-            jail_blocked_probes > /etc/fail2ban/jail.d/nginx-blocked-probes.conf
+            # 2.127: consigné dans le journal avant l'écriture (--revert-base)
+            if journal_preparer /etc/fail2ban/filter.d/nginx-blocked-probes.conf && journal_preparer /etc/fail2ban/jail.d/nginx-blocked-probes.conf; then
+                filtre_blocked_probes > /etc/fail2ban/filter.d/nginx-blocked-probes.conf
+                jail_blocked_probes > /etc/fail2ban/jail.d/nginx-blocked-probes.conf
+            else
+                fail "Journal : fichiers nginx-blocked-probes non consignés ; aucune modification faite."
+            fi
             [[ -e /var/log/nginx/blocked-probes.log ]] || { touch /var/log/nginx/blocked-probes.log; chown --reference=/var/log/nginx /var/log/nginx/blocked-probes.log 2>/dev/null || true; }
             pass "Jail nginx-blocked-probes installée (5 refus en 10 min → banni 24 h)."
             NEED_FAIL2BAN_RESTART=1
@@ -1221,6 +1283,7 @@ verifier_ignoreip() {
             else
                 f2b_liste=$(tr ' ' '\n' <<< "127.0.0.1/8 ::1 $f2b_connues $f2b_equipe" | grep . | awk '!vu[$0]++' | tr '\n' ' ')
                 mkdir -p /etc/fail2ban/jail.d 2>/dev/null || true
+                journal_preparer /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local || warn "Journal : zz-nginx-hardening-ignoreip.local non consigné (--revert-base ne le retirera pas)."
                 printf '%s\n' "# Généré par nginx-hardening.sh : adresses de l'équipe (table \$is_trusted_ip de nginx) jamais bannies," \
                     "# plus les adresses déjà ignorées. Lu en dernier (jail.d/*.local) : complète jail.local sans le modifier." \
                     "[DEFAULT]" "ignoreip = ${f2b_liste% }" > /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local
@@ -2000,6 +2063,15 @@ else
                 gen_test=""
                 if gen_test=$(nginx -t 2>&1); then
                     pass "Configuration nginx générique installée (${#GEN_FAITS[@]} fichiers) ; nginx -t réussit."
+                    # 2.126: journal des fichiers installés, pour --revert-base (seulement après le succès de nginx -t)
+                    for item in "${GEN_FAITS[@]}"; do
+                        rel="${item#*:}"; dst="$GEN_DEST/$rel"
+                        if [[ "$item" == remplacer:* ]]; then
+                            journal_ajouter remplacer "$dst" "$dst.before-generic-$GEN_TS" || warn "Journal : $dst non consigné (--revert-base ne le retirera pas)."
+                        else
+                            journal_ajouter creer "$dst" "" || warn "Journal : $dst non consigné (--revert-base ne le retirera pas)."
+                        fi
+                    done
                     nginx_appliquer
                     echo "  nginx : $NGINX_APPLIQUE"
                 else
@@ -3482,6 +3554,7 @@ LR_DEPLACEES=0
 for lr_nom in nginx fail2ban; do
     lr_f="$LOGROTATE_DIR/$lr_nom"
     lr_copie="$LR_COPIES_DIR/$lr_nom.before-nginx-hardening"
+    [[ "$CHECK_ONLY" == "1" ]] || journal_preparer "$lr_f" || warn "Journal : $lr_f non consigné (--revert-base ne le restaurera pas)."
     for lr_ancienne in "$lr_f.avant-nginx-hardening" "$lr_f.before-nginx-hardening"; do
         [[ -e "$lr_ancienne" ]] || continue
         if [[ "$CHECK_ONLY" == "1" ]]; then
@@ -3615,6 +3688,7 @@ if [[ -n "$jr_actuel" ]]; then
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "Journal systemd${jr_ns:+ (namespace $jr_ns)} : $jr_actuel — --update passera à MaxRetentionSec=${LOG_RETENTION_MONTHS}month dans $jr_f."
     else
+        journal_preparer "$jr_f" || warn "Journal : $jr_f non consigné (--revert-base ne le restaurera pas)."
         sed -i -E "s/^[[:space:]]*MaxRetentionSec=.*/MaxRetentionSec=${LOG_RETENTION_MONTHS}month/" "$jr_f"
         if systemctl restart "$jr_unit" >/dev/null 2>&1; then
             pass "Journal systemd${jr_ns:+ (namespace $jr_ns)} : $jr_actuel → MaxRetentionSec=${LOG_RETENTION_MONTHS}month dans $jr_f, $jr_unit redémarré."
@@ -3625,6 +3699,7 @@ if [[ -n "$jr_actuel" ]]; then
 elif [[ "$CHECK_ONLY" == "1" ]]; then
     warn "Journal systemd${jr_ns:+ (namespace $jr_ns)} : aucune durée fixée (limité seulement par la taille) — --update ajoutera MaxRetentionSec=${LOG_RETENTION_MONTHS}month dans $jr_f."
 else
+    journal_preparer "$jr_f" || warn "Journal : $jr_f non consigné (--revert-base ne le restaurera pas)."
     mkdir -p "$(dirname "$jr_f")"
     if [[ -f "$jr_f" ]] && grep_q -E '^\[Journal\]' "$jr_f"; then
         sed -i -E "/^\\[Journal\\]/a MaxRetentionSec=${LOG_RETENTION_MONTHS}month" "$jr_f"
@@ -3649,6 +3724,7 @@ if [[ "$JOURNAL_PERSISTENT" == "1" && -z "$jr_ns" ]]; then
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "Journal systemd : non persistant (${jp_actuel:-Storage=auto} sans $jp_dir) — perdu à chaque redémarrage ; --update écrira Storage=persistent dans $jp_f."
     else
+        journal_preparer "$jp_f" || warn "Journal : $jp_f non consigné (--revert-base ne le restaurera pas)."
         mkdir -p "$(dirname "$jp_f")" "$jp_dir"
         printf '%s\n' "# Ajouté par nginx-hardening.sh 2.83 : journal gardé sur disque (raisons des arrêts d'Odoo après un redémarrage)." "[Journal]" "Storage=persistent" > "$jp_f"
         if run systemctl restart systemd-journald >/dev/null 2>&1; then

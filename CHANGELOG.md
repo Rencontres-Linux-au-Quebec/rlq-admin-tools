@@ -5024,6 +5024,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.127.20261125.173800 - --revert-base records fail2ban, logrotate and journald changes
+
+- Title: the files changed by the fail2ban, logrotate and journald steps are now recorded in the journal, so that --revert-base can put them back.
+- Reason: --revert-base of 2.126 only covered the generic configuration step. Without these steps, the base configuration could not be restored for the blocked-probes jail, the ignoreip file, the logrotate files of nginx and fail2ban, the journald retention and the journald persistence.
+- Changes: apps/_journal.sh: new function journal_preparer (copies the file to FILE.before-revert-DATE when it exists, then records it as remplacer; records creer otherwise; refused outside the allowed roots). nginx-hardening.sh: the writes of the nginx-blocked-probes filter and jail (both must be recorded, otherwise nothing is written), of zz-nginx-hardening-ignoreip.local, of logrotate nginx and fail2ban (apply only, not with --check), of the journald retention (two places) and of the journald persistence (apply only). nginx-tools-tests/test_journal_revert.py: 3 tests added (existing file copied and put back, missing file removed, outside the roots refused).
+- Bugs fixed: none.
+- Safeguards and edge cases: a file that cannot be recorded or copied is reported with a warning, and the change still happens: this is the one case where --revert-base cannot restore the file, and the warning says so. The blocked-probes files are only written when both records succeed.
+- Checks performed: test_journal_revert, test_yunohost_apps and test_profil_yunohost: 25 tests, all pass (1 skipped as root); bash -n on both programs.
+- Action required: before --revert-base on a server, read the list it prints. The journal is written only by --update, not by --check.
+
+### 2.126.20261125.172540 - --revert-base: back to the base configuration (YunoHost and others)
+
+- Title: new option --revert-base puts back the base configuration: it removes the files created by the tools and restores the copies of the files they replaced, then runs "yunohost tools regen-conf nginx" on YunoHost.
+- Reason: request of the administrator on 2026-11-25: the tools must be able to be disabled to return to the configuration of YunoHost (or of the server) as it was installed, without manual cleaning.
+- Changes: apps/_journal.sh (new library): journal_ajouter, journal_restaurer (with --dry-run), journal_archiver; the journal is /var/lib/nginx-tools/installed-files.tsv (NGINX_TOOLS_JOURNAL). nginx-hardening.sh: option --revert-base (confirmation, or --yes); function revert_base_executer, which runs before app detection so that it works without an application profile; the generic configuration step records each file it creates or replaces, only after nginx -t has succeeded. nginx-tools-tests/test_journal_revert.py (new): 8 tests in a temporary folder.
+- Bugs fixed: none.
+- Safeguards and edge cases: only files under NGINX_TOOLS_JOURNAL_ROOTS (default /etc/nginx, /etc/fail2ban, /etc/logrotate.d, /etc/systemd) are recorded or restored; a line outside these roots is refused and never touches the file; a created file is removed only by its own journal line; a missing backup copy is reported and the journal is kept; without a terminal and without --yes nothing is changed; the journal is archived, never deleted; if a restore fails, the journal is kept for a new attempt.
+- Limits: only the files written by the generic configuration step are recorded today. The other steps (journald, logrotate, fail2ban jails, Odoo and BBB steps) are not yet recorded, so --revert-base does not undo them. A YunoHost-specific write path (per-domain files under /etc/nginx/conf.d/<domain>.d) is not in this version.
+- Checks performed: test_journal_revert (8 tests, all pass); bash -n on nginx-hardening.sh; --help shows --revert-base in alphabetical order; --revert-base without a terminal and without --yes refuses and changes nothing.
+- Action required: before using --revert-base on a server, run it once without --yes to read the list of files, and keep a copy of /etc/nginx and /etc/fail2ban (the existing --rollback archives also do this).
+
 ### 2.125.20261122.092248 - --update --yes: steps 0f and 9b bis applied without a terminal
 
 - Motif de la demande: on 2026-11-21 at 22:11, host-perf-audit.py --guest-run ran nginx-hardening.sh --update in the guests without a terminal; on odoo18 and odoo-dev the steps 0f (generic nginx configuration 1.34, fix of /dev/null) and 9b bis (filter nginx-sqli) said "Pas de terminal : ... non modifié", so the fixes of the bans of 2026-11-21 stayed inactive. Request of the administrator: an option to apply them from Proxmox.
