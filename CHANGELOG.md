@@ -5022,6 +5022,19 @@ Earlier history was archived outside this repository when this file was created.
 - Verifications effectuees: nginx-tools-tests/test_nginx_uri.py lance par le testeur (voir le rapport de la PR).
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
+## yunohost-check.sh
+
+### 0.1.20261125.175600 - New functional tests of YunoHost applications (internal and external)
+
+- Title: new program yunohost-check.sh: tests each YunoHost application over HTTPS, from the server (internal) or from outside (external), and reports OK, SKIP or FAIL.
+- Reason: request of the administrator on 2026-11-25: after the changes on the YunoHost server, check that every application still answers, from inside and from outside, without depending on a manual list.
+- Changes: yunohost-check.sh (new): --list writes the applications (name, id, domain, path; no secret) to a TSV file; --internal (default) requests each application on 127.0.0.1 with its domain name; --external reads a TSV file (--targets, two or four columns) and requests each public name, and also checks the certificate expiry (CERT_ALERT_DAYS). Configuration: /etc/default/yunohost-check.conf then ~/.yunohost-check.conf (TIMEOUT, EXPECT_CODES, CERT_ALERT_DAYS). apps/_yunohost.py: command-line listing (main), read-only. nginx-tools-tests/test_yunohost_check.py (new): 9 tests with a fake curl and a fake openssl, a fake server in a temporary folder, example.test domains only.
+- Bugs fixed: none.
+- Safeguards and edge cases: read-only: no form is submitted, no login is attempted, no data is sent. A 5xx answer or no answer is a FAIL; an unexpected code is SKIP. A missing domain is SKIP, not ignored. A certificate that cannot be read is a FAIL. Ctrl+C asks for confirmation. Colours are off when the output is redirected or NO_COLOR is set.
+- Limits: --config-merge (required by the repository conventions for every program) is not implemented yet; the configuration file is read but not generated. No saved state yet to compare before and after a change (planned).
+- Checks performed: test_yunohost_check: 9 tests pass; bash -n on the script; --help options in alphabetical order.
+- Action required: run --list on the server, then --external from a machine outside the tailnet with that file. Check the results before and after each change to nginx.
+
 ## nginx-hardening.sh
 
 ### 2.125.20261122.092248 - --update --yes: steps 0f and 9b bis applied without a terminal
