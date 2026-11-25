@@ -100,6 +100,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.7.20261124.190500 - Read-only checks for the Odoo XSS advisory (CVE-2026-130029)
+
+- Reason for the request: Odoo published advisory ODOO-SA-2026-11-23 on 2026-11-23 (stored XSS in the HTML sanitizer, Odoo 20.0 and earlier, CVSS 7.1). The administrator asked to add the traces check to odoo-sql-maint: messages and chatter, Live Chat, HTML fields, persistence (admins, server actions, scheduled actions, API keys, views, parameters).
+- Changes:
+  - New read-only query xss-content (variables XSS_CONTENT_SQL): a DO block counts the messages whose body matches `<script`, `onerror=` or `javascript:` (mail_message.body, grouped by model), the Live Chat channels with a suspicious name or description (discuss_channel from 17.0, mail_channel up to 16.0, skipped when the table does not exist) and every stored HTML field of ir_model_fields (the column is read as text, so jsonb works too). Then the matching messages are listed (100 most recent).
+  - New read-only query xss-persistence (variable XSS_PERSISTENCE_SQL): users created in the last 90 days, members of the group base.group_system with their last write, server actions and scheduled actions created or modified in the last 90 days, the 200 most recent API keys, views created or modified in the last 90 days or whose arch_db matches the pattern, and the list of system parameters with the length of their values only.
+  - QUERY_NAMES, Q_SQL, Q_DESC_EN and Q_DESC_FR updated for both queries; neither is destructive, so neither asks for --yes.
+  - Files: odoo-sql-maint.
+- Bugs fixed: none (new queries).
+- Safeguards and edge cases:
+  - Both queries only read: they run inside the usual transaction, rolled back with --dry-run.
+  - The version-dependent tables (discuss_channel, mail_channel) are tested with to_regclass before they are read; a missing table is skipped, not an error.
+  - The HTML fields are read with CAST(... AS text), so the translatable fields stored as jsonb in Odoo 16.0 and later are searched too.
+  - The 90-day window is written in the SQL (not an option). Change it in the SQL if the attack window is wider.
+  - Known false positives: a view (ir_ui_view) may legitimately contain a script tag (website or QWeb templates); the view query therefore only lists the views, the administrator decides. Odoo's own messages may contain a javascript: link without any attack; read the rows before acting.
+  - The pattern covers only the database. The log checks (%3Cscript, onerror and javascript: in the URLs and POST bodies of /mail/, /discuss/ and /web/) are not part of this version: they belong to the nginx tools, not to this program.
+  - The match on the content of the messages is a text match, not a proof: a positive result is a reason to look, not a conclusion.
+- Checks performed:
+  - bash -n; --version; --list shows the two new queries.
+  - Throwaway PostgreSQL 16 cluster with a minimal Odoo-like schema (mail_message, ir_model_fields, res_partner, discuss_channel, res_users, res_groups_users_rel, ir_act_server, ir_cron, res_users_apikeys, ir_ui_view, ir_config_parameter), run with --run xss-content --dry-run and --run xss-persistence --dry-run: the expected injections were found (chatter messages with onerror= and javascript:, a res.partner.comment field with script), the admin account was listed, the parameter values were masked, and both queries ended with code 0.
+  - Not run against a real Odoo 20.0 database (not available in this session): the table and column names follow the Odoo models used by the program and must be checked on a copy of PROD before the first real run.
+- Action required: on a copy of the database, as the user that owns it: odoo-sql-maint --database NAME --dry-run --run xss-content, then --run xss-persistence, and read the rows before any cleanup. No cleanup is made by this version.
+
 ### 1.6.20261120.095040 - Tables used by no Odoo model, export then drop, backups made inside Odoo
 
 - Reason for the request: export of odoo18, 2026-11-20: table backup_page_history_steps of 1134 MB (229 rows) in a database of 1526 MB, used by no module and copied by every backup; the administrator keeps odoo-backup.sh alone for the backups, the modules auto_backup (OCA) and auto_database_backup (Cybrosys) copied the database again every day.

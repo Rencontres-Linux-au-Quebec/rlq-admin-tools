@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.6.20261120.095040"
+__version__="1.7.20261124.190500"
 
 set -u
 set -o pipefail
@@ -168,7 +168,7 @@ t() {  # t KEY [printf-args...]
 # ---------- query catalog (add new queries here) ----------
 # Each query needs: an entry in QUERY_NAMES, Q_SQL, Q_DESC_EN, Q_DESC_FR,
 # and Q_DESTRUCTIVE=1 if it deletes or changes data.
-QUERY_NAMES=(connection-test vapid-status push-count push-purge vapid-neutralize orphan-tables backup-crons backup-crons-disable backup-crons-enable)
+QUERY_NAMES=(connection-test vapid-status push-count push-purge vapid-neutralize orphan-tables backup-crons backup-crons-disable backup-crons-enable xss-content xss-persistence)
 declare -A Q_SQL Q_DESC_EN Q_DESC_FR Q_DESTRUCTIVE
 
 Q_SQL[connection-test]="SELECT version();"
@@ -220,6 +220,107 @@ Q_SQL[backup-crons-enable]="UPDATE ir_cron SET active = true WHERE id IN (${BACK
 Q_DESC_EN[backup-crons-enable]="Enable again the backups made inside Odoo"
 Q_DESC_FR[backup-crons-enable]="Reactiver les sauvegardes faites dans Odoo"
 Q_DESTRUCTIVE[backup-crons-enable]=1
+
+# 1.7: read-only checks after the Odoo XSS advisory of 2026-11-23 (CVE-2026-130029, Odoo 20.0 and earlier).
+# xss-content: suspicious HTML (<script, onerror=, javascript:) in the messages and chatter (mail_message.body), in the Live Chat
+# (discuss_channel from 17.0, mail_channel up to 16.0) and in every stored HTML field of Odoo. The tables of the versions that do not
+# exist are skipped, so the same query runs on any version. Notices give the counts, the rows give the messages.
+# The pattern is written in the query: the grep of the logs (nginx, Odoo) is not part of this program.
+XSS_CONTENT_SQL="$(cat <<'SQL'
+DO $$
+DECLARE
+  r record;
+  n bigint;
+  total bigint := 0;
+  pat constant text := '<\s*script|onerror\s*=|javascript\s*[:]';
+BEGIN
+  FOR r IN EXECUTE 'SELECT model, count(*) AS n FROM mail_message WHERE body ~* $1 GROUP BY model ORDER BY n DESC' USING pat LOOP
+    RAISE NOTICE 'mail_message, model "%": % suspicious message(s)', r.model, r.n;
+    total := total + r.n;
+  END LOOP;
+  IF to_regclass('public.discuss_channel') IS NOT NULL THEN
+    EXECUTE 'SELECT count(*) FROM discuss_channel WHERE name::text ~* $1 OR description::text ~* $1' INTO n USING pat;
+    RAISE NOTICE 'Live Chat, discuss_channel (17.0 and later): % channel(s) with a suspicious name or description', n;
+    total := total + n;
+  END IF;
+  IF to_regclass('public.mail_channel') IS NOT NULL THEN
+    EXECUTE 'SELECT count(*) FROM mail_channel WHERE name::text ~* $1 OR description::text ~* $1' INTO n USING pat;
+    RAISE NOTICE 'Live Chat, mail_channel (16.0 and earlier): % channel(s) with a suspicious name or description', n;
+    total := total + n;
+  END IF;
+  FOR r IN SELECT m.model AS model_name, f.name AS field_name, replace(m.model, '.', '_') AS table_name
+           FROM ir_model_fields f JOIN ir_model m ON m.id = f.model_id
+           WHERE f.ttype = 'html' AND f.store LOOP
+    IF to_regclass(format('public.%I', r.table_name)) IS NOT NULL
+       AND EXISTS (SELECT 1 FROM information_schema.columns c
+                   WHERE c.table_schema = 'public' AND c.table_name = r.table_name AND c.column_name = r.field_name) THEN
+      EXECUTE format('SELECT count(*) FROM %I WHERE CAST(%I AS text) ~* $1', r.table_name, r.field_name) INTO n USING pat;
+      IF n > 0 THEN
+        RAISE NOTICE 'HTML field %.%: % record(s) with a suspicious pattern', r.model_name, r.field_name, n;
+        total := total + n;
+      END IF;
+    END IF;
+  END LOOP;
+  IF total = 0 THEN
+    RAISE NOTICE 'Messages, Live Chat and HTML fields: no suspicious pattern found';
+  ELSE
+    RAISE NOTICE 'Messages, Live Chat and HTML fields: % suspicious item(s) in total (the rows below list the messages only)', total;
+  END IF;
+END $$;
+SELECT id, model, res_id, author_id, create_date,
+       left(regexp_replace(body, '\s+', ' ', 'g'), 160) AS extract
+FROM mail_message
+WHERE body ~* '<\s*script|onerror\s*=|javascript\s*[:]'
+ORDER BY create_date DESC
+LIMIT 100;
+SQL
+)"
+Q_SQL[xss-content]="${XSS_CONTENT_SQL}"
+Q_DESC_EN[xss-content]="Search messages, chatter, Live Chat and HTML fields for XSS patterns (<script, onerror=, javascript:)"
+Q_DESC_FR[xss-content]="Chercher les motifs XSS (<script, onerror=, javascript:) dans les messages, le chatter, le Live Chat et les champs HTML"
+
+# xss-persistence: what an attacker leaves behind to come back: administrators, server actions, scheduled actions, API keys, views,
+# system parameters. Window of 90 days in the SQL below (change the interval here). The values of the parameters are masked (length only).
+XSS_PERSISTENCE_SQL="$(cat <<'SQL'
+SELECT u.id, u.login, u.active, u.create_date, u.write_date
+FROM res_users u
+WHERE u.create_date > now() - interval '90 days'
+ORDER BY u.create_date DESC;
+SELECT u.id, u.login, u.active, u.write_date
+FROM res_users u
+JOIN res_groups_users_rel r ON r.uid = u.id
+JOIN ir_model_data d ON d.res_id = r.gid AND d.model = 'res.groups' AND d.module = 'base' AND d.name = 'group_system'
+ORDER BY u.write_date DESC;
+SELECT id, name, state, create_date, write_date,
+       left(regexp_replace(code, '\s+', ' ', 'g'), 160) AS code_start
+FROM ir_act_server
+WHERE create_date > now() - interval '90 days' OR write_date > now() - interval '90 days'
+ORDER BY write_date DESC
+LIMIT 200;
+SELECT id, cron_name::text AS cron_name, active, user_id, interval_number, interval_type, nextcall, create_date, write_date
+FROM ir_cron
+WHERE create_date > now() - interval '90 days' OR write_date > now() - interval '90 days'
+ORDER BY write_date DESC
+LIMIT 200;
+SELECT id, name, user_id, create_date, expiration_date
+FROM res_users_apikeys
+ORDER BY create_date DESC
+LIMIT 200;
+SELECT id, name, model, type, active, create_date, write_date
+FROM ir_ui_view
+WHERE create_date > now() - interval '90 days'
+   OR write_date > now() - interval '90 days'
+   OR CAST(arch_db AS text) ~* '<\s*script|onerror\s*=|javascript\s*[:]'
+ORDER BY write_date DESC
+LIMIT 200;
+SELECT key, length(value) AS length
+FROM ir_config_parameter
+ORDER BY key;
+SQL
+)"
+Q_SQL[xss-persistence]="${XSS_PERSISTENCE_SQL}"
+Q_DESC_EN[xss-persistence]="Look for traces left by an XSS: admins, server actions, scheduled actions, API keys, views, parameters (last 90 days)"
+Q_DESC_FR[xss-persistence]="Chercher les traces laissees par un XSS : admins, actions serveur, taches planifiees, cles API, vues, parametres (90 derniers jours)"
 
 # ---------- helpers ----------
 cleanup_temp() {
