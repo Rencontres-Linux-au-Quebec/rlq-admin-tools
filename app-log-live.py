@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.209.20261123.081004"
+__version__ = "1.210.20261124.212059"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2523,7 +2523,7 @@ class Formatting:
             position = cut_end
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code), local_request(text))   # 1.144: the sitemap tag of a 404 goes at the END of the line
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code), local_text_request(text))   # 1.144: the sitemap tag of a 404 goes at the END of the line
         head = before + block + "   " + rl_column + os_column + " " + request_data
         stop = NGINX_TAB_STOP - display_width(head) % NGINX_TAB_STOP          # 1.183: a tab before the referer: spaces up to the next tab stop (1 to 8)
         return head + " " * stop + tail.lstrip(" ") + tag
@@ -2571,7 +2571,7 @@ class Formatting:
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
         rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code), local_request(text))   # 1.144: the sitemap tag of a 404 Odoo line, at the end too
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]), self.preview_of(code), local_text_request(text))   # 1.144: the sitemap tag of a 404 Odoo line, at the end too
         return before + block + "   " + rl_blank + OS_BLANK + " " + request_data + tag          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
@@ -3495,14 +3495,6 @@ def size_text(value):
         if round(v) < 1000:
             return f"{round(v)}{unit}"
     return f"{min(n // 1000000000, 999)}G"
-
-
-def terminal_columns():
-    """1.137: width of the terminal in columns ($COLUMNS first, then the terminal itself; 100 when unknown)."""
-    try:
-        return max(40, shutil.get_terminal_size((100, 24)).columns)
-    except (OSError, ValueError):
-        return 100
 
 
 def terminal_rows():
@@ -5205,7 +5197,7 @@ def browser_404(text, url):
     return bool(same) and same.group(1).lower() == same.group(2).lower()
 
 
-def local_request(text):
+def local_text_request(text):
     """1.207: True when the client address of the line is this server itself (loopback: 127.0.0.1, ::1). Same rule as the pages asked by this server
     (1.181): with Odoo behind nginx in proxy mode and nginx in front, a visitor never has a loopback address."""
     ips = find_ips(text)
@@ -5216,7 +5208,7 @@ def local_test(text, url, code):
     """1.207: a 4xx answer to a request of this server itself that is not a security probe (local_probe): a check by hand with curl, a test of a
     configuration (2026-11-22 11:22:44: /rlq/session/check 401, then the example URLs of the tests of the repository, each 303 then 404). Expected:
     neither a 4xx error, nor a 404 to look for, nor a problem address."""
-    return 400 <= int(code) < 500 and local_request(text) and not suspect_url(url)
+    return 400 <= int(code) < 500 and local_text_request(text) and not suspect_url(url)
 
 
 def local_probe(text, url):
@@ -7030,7 +7022,7 @@ class StatusBar:
             code = int(request.group(2))
             if 400 <= code < 500 and is_bot_403(L):
                 self.bots403 += 1                                               # 1.130: policy, not an error: no health penalty, no problem address
-            elif 400 <= code < 500 and local_request(L.text or ""):
+            elif 400 <= code < 500 and local_text_request(L.text or ""):
                 pass                                                            # 1.173: security test of this server (app-health-check.py): blocked on purpose, no penalty;
                                                                                 # 1.207: any 4xx asked by this server itself (curl, test by hand)
             elif 400 <= code < 500:
