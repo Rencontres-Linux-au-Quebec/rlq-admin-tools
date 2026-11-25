@@ -3332,3 +3332,6 @@ msgstr ") : bans go through nginx-log-audit.sh --ban."
 
 msgid "Jail nginx-badrequests : bannissement direct (sans la porte de nginx-log-audit.sh). Remplacer « action » par « nginx-gate-ban[name=nginx-badrequests] » dans sa définition, puis recharger fail2ban."
 msgstr "Jail nginx-badrequests: direct ban (without the nginx-log-audit.sh gate). Replace \"action\" by \"nginx-gate-ban[name=nginx-badrequests]\" in its definition, then reload fail2ban."
+
+msgid " différent de la version livrée (bannissement direct ?) — --update le migrera vers la porte nginx-log-audit.sh."
+msgstr " differs from the delivered version (direct ban?) — --update will migrate it to the nginx-log-audit.sh gate."
