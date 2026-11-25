@@ -33,6 +33,7 @@
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --remove-timer               disable and remove the systemd timer (root)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
+#   -v, --verbose                show each step and each command run in the guests (their address, exit codes)
 #   --version                    show the version and exit
 #
 # Configuration (/etc/default/collect-all-advise.conf, then ~/.collect-all-advise.conf if it exists; the last one wins;
@@ -54,7 +55,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.8.20261123.160500"
+readonly SCRIPT_VERSION="1.9.20261124.210233"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -95,6 +96,12 @@ LANGUE="fr"
 # t FRENCH ENGLISH: the message in the language chosen (--lang, LANGUAGE, then the locale).
 t() {
     if [[ "$LANGUE" == "en" ]]; then printf '%s' "$2"; else printf '%s' "$1"; fi
+}
+
+# trace TEXT: with --verbose, one line on the standard error (the steps of the run; the output of the guests is in the files)
+VERBOSE=0
+trace() {
+    if (( VERBOSE == 1 )); then printf '%s\n' "  [trace] $*" >&2; fi
 }
 
 # oui_non VALUE: 1 for yes / oui / true / 1 / on, 0 otherwise.
@@ -281,6 +288,7 @@ aide() {
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
 --remove-timer               supprime le minuteur systemd (root) / remove the systemd timer (root)
 --ssh-user USER              compte des VM (sudo sans mot de passe) / account of the VMs (sudo without a password)
+-v, --verbose                affiche chaque étape et chaque commande lancée dans les invités / show each step and each command run in the guests
 --version                    affiche la version et quitte / show the version and exit
 EOF
     echo
@@ -441,14 +449,20 @@ desinstaller_minuteur() {
 }
 
 collecter_lxc() {
-    local vmid="$1" name="$2" dossier="$3" rapport sortie
+    local vmid="$1" name="$2" dossier="$3" rapport sortie rc=0
     rapport="/tmp/$SCRIPT_NAME-$STAMP-$vmid.md"
     sortie="$dossier/advise-$STAMP.txt"
     mkdir -p "$dossier"
     pct exec "$vmid" -- rm -f "$rapport" >/dev/null 2>&1 || true
-    if pct exec "$vmid" -- env "APP_LOG_LIVE_LANG=$LANGUE" "$PROGRAM" --advise --days "$DAYS" --export-ai "$rapport" "$ANONYMIZE_OPT" \
-           --no-follow --no-keys >"$sortie" 2>&1 </dev/null \
-       && pct pull "$vmid" "$rapport" "$dossier/export-ai-$STAMP.md" </dev/null; then
+    trace "LXC $vmid $name : pct exec $vmid -- $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys"
+    pct exec "$vmid" -- env "APP_LOG_LIVE_LANG=$LANGUE" "$PROGRAM" --advise --days "$DAYS" --export-ai "$rapport" "$ANONYMIZE_OPT" \
+           --no-follow --no-keys >"$sortie" 2>&1 </dev/null || rc=$?
+    trace "LXC $vmid $name : $(t "code de retour $rc (sortie : $sortie)" "exit code $rc (output: $sortie)")"
+    if (( rc == 0 )); then
+        pct pull "$vmid" "$rapport" "$dossier/export-ai-$STAMP.md" </dev/null || rc=$?
+        trace "LXC $vmid $name : $(t "copie du rapport, code de retour $rc" "report copy, exit code $rc")"
+    fi
+    if (( rc == 0 )); then
         printf '%s\n' "[OK] LXC $vmid $name -> $dossier/export-ai-$STAMP.md"
         SECU_CIBLES+=("lxc $vmid - $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
@@ -465,22 +479,26 @@ collecter_lxc() {
 adresse_vm() {
     local vmid="$1" name="$2" ip=""
     if [[ -n "${CFG[VM_HOST_$vmid]:-}" ]]; then
+        trace "VM $vmid $name : $(t "adresse ${CFG[VM_HOST_$vmid]} (VM_HOST_$vmid de la configuration)" "address ${CFG[VM_HOST_$vmid]} (VM_HOST_$vmid of the configuration)")"
         echo "${CFG[VM_HOST_$vmid]}"
         return 0
     fi
     if command -v qm >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
         ip="$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | python3 -c "$PY_IPV4" 2>/dev/null || true)"
+        [[ -z "$ip" ]] || trace "VM $vmid $name : $(t "adresse $ip (agent invité)" "address $ip (guest agent)")"
     fi
     if [[ -z "$ip" ]] && command -v getent >/dev/null 2>&1; then
         ip="$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+        [[ -z "$ip" ]] || trace "VM $vmid $name : $(t "adresse $ip (DNS de $name)" "address $ip (DNS of $name)")"
     fi
+    [[ -n "$ip" ]] || trace "VM $vmid $name : $(t "aucune adresse (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS)" "no address (no VM_HOST_$vmid, no guest agent, no DNS)")"
     echo "$ip"
 }
 
 # collecter_vm VMID NAME DIR: same through ssh; the report is read back on standard output.
 collecter_vm() {
     local vmid="$1" name="$2" dossier="$3" adresse rapport="/tmp/$SCRIPT_NAME-$STAMP-$1.md"
-    local cible sortie
+    local cible sortie rc=0
     adresse="$(adresse_vm "$vmid" "$name")"
     cible="$SSH_USER@$adresse"
     if [[ -z "$adresse" ]]; then
@@ -490,9 +508,15 @@ collecter_vm() {
     fi
     mkdir -p "$dossier"
     sortie="$dossier/advise-$STAMP.txt"
-    if ssh -o BatchMode=yes "$cible" "sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" \
-           >"$sortie" 2>&1 </dev/null \
-       && ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md" </dev/null; then
+    trace "VM $vmid $name : ssh -o BatchMode=yes $cible \"sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys\""
+    ssh -o BatchMode=yes "$cible" "sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" \
+        >"$sortie" 2>&1 </dev/null || rc=$?
+    trace "VM $vmid $name : $(t "code de retour $rc (sortie : $sortie)" "exit code $rc (output: $sortie)")"
+    if (( rc == 0 )); then
+        ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md" </dev/null || rc=$?
+        trace "VM $vmid $name : $(t "lecture du rapport, code de retour $rc" "report read, exit code $rc")"
+    fi
+    if (( rc == 0 )); then
         printf '%s\n' "[OK] VM $vmid $name ($adresse) -> $dossier/export-ai-$STAMP.md"
         SECU_CIBLES+=("vm $vmid $adresse $name")
         RAPPORTS_OK=$((RAPPORTS_OK + 1))
@@ -591,6 +615,7 @@ while [[ $# -gt 0 ]]; do
             if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --ssh-user : utilisateur attendu" "option --ssh-user: user expected")" >&2; exit 2; fi
             SSH_USER="$2"; shift 2 ;;
         --ssh-user=*) SSH_USER="${1#--ssh-user=}"; shift ;;
+        -v|--verbose) VERBOSE=1; shift ;;
         --version) DO_VERSION=1; shift ;;
         *)
             printf '%s\n' "$(t "Option inconnue : " "Unknown option: ")$1" >&2
@@ -657,7 +682,7 @@ LXC_VUS=0; LXC_RETENUS=0
 if command -v pct >/dev/null 2>&1; then
     while read -r vmid status name <&3; do
         LXC_VUS=$((LXC_VUS + 1))
-        [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || continue
+        [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || { trace "LXC $vmid $name : $(t "ignorée (état $status, ou nom hors de $NAME_RE)" "skipped (status $status, or name outside $NAME_RE)")"; continue; }
         LXC_RETENUS=$((LXC_RETENUS + 1))
         collecter_lxc "$vmid" "$name" "$RUN/lxc-$vmid-$name"
     done 3< <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
@@ -671,7 +696,7 @@ VM_VUES=0; VM_RETENUES=0
 if command -v qm >/dev/null 2>&1; then
     while read -r vmid status name <&3; do
         VM_VUES=$((VM_VUES + 1))
-        [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || continue
+        [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || { trace "VM $vmid $name : $(t "ignorée (état $status, ou nom hors de $NAME_RE)" "skipped (status $status, or name outside $NAME_RE)")"; continue; }
         VM_RETENUES=$((VM_RETENUES + 1))
         collecter_vm "$vmid" "$name" "$RUN/vm-$vmid-$name"
     done 3< <(qm list | awk 'NR > 1 {print $1, $3, $2}')

@@ -235,6 +235,20 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("No such file", r.stdout)                      # the reason of the failure is shown, not only the path
 
+    def test_verbose_montre_les_etapes(self):
+        """1.9 --verbose: each guest (selected or skipped), its address and the exit code of each step on the standard error; none without it."""
+        r = self.lancer("--days", "2", "--dest", self.dest, "--verbose", config="VM_HOST_201=10.0.0.21\n")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        trace = re.sub(r"\x1b\[[0-9;]*m", "", r.stderr)
+        self.assertIn("[trace] LXC 101 bbb-lxc1 : pct exec 101", trace)
+        self.assertIn("[trace] LXC 101 bbb-lxc1 : code de retour 0", trace)
+        self.assertIn("[trace] LXC 102 bbb-lxc2 : ignorée (état stopped", trace)
+        self.assertIn("[trace] VM 201 bbb-vm1 : adresse 10.0.0.21 (VM_HOST_201 de la configuration)", trace)
+        self.assertIn("[trace] VM 201 bbb-vm1 : ssh -o BatchMode=yes root@10.0.0.21", trace)
+        self.assertNotIn("[trace]", r.stdout)
+        r = self.lancer("--days", "2", "--dest", self.dest, config="VM_HOST_201=10.0.0.21\n")
+        self.assertNotIn("[trace]", r.stdout + r.stderr)
+
     def test_minuteur_installe_en_root_refuse_sinon(self):
         dossier_systemd = os.path.join(self.d, "systemd")
         journal = os.path.join(self.d, "systemctl.log")
