@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.127.20261125.173800"
+readonly SCRIPT_VERSION="2.128.20261125.184722"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1139,7 +1139,8 @@ EOF
 jail_blocked_probes() {
     cat <<'EOF'
 # Jail : un client qui accumule les refus des règles de sécurité (scanner de fichiers sensibles, de failles connues)
-# est banni. Ces refus étaient invisibles de fail2ban (access_log off) jusqu'au journal dédié blocked-probes.log.
+# est repéré. Le bannissement passe par la porte de nginx-log-audit.sh (action nginx-gate-ban), jamais directement :
+# sans score >= 3, sans liste blanche et sans contrôle CDN, aucune adresse n'est bannie (2.128).
 [nginx-blocked-probes]
 enabled  = true
 port     = http,https
@@ -1148,7 +1149,37 @@ logpath  = /var/log/nginx/blocked-probes.log
 maxretry = 5
 findtime = 600
 bantime  = 86400
-action   = iptables-multiport[name=nginx-blocked-probes, port="http,https", protocol=tcp]
+action   = nginx-gate-ban[name=nginx-blocked-probes]
+EOF
+}
+# Action fail2ban : chaque bannissement demandé par une jail est confié à nginx-log-audit.sh --ban, qui refuse sans preuve
+# (enquête, score >= 3, liste blanche, relais CDN). La durée est celle de la jail (24 h), pas celle par origine (365 j).
+# Chemin du programme = dossier de nginx-hardening.sh au moment de l'installation (--update).
+action_nginx_gate_ban() {
+    local gate ban mode
+    gate="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/nginx-log-audit.sh"
+    # Règle du projet : les notifications courriel (SMTP_HOST et NOTIFY_EMAIL_TO, /etc/default/app-health-check.conf) doivent
+    # être configurées AVANT tout bannissement automatique. Sans elles, l'action ne fait que journaliser (aucun blocage).
+    if grep -qE '^[[:space:]]*SMTP_HOST[[:space:]]*=[[:space:]]*[^[:space:]]' /etc/default/app-health-check.conf 2>/dev/null \
+       && grep -qE '^[[:space:]]*NOTIFY_EMAIL_TO[[:space:]]*=[[:space:]]*[^[:space:]]' /etc/default/app-health-check.conf 2>/dev/null; then
+        ban="actionban = \"$gate\" --ban <ip> --yes --no-prompt --ban-days 1 --reason \"fail2ban <name>\""
+        mode="bannissement possible, après la porte de nginx-log-audit.sh"
+    else
+        ban="actionban = logger -t nginx-gate-ban \"<name> : <ip> à bannir (notifications courriel non configurées : aucun blocage, voir nginx-hardening.sh)\""
+        mode="notifications courriel non configurées : journal seulement, aucun blocage"
+    fi
+    cat <<EOF
+# Action fail2ban : un bannissement passe par la porte de nginx-log-audit.sh (score >= 3, liste blanche, CDN).
+# Mode actuel : $mode.
+# Généré par nginx-hardening.sh (--update) : ne pas modifier à la main.
+[Definition]
+actionstart =
+actionstop =
+actioncheck =
+$ban
+actionunban =
+
+[Init]
 EOF
 }
 durcir_bbb() {
@@ -1177,22 +1208,26 @@ durcir_bbb() {
     fi
     # Jail nginx-blocked-probes (files written here: the nginx-odoo configuration is not deployed on BBB).
     if command -v fail2ban-client >/dev/null 2>&1; then
-        if [[ -f /etc/fail2ban/jail.d/nginx-blocked-probes.conf && -f /etc/fail2ban/filter.d/nginx-blocked-probes.conf ]]; then
-            pass "Jail nginx-blocked-probes : fichiers présents."
+        # 2.128: the jail and the gate action are rewritten when their content differs (servers installed before 2.128 are migrated).
+        if [[ -f /etc/fail2ban/filter.d/nginx-blocked-probes.conf && -f /etc/fail2ban/action.d/nginx-gate-ban.conf \
+              && "$(cat /etc/fail2ban/jail.d/nginx-blocked-probes.conf 2>/dev/null)" == "$(jail_blocked_probes)" ]]; then
+            pass "Jail nginx-blocked-probes à jour : les bannissements passent par la porte de nginx-log-audit.sh."
             F2B_INSTALLED_JAILS+=(nginx-blocked-probes)
         elif [[ "$CHECK_ONLY" == "1" ]]; then
-            warn "Jail nginx-blocked-probes absente — --update l'installera (bannit les clients qui accumulent les refus)."
+            warn "Jail nginx-blocked-probes absente ou ancienne (bannissement direct) — --update la migrera vers la porte nginx-log-audit.sh."
         else
-            mkdir -p /etc/fail2ban/filter.d /etc/fail2ban/jail.d
-            # 2.127: consigné dans le journal avant l'écriture (--revert-base)
-            if journal_preparer /etc/fail2ban/filter.d/nginx-blocked-probes.conf && journal_preparer /etc/fail2ban/jail.d/nginx-blocked-probes.conf; then
+            mkdir -p /etc/fail2ban/filter.d /etc/fail2ban/jail.d /etc/fail2ban/action.d
+            # 2.127: consigné dans le journal avant l'écriture (--revert-base) ; 2.128: l'action nginx-gate-ban aussi
+            if journal_preparer /etc/fail2ban/filter.d/nginx-blocked-probes.conf && journal_preparer /etc/fail2ban/action.d/nginx-gate-ban.conf \
+               && journal_preparer /etc/fail2ban/jail.d/nginx-blocked-probes.conf; then
                 filtre_blocked_probes > /etc/fail2ban/filter.d/nginx-blocked-probes.conf
+                action_nginx_gate_ban > /etc/fail2ban/action.d/nginx-gate-ban.conf
                 jail_blocked_probes > /etc/fail2ban/jail.d/nginx-blocked-probes.conf
             else
                 fail "Journal : fichiers nginx-blocked-probes non consignés ; aucune modification faite."
             fi
             [[ -e /var/log/nginx/blocked-probes.log ]] || { touch /var/log/nginx/blocked-probes.log; chown --reference=/var/log/nginx /var/log/nginx/blocked-probes.log 2>/dev/null || true; }
-            pass "Jail nginx-blocked-probes installée (5 refus en 10 min → banni 24 h)."
+            pass "Jail nginx-blocked-probes installée (5 refus en 10 min : bannissement 24 h seulement si nginx-log-audit.sh le confirme)."
             NEED_FAIL2BAN_RESTART=1
             F2B_INSTALLED_JAILS+=(nginx-blocked-probes)
         fi
@@ -3094,13 +3129,31 @@ if ! command -v fail2ban-client >/dev/null 2>&1; then
 else
     # --- 9a) jails with files copied as they are: nginx-catchall (catch-all sensor), nginx-blocked-probes (refusals
     # of the security rules, dedicated log blocked-probes.log) ---
+    # 2.128: the gate action (nginx-gate-ban) is written first: a jail whose action is nginx-gate-ban needs it.
+    # Written from this script's folder (the path of nginx-log-audit.sh); rewritten when its content differs.
+    F2B_ACTION_FILE="/etc/fail2ban/action.d/nginx-gate-ban.conf"
+    if [[ "$CHECK_ONLY" != "1" ]]; then
+        if [[ "$(cat "$F2B_ACTION_FILE" 2>/dev/null)" != "$(action_nginx_gate_ban)" ]]; then
+            mkdir -p /etc/fail2ban/action.d 2>/dev/null || true
+            # 2.128: consigné dans le journal avant l'écriture (--revert-base), comme les autres fichiers fail2ban
+            if journal_preparer "$F2B_ACTION_FILE" && action_nginx_gate_ban > "$F2B_ACTION_FILE.tmp" && mv -f "$F2B_ACTION_FILE.tmp" "$F2B_ACTION_FILE"; then
+                pass "Action fail2ban nginx-gate-ban installée ($F2B_ACTION_FILE) : les bannissements passent par nginx-log-audit.sh --ban."
+                NEED_FAIL2BAN_RESTART=1
+            else
+                warn "Impossible d'écrire $F2B_ACTION_FILE (permissions ?) — les jails qui l'utilisent ne se chargeront pas."
+            fi
+        fi
+    fi
+    # 2.128: a jail file that differs from the source (a server installed before 2.128) is replaced by the source.
     installer_jail_copie() {
         local nom="$1" pourquoi="$2" filtre="/etc/fail2ban/filter.d/$1.conf" jail="/etc/fail2ban/jail.d/$1.conf"
-        if [[ -f "$filtre" && -f "$jail" ]]; then
+        if [[ -f "$filtre" && -f "$jail" ]] \
+           && { [[ -z "$F2B_SRC_DIR" || ! -r "$F2B_SRC_DIR/$nom.jail.conf" ]] || cmp -s "$F2B_SRC_DIR/$nom.jail.conf" "$jail"; }; then
             pass "Jail $nom : fichiers présents ($jail)."
             F2B_INSTALLED_JAILS+=("$nom")
         elif [[ "$CHECK_ONLY" == "1" ]]; then
-            fail "Jail $nom absent — $pourquoi (relancer avec --update pour l'installer)."
+            if [[ -f "$jail" ]]; then warn "Jail $nom différent de la version livrée (bannissement direct ?) — --update le migrera vers la porte nginx-log-audit.sh."
+            else fail "Jail $nom absent — $pourquoi (relancer avec --update pour l'installer)."; fi
         elif [[ -z "$F2B_SRC_DIR" || ! -r "$F2B_SRC_DIR/$nom.jail.conf" ]]; then
             warn "Fichiers source de $nom introuvables (cherché dans /etc/nginx/fail2ban/ et $SCRIPT_DIR/fail2ban/) — copiez le dossier fail2ban/ du zip vers /etc/nginx/fail2ban/."
         else
@@ -3400,6 +3453,14 @@ f2b_static404_local() {   # $1 filter .conf of the jail: content of the .local f
     fi
     f2b_static404_regex | sed 's/^/              /'
 }
+# 2.128: this jail is defined by hand on the server (not installed here). When it still bans directly (iptables, no nginx-gate-ban),
+# say so: it bypasses the score of nginx-log-audit.sh and the white list. Only a warning: the server file is never rewritten.
+if command -v fail2ban-client >/dev/null 2>&1 && [[ -r /etc/fail2ban/jail.d/nginx-badrequests.conf || -r /etc/fail2ban/jail.local ]]; then
+    f2b_badreq_def=$(cat /etc/fail2ban/jail.d/nginx-badrequests.conf /etc/fail2ban/jail.local 2>/dev/null | sed -n '/^\[nginx-badrequests\]/,/^\[/p')
+    if [[ -n "$f2b_badreq_def" ]] && ! grep -q 'nginx-gate-ban' <<<"$f2b_badreq_def"; then
+        warn "Jail nginx-badrequests : bannissement direct (sans la porte de nginx-log-audit.sh). Remplacer « action » par « nginx-gate-ban[name=nginx-badrequests] » dans sa définition, puis recharger fail2ban."
+    fi
+fi
 echo "--- 9c) Jail $F2B_BADREQ_JAIL : erreurs 404 sur les fichiers statiques d'Odoo ignorées ---"
 F2B_BADREQ_CONF="/etc/fail2ban/filter.d/$F2B_BADREQ_JAIL.conf"
 F2B_BADREQ_LOCAL="/etc/fail2ban/filter.d/$F2B_BADREQ_JAIL.local"

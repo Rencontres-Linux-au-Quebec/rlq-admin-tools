@@ -5047,6 +5047,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.128.20261125.184722 - fail2ban bans go through the nginx-log-audit.sh gate (no more direct bans)
+
+- Motif de la demande: the members' logs of 2026-11-25 (three exports, period 2026-11-22 to 2026-11-25) show about 25 addresses banned by fail2ban, and several members had their address banned. The jails nginx-blocked-probes and nginx-catchall banned directly with iptables, without the score of nginx-log-audit.sh (threshold 3), without the white list and without the CDN check, which the project rules forbid. Request of the administrator: a ban must go through the gate.
+- Detail des modifications:
+  - nginx-hardening.sh: new function action_nginx_gate_ban, which writes /etc/fail2ban/action.d/nginx-gate-ban.conf. Its actionban runs nginx-log-audit.sh --ban <ip> --yes --no-prompt --ban-days 1 (24 h, the duration of the jail, not the duration by origin of 365 days for hosting). Without SMTP_HOST and NOTIFY_EMAIL_TO in /etc/default/app-health-check.conf, actionban only writes a line to the system journal (logger -t nginx-gate-ban): nothing is blocked.
+  - jail_blocked_probes (BBB path and generated file): action = nginx-gate-ban[name=nginx-blocked-probes] instead of iptables-multiport. Filter and thresholds unchanged (5 refusals in 10 min).
+  - step 9 (Odoo): the action file is written first; installer_jail_copie now replaces a jail file that differs from the source. Servers installed before 2.128 are migrated by --update (they were previously left unchanged).
+  - step 9c: warning when the server's own nginx-badrequests jail bans directly. That jail is defined by hand on each server, so it is not rewritten.
+  - nginx/fail2ban/nginx-blocked-probes.jail.conf and nginx/fail2ban/nginx-catchall.jail.conf: same nginx-gate-ban action.
+  - nginx-tools-tests/test_fail2ban_porte.py: new tests (the jails use the gate, the repository file equals the generated one, the options of the action exist in nginx-log-audit.sh, journal-only mode without SMTP, migration of a different jail).
+- Bugs corriges: symptom: members banned for 24 h by fail2ban, with no evidence from nginx-log-audit.sh. Diagnosis: fail2ban counted refusals and banned with iptables itself; the gate was never consulted for these jails. Fix: the jails only detect; the decision goes through the gate.
+- Garde-fous et cas limites traites: the gate refuses without evidence even with --yes (test_ban_gate); CDN names are never proposed; the white list is checked first; no SMTP settings means no block. Limit to check on a real server: the behaviour of fail2ban when the gate refuses (the action fails, nothing is blocked in the firewall). The exports are anonymised: they do not show which member addresses were banned, so the members concerned cannot be listed from them.
+- Verifications effectuees: bash -n nginx-hardening.sh; test_fail2ban_porte (7 tests, 1 skipped: OK); test_nginx_hardening_update_yes and test_fail2ban_sshd_increment: OK; test_nginx_hardening: 73 tests, 3 failures, all PostgreSQL shared_buffers / journal checks that already fail on main (not related to the gate); test_i18n for nginx-hardening: the English catalogue gets the 13 new messages (the older untranslated messages of the program were already missing before this change). test_conventions: the changelog order failures listed in the pull request were already there before this change.
+- Action requise: (1) on each server, set SMTP_HOST and NOTIFY_EMAIL_TO in /etc/default/app-health-check.conf; (2) run nginx-hardening.sh --update on each server (migrates the jails and installs nginx-gate-ban); (3) replace the action of the server's nginx-badrequests jail by nginx-gate-ban[name=nginx-badrequests] (step 9c warns about it); (4) review the recent bans with nginx-log-audit.sh --ban-history and --unban-low-score.
+
 ### 2.127.20261125.173800 - --revert-base records fail2ban, logrotate and journald changes
 
 - Title: the files changed by the fail2ban, logrotate and journald steps are now recorded in the journal, so that --revert-base can put them back.
