@@ -6,6 +6,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## Application profiles (apps/)
 
+### 0.1.20261125.161408 - Read-only detection of YunoHost applications (apps/_yunohost.py)
+
+- Title: new library apps/_yunohost.py lists the YunoHost applications installed on the server, read from their settings; no program changed yet.
+- Reason: request of the administrator on 2026-11-25: the programs running on the servers must detect by themselves what YunoHost hosts (Nextcloud and others), without the administrator entering it by hand. The YunoHost server is not accessed by the tools when they are written; they read it when they run on the server.
+- Changes: apps/_yunohost.py (new): applications(), lire_settings(), est_yunohost(). Only the top-level keys id, domain and path of /etc/yunohost/apps/<name>/settings.yml are read; indented keys are ignored. nginx_dir gives /etc/nginx/conf.d/<domain>.d for each domain. nginx-tools-tests/test_yunohost_apps.py (new): fake server in a temporary folder, example.test domains only. No real domain or secret is stored in the repository.
+- Bugs fixed: none.
+- Safeguards and edge cases: an application whose settings cannot be read is skipped (OSError); an application without a domain is returned with an empty domain so the caller can report it; a missing id falls back to the folder name.
+- Checks performed: test_yunohost_apps and test_profil_yunohost run together: 14 tests, one skipped because the test session runs as root (unreadable-file case).
+- Not yet done (next step of this PR set): the option that puts back the YunoHost base configuration (removal of our files and yunohost tools regen-conf nginx) and the wiring of nginx-hardening.sh, nginx-log-audit.sh and the log analysis to this library.
+- Action required: none for this change. Before running the programs on the YunoHost server, check that /etc/yunohost/apps/<name>/settings.yml keeps the keys id, domain and path on that version of YunoHost.
+
 ### 0.1.20261125.145851 - YunoHost application profile (apps/yunohost.conf)
 
 - Title: new application profile for YunoHost, detected from /etc/yunohost; no program code changed.
