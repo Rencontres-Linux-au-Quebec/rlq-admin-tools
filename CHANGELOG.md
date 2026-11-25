@@ -4,6 +4,20 @@ Version numbers follow `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time of the change).
 Each program has its own section; the most recent version comes first.
 Earlier history was archived outside this repository when this file was created.
 
+## Application profiles (apps/)
+
+### 0.1.20261125.145851 - YunoHost application profile (apps/yunohost.conf)
+
+- Title: new application profile for YunoHost, detected from /etc/yunohost; no program code changed.
+- Reason: request of the administrator on 2026-11-25: the tools must also support YunoHost, which runs nginx in an LXC container. Layout checked on that server on 2026-11-25: /etc/nginx/conf.d/<domain>.conf and <domain>.d/ (YunoHost includes them), per-domain logs /var/log/nginx/<domain>-access.log(.N.gz), SSO log ssowat.log, fail2ban jails yunohost, yunohost-portal, nextcloud, recidive, sshd and the others.
+- Changes: apps/yunohost.conf (new profile: detection files, log patterns, login and admin paths, no protected backend port, no Odoo-specific step, no shipped hardening configuration); nginx-tools-tests/test_profil_yunohost.py (new test module, no real file read: the fake server is a temporary folder given by APP_DETECT_ROOT). No program was changed, so no program version was bumped.
+- Bugs fixed: none.
+- Multi-application: YunoHost is a platform that hosts several applications (Nextcloud, Mattermost, Tiki, diagrams.net on the reference server), each on its own domain. The profile does not restrict them: the list comes from /etc/yunohost/apps/ and the domain from each application's configuration, to be read by the programs in the log analysis (PR 3). Nextcloud must keep working after the hardening (PR 2).
+- Safeguards and edge cases: YunoHost is detected only by /etc/yunohost/current_host or /etc/yunohost/installed, not by a systemd unit, because YunoHost applications do not share a unit name. BACKEND_PORTS is empty, so no port is protected until the applications are checked. ODOO_SPECIFIC_STEPS and HARDENING_CONFIG are empty, so nothing Odoo-specific is deployed on a YunoHost server. ACCESS_LOGS "*-access.log" does not match the default access.log of the server block without a domain name; that file is not analysed by this profile yet.
+- Values to verify on the real server before the tools act on it: LOGIN_PATHS (/yunohost/sso/), ADMIN_PATHS (/yunohost/admin/, /yunohost/api/), APP_LOG_FILES (/var/log/nginx/ssowat.log), HEALTH_CHECKS ("yunohost" is a neutral value: no check is specific to it yet). The nginx warning "duplicate extension wasm" at nuage.rencontres-linux.quebec.d/nextcloud.conf:90 is in the YunoHost configuration, not in these tools.
+- Checks performed: detection by each marker file, forced choice with --app / APP_PROFILE, profile keys, bash and Python detection giving the same result; test_multi_app, test_conventions and test_config_defaut run beside the new module (see the pull request for the result).
+- Action required: before automatic bans are enabled on the YunoHost server, configure the mail notifications (SMTP_HOST, NOTIFY_EMAIL_TO) and check the values listed above on that server.
+
 ## Repository conventions (CLAUDE.md)
 
 ### 0.1.20261101.173400 - Rules for bans behind CDNs and automatic bans
