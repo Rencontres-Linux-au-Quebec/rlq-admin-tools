@@ -69,3 +69,19 @@ def applications(racine=None):
             "nginx_dir": _chemin(racine, "/etc/nginx/conf.d", domaine + ".d") if domaine else "",
         })
     return resultat
+
+
+def main(argv=None):
+    """Sortie TSV (une application par ligne : nom, id, domaine, chemin), sans aucun secret.
+    Usage : python3 apps/_yunohost.py [--root CHEMIN]  (sans --root : /etc, sous APP_DETECT_ROOT si défini)."""
+    import argparse
+    parser = argparse.ArgumentParser(description="Liste les applications YunoHost installées (lecture seule).")
+    parser.add_argument("--root", default=None, help="racine des chemins (tests) ; défaut : APP_DETECT_ROOT ou /")
+    args = parser.parse_args(argv)
+    for app in applications(args.root):
+        print("\t".join([app["name"], app["id"], app["domain"], app["path"]]))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
