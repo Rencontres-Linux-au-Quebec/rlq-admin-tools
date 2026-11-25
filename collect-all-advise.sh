@@ -53,12 +53,14 @@
 #   PROGRAM=/opt/rlq-admin-tools/app-log-live.py   program on the guests (--program)
 #   SSH_USER=root               account of the virtual machines (--ssh-user)
 #   VM_HOST_<VMID>=ADDRESS      ssh address of a virtual machine, for example VM_HOST_201=10.0.0.21
+#   VM_PORT_<VMID>=PORT         ssh port of a virtual machine (22 by default), for example VM_PORT_433=3815; a Host block of
+#                               ~/.ssh/config whose HostName is the address of the VM is used too (its alias, so its Port)
 #
 # ========================================================================================================================
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.10.20261125.081811"
+readonly SCRIPT_VERSION="1.11.20261125.125636"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -244,6 +246,8 @@ TIMER=$minuteur
 TIMER_TIME=$heure
 # optional: ssh address of a virtual machine, when its automatic detection fails (VM_HOST_<VMID>=ADDRESS).
 # VM_HOST_201=10.0.0.21
+# optional: ssh port of a virtual machine, when it is not 22 (VM_PORT_<VMID>=PORT).
+# VM_PORT_433=3815
 CONF
     CONFIG_CREEE="$cible"
     CFG[DAYS]="$jours"; CFG[DEST]="$dest"; CFG[LANGUAGE]="$LANGUE"; CFG[NAME_REGEX]="$regex"
@@ -326,6 +330,57 @@ SECU_CIBLES=()
 COMMANDE_SECURITE='apt-get update -qq >/dev/null 2>&1; apt-get -s upgrade 2>/dev/null | grep "^Inst" | grep -e "-security" | cut -d " " -f 2'
 
 # sur_machine KIND ID ADDRESS COMMAND: runs COMMAND as root on the host (hote), in an LXC container (pct exec) or on a VM (ssh, sudo).
+# ssh_vm ADDRESS COMMAND: ssh to SSH_USER@ADDRESS in batch mode, 15 s to connect; ADDRESS may end with :PORT (VM_PORT_<VMID>).
+ssh_vm() {
+    local a="$1" port=()
+    shift
+    if [[ "$a" =~ ^(.+):([0-9]+)$ ]]; then a="${BASH_REMATCH[1]}"; port=(-p "${BASH_REMATCH[2]}"); fi
+    ssh -o BatchMode=yes -o ConnectTimeout=15 "${port[@]}" "$SSH_USER@$a" "$@"
+}
+
+# alias_ssh ADDRESS: the first alias of a Host block of ~/.ssh/config (of the user running this script, root on the host) whose
+# HostName is ADDRESS, so that its Port, User or IdentityFile apply; empty when there is none.
+alias_ssh() {
+    local fichier="${HOME:-/root}/.ssh/config"
+    [[ -r "$fichier" ]] || return 0
+    awk -v ip="$1" '
+        tolower($1) == "host"     { alias = ""; for (i = 2; i <= NF; i++) if ($i !~ /[*?!]/) { alias = $i; break } }
+        tolower($1) == "hostname" && $2 == ip && alias != "" { print alias; exit }
+    ' "$fichier" 2>/dev/null || true
+}
+
+# port_ssh ALIAS: the Port of this Host block of ~/.ssh/config (for the trace only), empty when not given.
+port_ssh() {
+    local fichier="${HOME:-/root}/.ssh/config"
+    [[ -r "$fichier" ]] || return 0
+    awk -v h="$1" '
+        tolower($1) == "host" { dans = 0; for (i = 2; i <= NF; i++) if ($i == h) dans = 1 }
+        dans && tolower($1) == "port" { print $2; exit }
+    ' "$fichier" 2>/dev/null || true
+}
+
+# conseil_ssh FILE VMID ADDRESS: one line of advice when the output of ssh shows a known cause.
+conseil_ssh() {
+    local f="$1" vmid="$2" adresse="$3"
+    [[ -s "$f" ]] || return 0
+    if grep -qiE 'port 22: (connection timed out|connection refused|no route)' "$f"; then
+        printf '%s\n' "    $(t "conseil : si SSH écoute sur un autre port, mettez VM_PORT_$vmid=PORT dans la configuration, ou un bloc « Host ALIAS » avec « HostName ${adresse%:*} » et « Port PORT » dans ${HOME:-/root}/.ssh/config" \
+            "advice: if SSH listens on another port, set VM_PORT_$vmid=PORT in the configuration, or a \"Host ALIAS\" block with \"HostName ${adresse%:*}\" and \"Port PORT\" in ${HOME:-/root}/.ssh/config")"
+    elif grep -qiE 'connection timed out|connection refused|no route to host' "$f"; then
+        printf '%s\n' "    $(t "conseil : la machine ne répond pas sur ce port : vérifiez le port SSH (VM_PORT_$vmid), le pare-feu et l'adresse (VM_HOST_$vmid)" \
+            "advice: the machine does not answer on this port: check the SSH port (VM_PORT_$vmid), the firewall and the address (VM_HOST_$vmid)")"
+    elif grep -qi 'host key verification failed' "$f"; then
+        printf '%s\n' "    $(t "conseil : en root, connectez-vous une fois (ssh ${adresse%:*}, même port), vérifiez l'empreinte et acceptez-la" \
+            "advice: as root, connect once (ssh ${adresse%:*}, same port), check the fingerprint and accept it")"
+    elif grep -qi 'permission denied (publickey' "$f"; then
+        printf '%s\n' "    $(t "conseil : la clé publique de root de cet hôte doit être dans authorized_keys de $SSH_USER sur la machine" \
+            "advice: the public key of root of this host must be in authorized_keys of $SSH_USER on the machine")"
+    elif grep -qiE 'a password is required|sudo: .*password' "$f"; then
+        printf '%s\n' "    $(t "conseil : $SSH_USER doit avoir sudo sans mot de passe (system-hardening.sh --update --collect-account $SSH_USER --collect-key FICHIER)" \
+            "advice: $SSH_USER needs sudo without a password (system-hardening.sh --update --collect-account $SSH_USER --collect-key FILE)")"
+    fi
+}
+
 sur_machine() {
     local kind="$1" id="$2" adresse="$3" commande="$4" remote
     case "$kind" in
@@ -333,14 +388,14 @@ sur_machine() {
         lxc) pct exec "$id" -- bash -c "$commande" ;;
         vm)
             printf -v remote '%q' "$commande"
-            ssh -o BatchMode=yes "$SSH_USER@$adresse" "sudo bash -c $remote" </dev/null ;;
+            ssh_vm "$adresse" "sudo bash -c $remote" </dev/null ;;
     esac
 }
 
 # mises_a_jour_securite: lists the pending security updates of each machine and, on a terminal only, asks before installing them
 # (apt-get install --only-upgrade of these packages). Nothing is installed without an answer; no reboot is done.
 mises_a_jour_securite() {
-    local cible kind id adresse nom pkgs rep
+    local cible kind id adresse nom pkgs rep journal rc
     printf '%s\n' "$(t "Mises à jour de sécurité :" "Security updates:")" >&2
     for cible in "${SECU_CIBLES[@]}"; do
         read -r kind id adresse nom <<<"$cible" || true
@@ -363,15 +418,48 @@ mises_a_jour_securite() {
         echo >&2
         case "${rep,,}" in
             o|oui|y|yes)
-                if sur_machine "$kind" "$id" "$adresse" "DEBIAN_FRONTEND=noninteractive apt-get install -y -q --only-upgrade $pkgs" >/dev/null 2>&1; then
+                journal="$RUN/securite-$kind-$id-$nom.txt"
+                rc=0
+                sur_machine "$kind" "$id" "$adresse" "DEBIAN_FRONTEND=noninteractive apt-get install -y -q --only-upgrade $pkgs" >"$journal" 2>&1 || rc=$?
+                if (( rc == 0 )); then
                     printf '%s\n' "[OK] $nom : $(t "mises à jour de sécurité installées (aucun redémarrage)" "security updates installed (no reboot)")"
                 else
-                    printf '%s\n' "${C_RED}[ATTN]$C_RESET $nom : $(t "échec de l'installation" "installation failed")"
+                    printf '%s\n' "${C_RED}[ATTN]$C_RESET $nom : $(t "échec de l'installation (code $rc, sortie complète : $journal)" "installation failed (code $rc, complete output: $journal)")"
+                    grep -E '^(E|W): |dpkg: error|Errors were encountered|unmet dependencies|held broken' "$journal" 2>/dev/null | head -n 5 | sed 's/^/    /' || true
+                    grep -qE '^(E|W): |dpkg: error' "$journal" 2>/dev/null || derniere_sortie "$journal"
+                    conseil_apt "$journal" "$kind" "$id" "$nom"
                 fi ;;
             *)
                 printf '%s\n' "$(t "  $nom : non installé" "  $nom: not installed")" ;;
         esac
     done
+}
+
+# conseil_apt FILE KIND ID NAME: one line of advice for the known causes of a failed apt-get install.
+conseil_apt() {
+    local f="$1" kind="$2" id="$3" nom="$4" ou
+    case "$kind" in
+        lxc) ou="pct enter $id" ;;
+        vm) ou="ssh $nom" ;;
+        *) ou="$(t "sur l'hôte" "on the host")" ;;
+    esac
+    if grep -qiE 'could not get lock|unable to acquire the dpkg|is another process using it' "$f"; then
+        printf '%s\n' "    $(t "conseil : apt ou dpkg est déjà utilisé (autre mise à jour, unattended-upgrades) : attendez la fin, puis relancez" \
+            "advice: apt or dpkg is already in use (other update, unattended-upgrades): wait for its end, then run again")"
+    elif grep -qiE 'dpkg was interrupted|dpkg --configure -a|not fully installed or removed|half-configured|post-installation script' "$f"; then
+        printf '%s\n' "    $(t "conseil : un paquet est resté à moitié installé : $ou, puis dpkg --audit (quel paquet) et dpkg --configure -a (le message de son erreur)" \
+            "advice: a package was left half installed: $ou, then dpkg --audit (which package) and dpkg --configure -a (the message of its error)")"
+    elif grep -qiE 'unmet dependencies|held broken|have been kept back' "$f"; then
+        printf '%s\n' "    $(t "conseil : dépendances non satisfaites : $ou, puis apt-get -s install --only-upgrade PAQUETS pour voir le paquet bloquant (apt-mark showhold)" \
+            "advice: unmet dependencies: $ou, then apt-get -s install --only-upgrade PACKAGES to see the blocking package (apt-mark showhold)")"
+    elif grep -qiE 'temporary failure resolving|could not resolve|failed to fetch|connection failed' "$f"; then
+        printf '%s\n' "    $(t "conseil : les dépôts ne sont pas joignables (DNS, réseau ou proxy) : $ou, puis apt-get update" \
+            "advice: the repositories cannot be reached (DNS, network or proxy): $ou, then apt-get update")"
+    elif grep -qiE 'no space left on device' "$f"; then
+        printf '%s\n' "    $(t "conseil : disque plein : $ou, puis df -h et apt-get clean" "advice: disk full: $ou, then df -h and apt-get clean")"
+    else
+        printf '%s\n' "    $(t "conseil : $ou, puis relancez l'installation à la main pour voir le message complet" "advice: $ou, then run the installation by hand to see the complete message")"
+    fi
 }
 
 # derniere_sortie FILE: the last lines written by a failed command (the reason), indented.
@@ -484,11 +572,30 @@ collecter_lxc() {
 
 # adresse_vm VMID NAME: the address of a virtual machine: VM_HOST_<VMID> of the configuration, otherwise its IPv4 address given
 # by the guest agent (qm guest cmd), otherwise the IPv4 address of its name in DNS (getent). Empty if none is found.
+# adresse_avec_port VMID NAME ADDRESS: ADDRESS:PORT with VM_PORT_<VMID>; otherwise the alias of ~/.ssh/config whose HostName is
+# ADDRESS (so its Port applies); otherwise ADDRESS.
+adresse_avec_port() {
+    local vmid="$1" name="$2" a="$3" alias port
+    if [[ -n "${CFG[VM_PORT_$vmid]:-}" ]]; then
+        trace "VM $vmid $name : $(t "port ${CFG[VM_PORT_$vmid]} (VM_PORT_$vmid de la configuration)" "port ${CFG[VM_PORT_$vmid]} (VM_PORT_$vmid of the configuration)")"
+        echo "$a:${CFG[VM_PORT_$vmid]}"
+        return 0
+    fi
+    alias="$(alias_ssh "$a")"
+    if [[ -n "$alias" ]]; then
+        port="$(port_ssh "$alias")"
+        trace "VM $vmid $name : $(t "alias $alias de ${HOME:-/root}/.ssh/config pour $a (port ${port:-22})" "alias $alias of ${HOME:-/root}/.ssh/config for $a (port ${port:-22})")"
+        echo "$alias"
+        return 0
+    fi
+    echo "$a"
+}
+
 adresse_vm() {
     local vmid="$1" name="$2" ip=""
     if [[ -n "${CFG[VM_HOST_$vmid]:-}" ]]; then
         trace "VM $vmid $name : $(t "adresse ${CFG[VM_HOST_$vmid]} (VM_HOST_$vmid de la configuration)" "address ${CFG[VM_HOST_$vmid]} (VM_HOST_$vmid of the configuration)")"
-        echo "${CFG[VM_HOST_$vmid]}"
+        adresse_avec_port "$vmid" "$name" "${CFG[VM_HOST_$vmid]}"
         return 0
     fi
     if command -v qm >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
@@ -499,8 +606,8 @@ adresse_vm() {
         ip="$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
         [[ -z "$ip" ]] || trace "VM $vmid $name : $(t "adresse $ip (DNS de $name)" "address $ip (DNS of $name)")"
     fi
-    [[ -n "$ip" ]] || trace "VM $vmid $name : $(t "aucune adresse (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS)" "no address (no VM_HOST_$vmid, no guest agent, no DNS)")"
-    echo "$ip"
+    [[ -n "$ip" ]] || { trace "VM $vmid $name : $(t "aucune adresse (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS)" "no address (no VM_HOST_$vmid, no guest agent, no DNS)")"; echo ""; return 0; }
+    adresse_avec_port "$vmid" "$name" "$ip"
 }
 
 # collecter_vm VMID NAME DIR: same through ssh; the report is read back on standard output.
@@ -516,12 +623,12 @@ collecter_vm() {
     fi
     mkdir -p "$dossier"
     sortie="$dossier/advise-$STAMP.txt"
-    trace "VM $vmid $name : ssh -o BatchMode=yes $cible \"sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys\""
-    ssh -o BatchMode=yes "$cible" "sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" \
+    trace "VM $vmid $name : ssh $cible \"sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys\""
+    ssh_vm "$adresse" "sudo env APP_LOG_LIVE_LANG=$LANGUE $PROGRAM --advise --days $DAYS --export-ai $rapport $ANONYMIZE_OPT --no-follow --no-keys" \
         >"$sortie" 2>&1 </dev/null || rc=$?
     trace "VM $vmid $name : $(t "code de retour $rc (sortie : $sortie)" "exit code $rc (output: $sortie)")"
     if (( rc == 0 )); then
-        ssh -o BatchMode=yes "$cible" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md" </dev/null || rc=$?
+        ssh_vm "$adresse" "sudo cat $rapport" >"$dossier/export-ai-$STAMP.md" </dev/null || rc=$?
         trace "VM $vmid $name : $(t "lecture du rapport, code de retour $rc" "report read, exit code $rc")"
     fi
     if (( rc == 0 )); then
@@ -531,9 +638,10 @@ collecter_vm() {
     else
         printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "pas de rapport" "no report") ($sortie)"
         derniere_sortie "$sortie"
+        conseil_ssh "$sortie" "$vmid" "$adresse"
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
     fi
-    ssh -o BatchMode=yes "$cible" "sudo rm -f $rapport" >/dev/null 2>&1 </dev/null || true
+    ssh_vm "$adresse" "sudo rm -f $rapport" >/dev/null 2>&1 </dev/null || true
 }
 
 # version_invite KIND VMID ADDRESS: first line of "PROGRAM --version" in a guest (lxc: pct exec; vm: ssh), empty when it cannot be read.
@@ -543,7 +651,7 @@ version_invite() {
         pct exec "$vmid" -- "$PROGRAM" --version 2>/dev/null </dev/null | head -1 || true
     else
         [[ -n "$adresse" ]] || return 0
-        ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_USER@$adresse" "$PROGRAM --version" 2>/dev/null </dev/null | head -1 || true
+        ssh_vm "$adresse" "$PROGRAM --version" 2>/dev/null </dev/null | head -1 || true
     fi
 }
 

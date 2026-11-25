@@ -564,6 +564,37 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.11.20261125.125636 - SSH port of the VMs, advice on SSH failures, details of a failed security update
+
+- Reason for the request: on 2026-11-25 the run on proxmox1 failed for VM 433 ("ssh: connect to host 51.161.38.15 port 22: Connection
+  timed out") although "ssh -p 3815 rlqcollect@51.161.38.15" and "ssh rlqcollect@vm433" work, and the security update of
+  odoo.rencontres-linux.quebec gave "echec de l'installation" without any detail. Request: errors with details, and the port of the VM.
+- Diagnosis: the address of VM 433 came from the guest agent (51.161.38.15); ssh was called with this address, so the block
+  "Host vm433" of /root/.ssh/config (Port 3815) did not apply: ssh matches Host on the name given, not on HostName. The output of
+  apt-get install was sent to /dev/null.
+- Changes (collect-all-advise.sh):
+  - New key VM_PORT_<VMID>=PORT (header and configuration written at the first run).
+  - New function adresse_avec_port(): VM_PORT_<VMID> gives ADDRESS:PORT; otherwise, when a Host block of ~/.ssh/config of root has
+    the address as HostName, its alias is used (so its Port, User, IdentityFile apply); traced with --verbose (alias, port).
+    New functions alias_ssh() and port_ssh() (read ~/.ssh/config).
+  - New function ssh_vm(): every ssh to a VM goes through it (collection, report read, clean up, version check, security updates);
+    -p PORT from ADDRESS:PORT; ConnectTimeout=15 (a VM that does not answer no longer blocks for about 2 minutes).
+  - New function conseil_ssh(): one line of advice under a failed VM (time out on port 22: VM_PORT_<VMID> or a Host block; other time
+    out or refused connection; unknown host key; refused public key; sudo asking for a password).
+  - Security updates: the output of apt-get install is kept in RUN/securite-KIND-ID-NAME.txt; on failure the exit code, the path of the
+    file, the E:/W:/dpkg lines (or the last 3 lines) and one line of advice (new function conseil_apt(): apt or dpkg locked, dpkg
+    interrupted or a package left half installed ("1 not fully installed or removed", seen on LXC 101: dpkg --audit, dpkg --configure -a), unmet dependencies or held packages, repositories not reachable, disk full, otherwise how to run it by hand).
+  - nginx-tools-tests/test_collect_all_advise.py: the fake ssh records its port and can fail (SSH_FAIL); new helper
+    lancer_sur_terminal() (pseudo-terminal); tests test_port_de_la_vm_et_alias_ssh and test_echec_de_mise_a_jour_de_securite_detaille;
+    test_verbose_montre_les_etapes follows the new trace "ssh USER@ADDRESS".
+- Bugs fixed: VM reached only on port 22 (symptom: time out on VM 433; fix: VM_PORT and the alias of ~/.ssh/config); failed security
+  update without its reason (fix: output kept and shown).
+- Safeguards and edge cases: Host blocks with patterns (*, ?, !) are not used as alias; VM_PORT wins over ~/.ssh/config; the host key
+  is still checked (StrictHostKeyChecking unchanged); IPv6 addresses are not given a port (the guest agent gives IPv4).
+- Checks: bash -n; ShellCheck -S style clean; test_collect_all_advise: 24 tests OK.
+- Action required: none for VM 433 (the block "Host vm433" of /root/.ssh/config is now found). The host key of [51.161.38.15]:3815 must
+  have been accepted once by root (done by "ssh -p 3815 rlqcollect@51.161.38.15").
+
 ### 1.10.20261125.081811 - Before the collection, the suite is checked in the guests and its update is offered
 
 - Reason for the request: on 2026-11-25 the administrator asked that collect-all-advise.sh offer to update the scripts in the guests

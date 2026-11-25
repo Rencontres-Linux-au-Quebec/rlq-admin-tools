@@ -32,8 +32,11 @@ printf 'VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID\\n201 b
 """
 SSH = """#!/bin/bash
 # ssh [options] TARGET COMMAND : the command runs here (the VM is simulated)
-while [[ "$1" == -* ]]; do if [[ "$1" == "-o" ]]; then shift; fi; shift; done
+port=22
+while [[ "$1" == -* ]]; do if [[ "$1" == "-p" ]]; then port="$2"; fi; if [[ "$1" == "-o" || "$1" == "-p" ]]; then shift; fi; shift; done
 echo "$1 $2" >> "$SSH_LOG"   # target and command
+echo "port=$port" >> "$SSH_LOG"
+if [[ -n "${SSH_FAIL:-}" ]]; then echo "$SSH_FAIL" >&2; exit 255; fi
 shift
 exec bash -c "$1"
 """
@@ -245,7 +248,7 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertIn("[trace] LXC 101 bbb-lxc1 : code de retour 0", trace)
         self.assertIn("[trace] LXC 102 bbb-lxc2 : ignorée (état stopped", trace)
         self.assertIn("[trace] VM 201 bbb-vm1 : adresse 10.0.0.21 (VM_HOST_201 de la configuration)", trace)
-        self.assertIn("[trace] VM 201 bbb-vm1 : ssh -o BatchMode=yes root@10.0.0.21", trace)
+        self.assertIn("[trace] VM 201 bbb-vm1 : ssh root@10.0.0.21 \"sudo env", trace)
         self.assertNotIn("[trace]", r.stdout)
         r = self.lancer("--days", "2", "--dest", self.dest, config="VM_HOST_201=10.0.0.21\n")
         self.assertNotIn("[trace]", r.stdout + r.stderr)
@@ -305,6 +308,86 @@ class CollectAllAdvise(unittest.TestCase):
         r, sortie = self.lancer_suite(prog, "--no-sync")
         self.assertNotIn("Version de la suite", sortie)
         self.assertFalse(os.path.exists(self.sync_log))
+
+    def test_port_de_la_vm_et_alias_ssh(self):
+        """1.11: VM_PORT_<VMID> gives ssh -p; without it, a Host block of ~/.ssh/config whose HostName is the address of the VM is used
+        (its alias); a time out on port 22 gives advice."""
+        r = self.lancer("--days", "2", "--dest", self.dest, "--no-sync", config="VM_PORT_201=3815\n")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        journal = open(self.ssh_log).read()
+        self.assertIn("root@10.0.0.77 sudo env", journal)
+        self.assertIn("port=3815", journal)
+        os.remove(self.ssh_log)
+        os.makedirs(os.path.join(self.d, ".ssh"))
+        with open(os.path.join(self.d, ".ssh", "config"), "w") as f:
+            f.write("Ciphers aes128-ctr\nHost vm201\n    HostName 10.0.0.77\n    Port 3815\n")
+        r = self.lancer("--days", "2", "--dest", self.dest, "--no-sync", "--verbose")
+        self.assertIn("root@vm201 sudo env", open(self.ssh_log).read())
+        self.assertIn("alias vm201 de", r.stderr)
+        self.assertIn("(port 3815)", r.stderr)
+        self.env["SSH_FAIL"] = "ssh: connect to host 10.0.0.77 port 22: Connection timed out"
+        os.remove(os.path.join(self.d, ".ssh", "config"))
+        r = self.lancer("--days", "2", "--dest", self.dest, "--no-sync")
+        self.assertIn("conseil : si SSH écoute sur un autre port, mettez VM_PORT_201=PORT", r.stdout)
+
+    def lancer_sur_terminal(self, args, reponses):
+        """Runs the program on a pseudo-terminal (its /dev/tty), sends the answers, returns everything it printed."""
+        import pty, select, time
+        maitre, esclave = pty.openpty()
+        proc = subprocess.Popen(["bash", PROG, "--program", os.path.join(self.bin, "app-log-live.py"), *args], stdin=esclave,
+                                stdout=esclave, stderr=esclave, env=self.env, start_new_session=True,
+                                preexec_fn=lambda: __import__("fcntl").ioctl(0, __import__("termios").TIOCSCTTY, 0))
+        os.close(esclave)
+        sortie, fin = b"", time.time() + 60
+        while time.time() < fin:
+            r, _, _ = select.select([maitre], [], [], 0.2)
+            if r:
+                try:
+                    bloc = os.read(maitre, 4096)
+                except OSError:
+                    break
+                if not bloc:
+                    break
+                sortie += bloc
+                if b"[o/N]" in bloc or b"[y/N]" in bloc:
+                    os.write(maitre, reponses.encode())
+            elif proc.poll() is not None:
+                break
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait(timeout=10)
+        os.close(maitre)
+        return re.sub(r"\x1b\[[0-9;]*m", "", sortie.decode("utf-8", "replace")).replace("\r", "")
+
+    def test_echec_de_mise_a_jour_de_securite_detaille(self):
+        """1.11: a failed apt-get install shows its code, its E: lines, the file of the complete output and advice."""
+        apt = os.path.join(self.bin, "apt-get")
+        with open(apt, "w") as f:
+            f.write(APT.replace('*install*) echo "$*" >> "$APT_LOG" ;;',
+                                '*install*) echo "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 123"; exit 100 ;;'))
+        os.chmod(apt, 0o755)
+        self.env.pop("COLLECT_NO_PROMPT")
+        chemin = os.path.join(self.d, "config.conf")
+        with open(chemin, "w") as f:
+            f.write("SYNC=no\n")
+        sortie = self.lancer_sur_terminal(["-c", chemin, "--days", "2", "--dest", self.dest, "--name", "bbb-lxc1"], reponses="o\n")
+        self.assertIn("échec de l'installation (code 100, sortie complète :", sortie)
+        self.assertIn("    E: Could not get lock", sortie)
+        self.assertIn("conseil : apt ou dpkg est déjà utilisé", sortie)
+
+    def test_paquet_a_moitie_installe_conseil_dpkg(self):
+        """1.11: "1 not fully installed or removed" in the output of apt-get gives the advice dpkg --audit and dpkg --configure -a."""
+        apt = os.path.join(self.bin, "apt-get")
+        with open(apt, "w") as f:
+            f.write(APT.replace('*install*) echo "$*" >> "$APT_LOG" ;;',
+                                '*install*) echo "1 not fully installed or removed."; echo "E: Sub-process /usr/bin/dpkg returned an error code (1)"; exit 100 ;;'))
+        os.chmod(apt, 0o755)
+        self.env.pop("COLLECT_NO_PROMPT")
+        chemin = os.path.join(self.d, "config.conf")
+        with open(chemin, "w") as f:
+            f.write("SYNC=no\n")
+        sortie = self.lancer_sur_terminal(["-c", chemin, "--days", "2", "--dest", self.dest, "--name", "bbb-lxc1"], reponses="o\n")
+        self.assertIn("conseil : un paquet est resté à moitié installé : pct enter 101, puis dpkg --audit", sortie)
 
     def test_minuteur_installe_en_root_refuse_sinon(self):
         dossier_systemd = os.path.join(self.d, "systemd")
