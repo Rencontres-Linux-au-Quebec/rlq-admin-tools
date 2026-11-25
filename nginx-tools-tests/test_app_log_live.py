@@ -6253,3 +6253,16 @@ class AppLogLive208(unittest.TestCase):
         for chemin in ("/backup.zip", "/old", "/test", "/dump.sql.gz", "/site.tar", "/www.zip"):
             s.ajouter(self.nginx(chemin, ip="203.0.113.9", referer="-"), {}, None)
         self.assertGreaterEqual(len(s.ip_not_found.get("203.0.113.9", ())), m.THRESHOLD_404 - 1)
+
+
+class NomsDeFonctions(unittest.TestCase):
+    def test_une_seule_definition_par_nom_au_niveau_du_module(self):
+        """1.210: two top-level functions with the same name (local_request defined twice) made the network calls use the wrong one."""
+        import ast
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            arbre = ast.parse(f.read())
+        noms = [n.name for n in arbre.body if isinstance(n, ast.FunctionDef)]
+        doublons = sorted({n for n in noms if noms.count(n) > 1})
+        self.assertEqual(doublons, [])
+        reseau = next(n for n in arbre.body if isinstance(n, ast.FunctionDef) and n.name == "local_request")
+        self.assertIn("delay", [a.arg for a in reseau.args.args])                     # the network helper keeps its signature

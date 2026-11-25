@@ -724,6 +724,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.210.20261124.212059 - Two functions named local_request: the network calls failed on Odoo LXC containers
+
+- Reason for the request: on 2026-11-24, collect-all-advise.sh on proxmox1: LXC 104 (odoo-dev) and LXC 105 (odoo18) returned exit code 1 with
+  "TypeError: local_request() got an unexpected keyword argument 'delay'" in the output of app-log-live.py --advise.
+- Diagnosis: app-log-live.py defined local_request twice at module level. The network helper local_request(port, host_name, tls, path,
+  delay, headers) was replaced, at load time, by the text helper local_request(text) (1.207, used by local_test, the sitemap tags and
+  the 404 lines). Every call of the network helper (the redirect check, the Odoo ports, the certificate check) then called the text
+  helper and failed.
+- Changes (app-log-live.py):
+  - The text helper is renamed local_text_request(text); its 4 callers are updated (sitemap_tag lines, local_test, the 404 line
+    check). The network helper local_request keeps its signature.
+  - terminal_columns() was defined twice (1.137 with a minimum of 40 columns, then a second version with a minimum of 20). The second
+    one was the one in use, so the first one is removed: the behaviour does not change (minimum 20).
+- Bugs fixed: symptom: TypeError in the output of LXC 104 and 105, no report. Diagnosis: name collision above. Fix: the rename and the
+  removal of the shadowed definition.
+- Safeguards and edge cases: no duplicate top-level function name remains (checked with ast); the tests that replace local_request
+  (test_app_log_live: follow_redirects, the Odoo ports) keep working because they replace the network helper, which is the one
+  called by those paths.
+- Checks: py_compile of the program and of the test module; a check of the duplicate names with ast; module test_app_log_live:
+  340 tests, 332 OK (including the new NomsDeFonctions test). The 8 failures (test_157 colour of the URL, the summary of the session,
+  the legend at start, the menus, the ban summary, the columns) are the SAME on origin/main (checked by running the same 8 tests
+  on both trees): they existed before this change and are not fixed here.
+- Action required: none. On proxmox1, the guests 104 and 105 get the new version with --guest-sync (host-perf-audit.py), or with the next
+  synchronisation of the suite.
+
 ### 1.209.20261123.081004 - BigBlueButton nginx lines normalized like Odoo (time, INFO, country, address)
 
 - Reason for the request: on a BigBlueButton server, the nginx access lines shown by app-log-live.py were raw (date in brackets at the end, no time column, no level, no country or address column), while the Odoo lines use the time / program / level / address / HTTP columns. Request: normalize the BigBlueButton output the same way as Odoo.
