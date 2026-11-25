@@ -375,6 +375,20 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertIn("    E: Could not get lock", sortie)
         self.assertIn("conseil : apt ou dpkg est déjà utilisé", sortie)
 
+    def test_paquet_a_moitie_installe_conseil_dpkg(self):
+        """1.11: "1 not fully installed or removed" in the output of apt-get gives the advice dpkg --audit and dpkg --configure -a."""
+        apt = os.path.join(self.bin, "apt-get")
+        with open(apt, "w") as f:
+            f.write(APT.replace('*install*) echo "$*" >> "$APT_LOG" ;;',
+                                '*install*) echo "1 not fully installed or removed."; echo "E: Sub-process /usr/bin/dpkg returned an error code (1)"; exit 100 ;;'))
+        os.chmod(apt, 0o755)
+        self.env.pop("COLLECT_NO_PROMPT")
+        chemin = os.path.join(self.d, "config.conf")
+        with open(chemin, "w") as f:
+            f.write("SYNC=no\n")
+        sortie = self.lancer_sur_terminal(["-c", chemin, "--days", "2", "--dest", self.dest, "--name", "bbb-lxc1"], reponses="o\n")
+        self.assertIn("conseil : un paquet est resté à moitié installé : pct enter 101, puis dpkg --audit", sortie)
+
     def test_minuteur_installe_en_root_refuse_sinon(self):
         dossier_systemd = os.path.join(self.d, "systemd")
         journal = os.path.join(self.d, "systemctl.log")

@@ -446,8 +446,9 @@ conseil_apt() {
     if grep -qiE 'could not get lock|unable to acquire the dpkg|is another process using it' "$f"; then
         printf '%s\n' "    $(t "conseil : apt ou dpkg est déjà utilisé (autre mise à jour, unattended-upgrades) : attendez la fin, puis relancez" \
             "advice: apt or dpkg is already in use (other update, unattended-upgrades): wait for its end, then run again")"
-    elif grep -qiE 'dpkg was interrupted|dpkg --configure -a' "$f"; then
-        printf '%s\n' "    $(t "conseil : dpkg a été interrompu : $ou, puis dpkg --configure -a" "advice: dpkg was interrupted: $ou, then dpkg --configure -a")"
+    elif grep -qiE 'dpkg was interrupted|dpkg --configure -a|not fully installed or removed|half-configured|post-installation script' "$f"; then
+        printf '%s\n' "    $(t "conseil : un paquet est resté à moitié installé : $ou, puis dpkg --audit (quel paquet) et dpkg --configure -a (le message de son erreur)" \
+            "advice: a package was left half installed: $ou, then dpkg --audit (which package) and dpkg --configure -a (the message of its error)")"
     elif grep -qiE 'unmet dependencies|held broken|have been kept back' "$f"; then
         printf '%s\n' "    $(t "conseil : dépendances non satisfaites : $ou, puis apt-get -s install --only-upgrade PAQUETS pour voir le paquet bloquant (apt-mark showhold)" \
             "advice: unmet dependencies: $ou, then apt-get -s install --only-upgrade PACKAGES to see the blocking package (apt-mark showhold)")"

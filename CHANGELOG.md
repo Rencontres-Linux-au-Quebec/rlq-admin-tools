@@ -583,7 +583,7 @@ Earlier history was archived outside this repository when this file was created.
     out or refused connection; unknown host key; refused public key; sudo asking for a password).
   - Security updates: the output of apt-get install is kept in RUN/securite-KIND-ID-NAME.txt; on failure the exit code, the path of the
     file, the E:/W:/dpkg lines (or the last 3 lines) and one line of advice (new function conseil_apt(): apt or dpkg locked, dpkg
-    interrupted, unmet dependencies or held packages, repositories not reachable, disk full, otherwise how to run it by hand).
+    interrupted or a package left half installed ("1 not fully installed or removed", seen on LXC 101: dpkg --audit, dpkg --configure -a), unmet dependencies or held packages, repositories not reachable, disk full, otherwise how to run it by hand).
   - nginx-tools-tests/test_collect_all_advise.py: the fake ssh records its port and can fail (SSH_FAIL); new helper
     lancer_sur_terminal() (pseudo-terminal); tests test_port_de_la_vm_et_alias_ssh and test_echec_de_mise_a_jour_de_securite_detaille;
     test_verbose_montre_les_etapes follows the new trace "ssh USER@ADDRESS".
