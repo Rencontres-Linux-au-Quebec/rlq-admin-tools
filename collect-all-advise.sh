@@ -30,9 +30,11 @@
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
 #   --no-security                no check of the security updates
+#   --no-sync                    never offer to update the suite in the guests before the collection
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --remove-timer               disable and remove the systemd timer (root)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
+#   --sync                       update the suite in the guests that are behind, without a question (host-perf-audit.py --guest-sync)
 #   -v, --verbose                show each step and each command run in the guests (their address, exit codes)
 #   --version                    show the version and exit
 #
@@ -41,6 +43,7 @@
 #   ANONYMIZE=yes               yes or no (--anonymize / --no-anonymize)
 #   ARCHIVE=yes                 yes or no (--no-archive)
 #   SECURITY=yes                yes or no (--no-security): check of the pending security updates of the host and the guests
+#   SYNC=ask                    ask, yes or no (--sync / --no-sync): update the suite in the guests that are behind, before the collection
 #   DAYS=2                      analysis window in days (--days)
 #   DEST=...                    folder (--dest; default: audit/collect-all-advise in the sudo user home)
 #   LANGUAGE=fr                 fr or en: language of the messages AND of the reports (--lang)
@@ -55,7 +58,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.9.20261124.210233"
+readonly SCRIPT_VERSION="1.10.20261125.081811"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -232,6 +235,9 @@ NAME_REGEX=$regex
 PROGRAM=$prog
 # account used for the virtual machines; it needs sudo without a password.
 SSH_USER=$ssh_user
+# ask: before the collection, offer to update the suite in the guests whose app-log-live.py is older than the one of this host
+# (host-perf-audit.py --guest-sync); yes: update them without a question; no: never.
+SYNC=ask
 # yes: a systemd timer runs the collection every day at TIMER_TIME (installed with --install-timer); no: no timer.
 TIMER=$minuteur
 # time of the daily run, HH:MM (local time of the host).
@@ -285,9 +291,11 @@ aide() {
 --no-anonymize               garde les vraies adresses, courriels et noms / keep the real addresses, e-mails and names
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
 --no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
+--no-sync                    ne propose pas de mettre à jour la suite dans les invités / never offer to update the suite in the guests
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
 --remove-timer               supprime le minuteur systemd (root) / remove the systemd timer (root)
 --ssh-user USER              compte des VM (sudo sans mot de passe) / account of the VMs (sudo without a password)
+--sync                       met à jour sans question la suite dans les invités en retard / update the suite in the guests that are behind, no question
 -v, --verbose                affiche chaque étape et chaque commande lancée dans les invités / show each step and each command run in the guests
 --version                    affiche la version et quitte / show the version and exit
 EOF
@@ -499,7 +507,7 @@ adresse_vm() {
 collecter_vm() {
     local vmid="$1" name="$2" dossier="$3" adresse rapport="/tmp/$SCRIPT_NAME-$STAMP-$1.md"
     local cible sortie rc=0
-    adresse="$(adresse_vm "$vmid" "$name")"
+    adresse="${4-$(adresse_vm "$vmid" "$name")}"
     cible="$SSH_USER@$adresse"
     if [[ -z "$adresse" ]]; then
         printf '%s\n' "${C_YELLOW}[ATTN]$C_RESET $(t "VM" "VM") $vmid $name : $(t "adresse introuvable (ni VM_HOST_$vmid, ni l'agent invité, ni le DNS) : ignorée" "no address found (no VM_HOST_$vmid, no guest agent, no DNS): skipped")"
@@ -526,6 +534,85 @@ collecter_vm() {
         RAPPORTS_KO=$((RAPPORTS_KO + 1))
     fi
     ssh -o BatchMode=yes "$cible" "sudo rm -f $rapport" >/dev/null 2>&1 </dev/null || true
+}
+
+# version_invite KIND VMID ADDRESS: first line of "PROGRAM --version" in a guest (lxc: pct exec; vm: ssh), empty when it cannot be read.
+version_invite() {
+    local kind="$1" vmid="$2" adresse="$3"
+    if [[ "$kind" == "lxc" ]]; then
+        pct exec "$vmid" -- "$PROGRAM" --version 2>/dev/null </dev/null | head -1 || true
+    else
+        [[ -n "$adresse" ]] || return 0
+        ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_USER@$adresse" "$PROGRAM --version" 2>/dev/null </dev/null | head -1 || true
+    fi
+}
+
+# version_num TEXT: the version number of a --version line ("app-log-live.py v1.210.20261124.212059" -> 1.210.20261124.212059).
+version_num() {
+    grep -oE '[0-9]+\.[0-9]+(\.[0-9]{8}(\.[0-9]{6})?)?' <<<"$1" | head -1 || true
+}
+
+# plus_ancienne A B: true when version A is older than version B (major, minor, date, time compared as numbers).
+plus_ancienne() {
+    [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | head -1)" == "$1" ]]
+}
+
+# verifier_suite: before the collection, compares app-log-live.py of each selected guest with the one next to this program (the folder
+# of the suite). The guests behind (or whose version cannot be read) are listed; with SYNC=ask and a terminal, the update is offered,
+# with SYNC=yes it is done, with SYNC=no nothing is checked. The update is "host-perf-audit.py --guest-sync" (copy of this folder).
+verifier_suite() {
+    local ref ref_num ligne kind vmid name adresse v vn retard=() ids=() rc=0
+    [[ "$SYNC" == "no" ]] && { trace "$(t "mise à jour de la suite : désactivée (SYNC=no)" "update of the suite: disabled (SYNC=no)")"; return 0; }
+    if [[ ! -x "$SCRIPT_DIR/app-log-live.py" || ! -x "$SCRIPT_DIR/host-perf-audit.py" ]]; then
+        trace "$(t "mise à jour de la suite : app-log-live.py ou host-perf-audit.py absent de $SCRIPT_DIR" "update of the suite: app-log-live.py or host-perf-audit.py missing in $SCRIPT_DIR")"
+        return 0
+    fi
+    ref="$("$SCRIPT_DIR/app-log-live.py" --version 2>/dev/null </dev/null | head -1 || true)"
+    ref_num="$(version_num "$ref")"
+    [[ -n "$ref_num" ]] || return 0
+    printf '%s\n' "$(t "Version de la suite sur cet hôte : app-log-live.py $ref_num ($SCRIPT_DIR)" "Version of the suite on this host: app-log-live.py $ref_num ($SCRIPT_DIR)")"
+    for ligne in "${CIBLES[@]}"; do
+        read -r kind vmid name adresse <<<"$ligne"
+        v="$(version_invite "$kind" "$vmid" "$adresse")"
+        vn="$(version_num "$v")"
+        if [[ -z "$vn" ]]; then
+            retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $(t "version illisible (programme absent ou machine injoignable)" "version not readable (program missing or guest not reachable)")")
+            ids+=("$vmid")
+        elif plus_ancienne "$vn" "$ref_num"; then
+            retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $vn ($(t "plus ancienne" "older"))")
+            ids+=("$vmid")
+        else
+            trace "${kind^^} $vmid $name : app-log-live.py $vn ($(t "à jour" "up to date"))"
+        fi
+    done
+    if (( ${#ids[@]} == 0 )); then
+        printf '%s\n' "[OK] $(t "la suite est à jour dans les machines choisies" "the suite is up to date in the selected guests")"
+        return 0
+    fi
+    printf '%s\n' "${retard[@]}"
+    local liste commande
+    liste="$(IFS=,; echo "${ids[*]}")"
+    commande="$SCRIPT_DIR/host-perf-audit.py --guest-sync --guests $liste --sync-source $SCRIPT_DIR --yes"
+    if [[ "$SYNC" == "ask" ]]; then
+        if [[ -z "$INTERACTIF" ]]; then
+            printf '%s\n' "  $(t "Pas de terminal : la suite n'est pas mise à jour. Pour le faire : " "No terminal: the suite is not updated. To do it: ")$commande"
+            return 0
+        fi
+        local reponse=""
+        read -r -p "$(t "Mettre à jour la suite dans ces machines avant la collecte ($liste) ? [o/N] " "Update the suite in these guests before the collection ($liste)? [y/N] ")" reponse </dev/tty || true
+        if [[ "$(oui_non "$reponse")" != 1 ]]; then
+            printf '%s\n' "  $(t "Collecte avec les versions actuelles des machines." "Collection with the current versions of the guests.")"
+            return 0
+        fi
+    fi
+    trace "$commande"
+    "$SCRIPT_DIR/host-perf-audit.py" --guest-sync --guests "$liste" --sync-source "$SCRIPT_DIR" --yes --lang "$LANGUE" </dev/null || rc=$?
+    if (( rc == 0 )); then
+        printf '%s\n' "[OK] $(t "suite mise à jour dans : $liste" "suite updated in: $liste")"
+    else
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "la mise à jour de la suite a échoué (code $rc) : la collecte continue avec les versions actuelles" "the update of the suite failed (code $rc): the collection goes on with the current versions")"
+    fi
+    return 0
 }
 
 # archiver: DEST/collect-all-advise.HOST.AAAA-MM-JJ.tar.xz with the *.md reports of this run (a suffix -2, -3... if the day has one).
@@ -578,6 +665,12 @@ ARCHIVE=1
 if [[ "$(oui_non "${CFG[ARCHIVE]:-yes}")" == 0 ]]; then ARCHIVE=0; fi
 SECURITY=1
 if [[ "$(oui_non "${CFG[SECURITY]:-yes}")" == 0 ]]; then SECURITY=0; fi
+SYNC="${CFG[SYNC]:-ask}"
+case "${SYNC,,}" in
+    yes|oui|y|o|1|true|on) SYNC="yes" ;;
+    no|non|n|0|false|off) SYNC="no" ;;
+    *) SYNC="ask" ;;
+esac
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -606,11 +699,13 @@ while [[ $# -gt 0 ]]; do
         --no-anonymize) ANONYMIZE_OPT="--no-anonymize"; shift ;;
         --no-archive) ARCHIVE=0; shift ;;
         --no-security) SECURITY=0; shift ;;
+        --no-sync) SYNC="no"; shift ;;
         --program)
             if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --program : chemin attendu" "option --program: path expected")" >&2; exit 2; fi
             PROGRAM="$2"; shift 2 ;;
         --program=*) PROGRAM="${1#--program=}"; shift ;;
         --remove-timer) DO_TIMER="remove"; shift ;;
+        --sync) SYNC="yes"; shift ;;
         --ssh-user)
             if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --ssh-user : utilisateur attendu" "option --ssh-user: user expected")" >&2; exit 2; fi
             SSH_USER="$2"; shift 2 ;;
@@ -677,6 +772,8 @@ SECU_CIBLES=("hote - - $(uname -n)")
 INTERACTIF=""
 if [[ -z "${COLLECT_NO_PROMPT:-}" ]] && { : </dev/tty; } 2>/dev/null; then INTERACTIF=1; fi
 
+# 1.10: the guests are selected first (CIBLES: "lxc VMID NAME -" or "vm VMID NAME ADDRESS"), the suite is checked in them, then collected.
+CIBLES=()
 # LXC containers (pct list: VMID STATUS LOCK NAME, the name is the last column).
 LXC_VUS=0; LXC_RETENUS=0
 if command -v pct >/dev/null 2>&1; then
@@ -684,7 +781,7 @@ if command -v pct >/dev/null 2>&1; then
         LXC_VUS=$((LXC_VUS + 1))
         [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || { trace "LXC $vmid $name : $(t "ignorée (état $status, ou nom hors de $NAME_RE)" "skipped (status $status, or name outside $NAME_RE)")"; continue; }
         LXC_RETENUS=$((LXC_RETENUS + 1))
-        collecter_lxc "$vmid" "$name" "$RUN/lxc-$vmid-$name"
+        CIBLES+=("lxc $vmid $name -")
     done 3< <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
     signaler_aucune "LXC" "$LXC_VUS" "$LXC_RETENUS"
 else
@@ -698,12 +795,25 @@ if command -v qm >/dev/null 2>&1; then
         VM_VUES=$((VM_VUES + 1))
         [[ "$status" == "running" && "$name" =~ $NAME_RE ]] || { trace "VM $vmid $name : $(t "ignorée (état $status, ou nom hors de $NAME_RE)" "skipped (status $status, or name outside $NAME_RE)")"; continue; }
         VM_RETENUES=$((VM_RETENUES + 1))
-        collecter_vm "$vmid" "$name" "$RUN/vm-$vmid-$name"
+        CIBLES+=("vm $vmid $name $(adresse_vm "$vmid" "$name" </dev/null)")
     done 3< <(qm list | awk 'NR > 1 {print $1, $3, $2}')
     signaler_aucune "VM" "$VM_VUES" "$VM_RETENUES"
 else
     printf '%s\n' "$(t "qm introuvable : pas de machine virtuelle collectée" "qm not found: no virtual machine collected")" >&2
 fi
+
+if (( ${#CIBLES[@]} > 0 )); then
+    verifier_suite
+fi
+
+for ligne in "${CIBLES[@]}"; do
+    read -r kind vmid name adresse <<<"$ligne"
+    if [[ "$kind" == "lxc" ]]; then
+        collecter_lxc "$vmid" "$name" "$RUN/lxc-$vmid-$name"
+    else
+        collecter_vm "$vmid" "$name" "$RUN/vm-$vmid-$name" "$adresse"
+    fi
+done
 
 ARCHIVE_OK=1
 if (( ARCHIVE == 1 && RAPPORTS_OK > 0 )); then
