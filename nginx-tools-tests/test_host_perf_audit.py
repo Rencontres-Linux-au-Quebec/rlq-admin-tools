@@ -670,12 +670,12 @@ esac''')
         self.hote_sante()
         self.mock("pct", '''case "$*" in
   *"if [ -x"*) printf "FOUND\\nsystem-hardening.sh version 1.4\\n";;
-  *--update*) printf "[OK] étape 1\\n  [ATTN] notification : courriel non configuré\\n      SMTP_HOST et NOTIFY_EMAIL_TO vides\\n[OK] fin\\n"; exit 0;;
+  *--update*) printf "[OK] étape 1\\n  [ATTN] courriel de la suite non configuré : nginx-hardening.sh --update --mail-setup\\n      SMTP_HOST et NOTIFY_EMAIL_TO vides\\n[OK] fin\\n"; exit 0;;
 esac''')
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101", "--yes", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 1, out + err)                                               # a warning gives 1, as before
-        self.assertIn("      warnings:\n        [ATTN] notification : courriel non configuré\n            SMTP_HOST et NOTIFY_EMAIL_TO vides\n", out)
-        self.assertIn("      what to do:\n        - the mail notifications are not configured", out)
+        self.assertIn("      warnings:\n        [ATTN] courriel de la suite non configuré : nginx-hardening.sh --update --mail-setup\n            SMTP_HOST et NOTIFY_EMAIL_TO vides\n", out)
+        self.assertIn("      what to do:\n        - the mail notifications are not configured: in the guest, run nginx-hardening.sh --update --mail-setup", out)
         self.assertIn("      full output: ", out)
         self.assertNotIn("Traceback", err)
 

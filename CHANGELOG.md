@@ -2734,6 +2734,8 @@ Earlier history was archived outside this repository when this file was created.
     or agent without answer) is said.
   - The report (report-HOST-STAMP.md): the failures and warnings with their detail, and a "What to do:" list per guest.
   - lang/host-perf-audit.fr.po: 14 new texts; nginx-tools-tests/test_host_perf_audit.py: test_avertissement_detaille_et_que_faire.
+  - The cause "mail not configured" matches the real message of the suite ("courriel de la suite non configuré", "mail of the suite
+    not configured", --mail-setup); its advice gives the command: nginx-hardening.sh --update --mail-setup.
 - Bugs fixed: symptom: a warning counted but never shown. Diagnosis: only the [FAIL] lines were printed. Fix: the warnings are printed too.
 - Safeguards and edge cases: the detail stops at the next marked line, at an empty line or at a line that is not indented further; each
   piece of advice is given once; the exit codes of the program are unchanged (a warning still gives 1).

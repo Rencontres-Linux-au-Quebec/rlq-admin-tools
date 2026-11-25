@@ -58,7 +58,7 @@ GUEST_HINTS = [
     (r"permission denied \(publickey", "the SSH key is refused: the public key of root of this host must be in authorized_keys of the account on the machine"),
     (r"connection timed out|connection refused|no route to host", "the machine does not answer on this port: check the SSH port (Port in /root/.ssh/config), the firewall and the address"),
     (r"command not found|no such file or directory", "a program or a file is missing in the guest: copy the suite first (--guest-sync) or install the missing package"),
-    (r"courriel non configuré|mail not configured|SMTP_HOST|NOTIFY_EMAIL_TO", "the mail notifications are not configured: set SMTP_HOST and NOTIFY_EMAIL_TO in the configuration of the program in the guest"),
+    (r"courriel.{0,30}non configuré|mail.{0,30}not configured|--mail-setup|SMTP_HOST|NOTIFY_EMAIL_TO", "the mail notifications are not configured: in the guest, run nginx-hardening.sh --update --mail-setup (it sets SMTP_HOST and NOTIFY_EMAIL_TO)"),
     (r"nginx: \[emerg\]|nginx -t|configuration file .* test failed", "nginx refused the new configuration (the previous one was kept): run nginx -t in the guest to see the line in fault"),
     (r"Traceback \(most recent call last\)", "the program stopped on an internal error: send the complete output (path below) for analysis"),
     (r"a password is required|sudo: .*password", "sudo asks for a password: the account needs a sudoers rule without a password (system-hardening.sh --collect-account)"),

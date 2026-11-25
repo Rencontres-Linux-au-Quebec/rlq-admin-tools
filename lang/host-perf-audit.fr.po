@@ -2005,8 +2005,8 @@ msgstr "la machine ne répond pas sur ce port : vérifier le port SSH (Port dans
 msgid "a program or a file is missing in the guest: copy the suite first (--guest-sync) or install the missing package"
 msgstr "un programme ou un fichier manque dans l'invité : copier d'abord la suite (--guest-sync) ou installer le paquet manquant"
 
-msgid "the mail notifications are not configured: set SMTP_HOST and NOTIFY_EMAIL_TO in the configuration of the program in the guest"
-msgstr "les notifications par courriel ne sont pas configurées : régler SMTP_HOST et NOTIFY_EMAIL_TO dans la configuration du programme dans l'invité"
+msgid "the mail notifications are not configured: in the guest, run nginx-hardening.sh --update --mail-setup (it sets SMTP_HOST and NOTIFY_EMAIL_TO)"
+msgstr "les notifications par courriel ne sont pas configurées : dans l'invité, lancer nginx-hardening.sh --update --mail-setup (il règle SMTP_HOST et NOTIFY_EMAIL_TO)"
 
 msgid "nginx refused the new configuration (the previous one was kept): run nginx -t in the guest to see the line in fault"
 msgstr "nginx a refusé la nouvelle configuration (l'ancienne est gardée) : lancer nginx -t dans l'invité pour voir la ligne fautive"
