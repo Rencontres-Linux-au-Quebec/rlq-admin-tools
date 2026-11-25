@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.8.20261124.192000"
+__version__="1.9.20261124.195500"
 
 set -u
 set -o pipefail
@@ -110,8 +110,8 @@ MSG_FR[bad_query]="Requete inconnue : %s (voir --list)"
 # 1.8: detection of the Odoo database when none is given
 MSG_EN[db_none]="No Odoo database found on this server (a database is Odoo when it has the table ir_module_module). Use --database NAME."
 MSG_FR[db_none]="Aucune base Odoo trouvee sur ce serveur (une base est Odoo si elle a la table ir_module_module). Utilisez --database NAME."
-MSG_EN[db_detect_fail]="Cannot list the databases of the server (connection, user, PG_HOST or PG_PORT). Use --database NAME."
-MSG_FR[db_detect_fail]="Impossible de lister les bases du serveur (connexion, utilisateur, PG_HOST ou PG_PORT). Utilisez --database NAME."
+MSG_EN[db_detect_fail]="Cannot list the databases of the server (connection, user, password, PG_HOST or PG_PORT). No password is asked here: store it in ~/.pgpass (chmod 600) or use peer authentication. Or use --database NAME."
+MSG_FR[db_detect_fail]="Impossible de lister les bases du serveur (connexion, utilisateur, mot de passe, PG_HOST ou PG_PORT). Aucun mot de passe n'est demande ici : mettez-le dans ~/.pgpass (chmod 600) ou utilisez l'authentification peer. Ou utilisez --database NAME."
 MSG_EN[db_list]="No database given: the Odoo databases found on this server are listed below."
 MSG_FR[db_list]="Aucune base indiquee : les bases Odoo trouvees sur ce serveur sont listees ci-dessous."
 MSG_EN[db_pick]="Number of the database to use (empty = cancel): "
@@ -521,7 +521,8 @@ check_tty() {
 }
 
 psql_base_args() {
-  PSQL_ARGS=(-X -q -v ON_ERROR_STOP=1 -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" -P pager=off)
+  # 1.9: -w never asks for a password on the terminal: without ~/.pgpass (or peer authentication) psql fails at once
+  PSQL_ARGS=(-X -w -q -v ON_ERROR_STOP=1 -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" -P pager=off)
 }
 
 # run_query NAME MODE(run|dry) OUTFILE
@@ -670,10 +671,10 @@ dialog_run() {
 # nothing is guessed: the list is shown and the run is refused, unless --yes is given and exactly one base was found.
 detect_odoo_databases() {  # prints the Odoo databases, one per line; returns 1 when the server cannot be queried
   local names db
-  names="$(psql -X -q -t -A -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname;" 2>/dev/null)" || return 1
+  names="$(psql -X -w -q -t -A -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname;" 2>/dev/null)" || return 1
   while IFS= read -r db; do
     [[ -n "$db" ]] || continue
-    if [[ "$(psql -X -q -t -A -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$db" -c "SELECT to_regclass('public.ir_module_module') IS NOT NULL;" 2>/dev/null)" == "t" ]]; then
+    if [[ "$(psql -X -w -q -t -A -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$db" -c "SELECT to_regclass('public.ir_module_module') IS NOT NULL;" 2>/dev/null)" == "t" ]]; then
       printf '%s\n' "$db"
     fi
   done <<< "$names"

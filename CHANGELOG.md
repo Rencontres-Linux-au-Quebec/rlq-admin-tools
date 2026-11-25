@@ -100,6 +100,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.9.20261124.195500 - No password prompt in the middle of the run (psql -w)
+
+- Title: psql never asks for a password on the terminal; a missing password now fails at once with a hint about ~/.pgpass.
+- Reason for the request: the administrator ran `odoo-sql-maint --run xss-content` as root and got "Password for user odoo:". PostgreSQL asks for the password of its own role (odoo), not for the Linux root account: the connection over TCP to localhost has no password-free method for this role. The detection of version 1.8 calls psql once for the list of databases and once per database, so without a stored password the prompt would have come back several times in a row.
+- Changes:
+  - psql_base_args: option -w added to PSQL_ARGS (the runs of the queries and of --export-drop-table).
+  - detect_odoo_databases: -w added to both psql calls.
+  - Messages db_detect_fail (French and English): the error now says that no password is asked, that it must be stored in ~/.pgpass (chmod 600) or that peer authentication is needed, and it still suggests --database NAME.
+  - Test test_17_pas_de_question_de_mot_de_passe: a wrong port fails at once (exit code 4) with the hint about ~/.pgpass.
+  - Files: odoo-sql-maint, nginx-tools-tests/test_odoo_sql_maint.py.
+- Bugs fixed:
+  - Symptom: "Password for user odoo:" in the middle of the detection, repeated for each database.
+  - Diagnosis: psql without -w prompts on the terminal when the server asks for a password and none is stored. The Linux user (root) plays no part: the role is a PostgreSQL role.
+  - Fix: -w on every psql call of the program.
+- Safeguards and edge cases:
+  - The program never reads or stores a password itself: ~/.pgpass (read by psql, user root uses /root/.pgpass) or peer authentication (the Linux user must have the same name as the PostgreSQL role, here odoo: sudo -u odoo ...) are the only ways.
+  - Without a stored password a run fails with the psql message and the exit code of the failed query; nothing waits for input.
+  - A database given with --database or PG_DATABASE is not detected, but the query still needs a valid password or ~/.pgpass.
+- Checks performed:
+  - bash -n; --version shows 1.9.20261124.195500.
+  - test_17_pas_de_question_de_mot_de_passe (wrong port, no terminal): exit 4, the hint about ~/.pgpass is printed.
+  - Not checked: a real server that asks for a password (the test cluster uses trust authentication).
+- Action required: on the server, put the password of the odoo role in /root/.pgpass (format host:port:database:user:password, chmod 600), or run the program as the Linux user odoo if peer authentication is configured. Then update /opt/rlq-admin-tools to this version.
+
 ### 1.8.20261124.192000 - Automatic detection of the Odoo database, with confirmation
 
 - Title: when no database is given, odoo-sql-maint finds the Odoo databases of the server and asks which one to use.
