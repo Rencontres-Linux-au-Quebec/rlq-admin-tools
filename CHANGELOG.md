@@ -564,6 +564,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.9.20261124.210233 - New option --verbose: each step and each command of the run is shown
+
+- Reason for the request: on 2026-11-24, the administrator ran collect-all-advise.sh on proxmox1: the run was long and nothing showed
+  what happened (the first run stopped at "Host key verification failed." for VM 430, and no LXC was selected because the
+  configuration still had NAME_REGEX=bbb). Request: add an option --verbose to see the steps.
+- Changes (collect-all-advise.sh):
+  - New option -v, --verbose (help and header, sorted); VERBOSE=0 by default; new function trace(): with --verbose, one line per step
+    on the standard error, "  [trace] ...", never on the standard output.
+  - adresse_vm(): says where the address of a VM comes from (VM_HOST_<VMID>, guest agent, DNS) or that there is none.
+  - collecter_lxc() and collecter_vm(): the exit code of each step is kept (pct exec, pct pull, ssh, sudo cat) and traced; the
+    command run in the guest is traced. The output of the guest stays in the advise-STAMP.txt file, as before.
+  - The loops over pct list and qm list trace each guest that is skipped (its state, or its name outside NAME_REGEX).
+  - nginx-tools-tests/test_collect_all_advise.py: test_verbose_montre_les_etapes (the traces with --verbose; none without it).
+- Bugs fixed: none in the logic. The collection itself is unchanged (same commands, same files, same exit codes).
+- Safeguards and edge cases: the traces go to the standard error only; the message language follows --lang; a guest without
+  an address is traced too. The exit code of a step is captured with "|| rc=$?" (the shell option set -e stays on).
+- Checks: bash -n; ShellCheck (-S style, clean); python3 -m py_compile of the test file; test_collect_all_advise by the testeur agent.
+- Action required: none. For the configuration on proxmox1, NAME_REGEX must be bbb|odoo in /etc/default/collect-all-advise.conf
+  (the run showed "machines bbb"), and root must accept the host key of each VM once (ssh rlqcollect@ADDRESS, check the
+  fingerprint, accept).
+
 ### 1.8.20261123.160500 - ShellCheck: all findings fixed (warnings and style)
 
 - Reason for the request: after the blocking error was fixed (1.7), the ShellCheck findings that remained (informational level in
