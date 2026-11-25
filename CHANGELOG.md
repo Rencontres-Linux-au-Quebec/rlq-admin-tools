@@ -5024,6 +5024,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.127.20261125.173800 - --revert-base records fail2ban, logrotate and journald changes
+
+- Title: the files changed by the fail2ban, logrotate and journald steps are now recorded in the journal, so that --revert-base can put them back.
+- Reason: --revert-base of 2.126 only covered the generic configuration step. Without these steps, the base configuration could not be restored for the blocked-probes jail, the ignoreip file, the logrotate files of nginx and fail2ban, the journald retention and the journald persistence.
+- Changes: apps/_journal.sh: new function journal_preparer (copies the file to FILE.before-revert-DATE when it exists, then records it as remplacer; records creer otherwise; refused outside the allowed roots). nginx-hardening.sh: the writes of the nginx-blocked-probes filter and jail (both must be recorded, otherwise nothing is written), of zz-nginx-hardening-ignoreip.local, of logrotate nginx and fail2ban (apply only, not with --check), of the journald retention (two places) and of the journald persistence (apply only). nginx-tools-tests/test_journal_revert.py: 3 tests added (existing file copied and put back, missing file removed, outside the roots refused).
+- Bugs fixed: none.
+- Safeguards and edge cases: a file that cannot be recorded or copied is reported with a warning, and the change still happens: this is the one case where --revert-base cannot restore the file, and the warning says so. The blocked-probes files are only written when both records succeed.
+- Checks performed: test_journal_revert, test_yunohost_apps and test_profil_yunohost: 25 tests, all pass (1 skipped as root); bash -n on both programs.
+- Action required: before --revert-base on a server, read the list it prints. The journal is written only by --update, not by --check.
+
 ### 2.126.20261125.172540 - --revert-base: back to the base configuration (YunoHost and others)
 
 - Title: new option --revert-base puts back the base configuration: it removes the files created by the tools and restores the copies of the files they replaced, then runs "yunohost tools regen-conf nginx" on YunoHost.

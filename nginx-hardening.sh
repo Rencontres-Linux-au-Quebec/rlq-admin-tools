@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.126.20261125.172540"
+readonly SCRIPT_VERSION="2.127.20261125.173800"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1184,8 +1184,13 @@ durcir_bbb() {
             warn "Jail nginx-blocked-probes absente — --update l'installera (bannit les clients qui accumulent les refus)."
         else
             mkdir -p /etc/fail2ban/filter.d /etc/fail2ban/jail.d
-            filtre_blocked_probes > /etc/fail2ban/filter.d/nginx-blocked-probes.conf
-            jail_blocked_probes > /etc/fail2ban/jail.d/nginx-blocked-probes.conf
+            # 2.127: consigné dans le journal avant l'écriture (--revert-base)
+            if journal_preparer /etc/fail2ban/filter.d/nginx-blocked-probes.conf && journal_preparer /etc/fail2ban/jail.d/nginx-blocked-probes.conf; then
+                filtre_blocked_probes > /etc/fail2ban/filter.d/nginx-blocked-probes.conf
+                jail_blocked_probes > /etc/fail2ban/jail.d/nginx-blocked-probes.conf
+            else
+                fail "Journal : fichiers nginx-blocked-probes non consignés ; aucune modification faite."
+            fi
             [[ -e /var/log/nginx/blocked-probes.log ]] || { touch /var/log/nginx/blocked-probes.log; chown --reference=/var/log/nginx /var/log/nginx/blocked-probes.log 2>/dev/null || true; }
             pass "Jail nginx-blocked-probes installée (5 refus en 10 min → banni 24 h)."
             NEED_FAIL2BAN_RESTART=1
@@ -1278,6 +1283,7 @@ verifier_ignoreip() {
             else
                 f2b_liste=$(tr ' ' '\n' <<< "127.0.0.1/8 ::1 $f2b_connues $f2b_equipe" | grep . | awk '!vu[$0]++' | tr '\n' ' ')
                 mkdir -p /etc/fail2ban/jail.d 2>/dev/null || true
+                journal_preparer /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local || warn "Journal : zz-nginx-hardening-ignoreip.local non consigné (--revert-base ne le retirera pas)."
                 printf '%s\n' "# Généré par nginx-hardening.sh : adresses de l'équipe (table \$is_trusted_ip de nginx) jamais bannies," \
                     "# plus les adresses déjà ignorées. Lu en dernier (jail.d/*.local) : complète jail.local sans le modifier." \
                     "[DEFAULT]" "ignoreip = ${f2b_liste% }" > /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local
@@ -3548,6 +3554,7 @@ LR_DEPLACEES=0
 for lr_nom in nginx fail2ban; do
     lr_f="$LOGROTATE_DIR/$lr_nom"
     lr_copie="$LR_COPIES_DIR/$lr_nom.before-nginx-hardening"
+    [[ "$CHECK_ONLY" == "1" ]] || journal_preparer "$lr_f" || warn "Journal : $lr_f non consigné (--revert-base ne le restaurera pas)."
     for lr_ancienne in "$lr_f.avant-nginx-hardening" "$lr_f.before-nginx-hardening"; do
         [[ -e "$lr_ancienne" ]] || continue
         if [[ "$CHECK_ONLY" == "1" ]]; then
@@ -3681,6 +3688,7 @@ if [[ -n "$jr_actuel" ]]; then
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "Journal systemd${jr_ns:+ (namespace $jr_ns)} : $jr_actuel — --update passera à MaxRetentionSec=${LOG_RETENTION_MONTHS}month dans $jr_f."
     else
+        journal_preparer "$jr_f" || warn "Journal : $jr_f non consigné (--revert-base ne le restaurera pas)."
         sed -i -E "s/^[[:space:]]*MaxRetentionSec=.*/MaxRetentionSec=${LOG_RETENTION_MONTHS}month/" "$jr_f"
         if systemctl restart "$jr_unit" >/dev/null 2>&1; then
             pass "Journal systemd${jr_ns:+ (namespace $jr_ns)} : $jr_actuel → MaxRetentionSec=${LOG_RETENTION_MONTHS}month dans $jr_f, $jr_unit redémarré."
@@ -3691,6 +3699,7 @@ if [[ -n "$jr_actuel" ]]; then
 elif [[ "$CHECK_ONLY" == "1" ]]; then
     warn "Journal systemd${jr_ns:+ (namespace $jr_ns)} : aucune durée fixée (limité seulement par la taille) — --update ajoutera MaxRetentionSec=${LOG_RETENTION_MONTHS}month dans $jr_f."
 else
+    journal_preparer "$jr_f" || warn "Journal : $jr_f non consigné (--revert-base ne le restaurera pas)."
     mkdir -p "$(dirname "$jr_f")"
     if [[ -f "$jr_f" ]] && grep_q -E '^\[Journal\]' "$jr_f"; then
         sed -i -E "/^\\[Journal\\]/a MaxRetentionSec=${LOG_RETENTION_MONTHS}month" "$jr_f"
@@ -3715,6 +3724,7 @@ if [[ "$JOURNAL_PERSISTENT" == "1" && -z "$jr_ns" ]]; then
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "Journal systemd : non persistant (${jp_actuel:-Storage=auto} sans $jp_dir) — perdu à chaque redémarrage ; --update écrira Storage=persistent dans $jp_f."
     else
+        journal_preparer "$jp_f" || warn "Journal : $jp_f non consigné (--revert-base ne le restaurera pas)."
         mkdir -p "$(dirname "$jp_f")" "$jp_dir"
         printf '%s\n' "# Ajouté par nginx-hardening.sh 2.83 : journal gardé sur disque (raisons des arrêts d'Odoo après un redémarrage)." "[Journal]" "Storage=persistent" > "$jp_f"
         if run systemctl restart systemd-journald >/dev/null 2>&1; then

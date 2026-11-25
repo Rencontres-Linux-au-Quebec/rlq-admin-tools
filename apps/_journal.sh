@@ -33,6 +33,17 @@ journal_ajouter() {                      # $1 creer|remplacer, $2 file, $3 backu
     printf '%s\t%s\t%s\t%s\n' "$action" "$fichier" "$copie" "$(date +%Y%m%d-%H%M%S)" >> "$JOURNAL_FICHIER" || return 1
 }
 
+journal_preparer() {                     # $1 file about to be created or replaced: copies it first, then records it; 1 if refused or failed
+    local fichier="$1" action=creer copie=""
+    journal_sous_racine_autorisee "$fichier" || return 1
+    if [[ -e "$fichier" ]]; then
+        action=remplacer
+        copie="$fichier.before-revert-$(date +%Y%m%d-%H%M%S)"
+        cp -p -- "$fichier" "$copie" || return 1
+    fi
+    journal_ajouter "$action" "$fichier" "$copie"
+}
+
 journal_restaurer() {                    # [--dry-run] : puts back the files, newest entry first; lines on stdout; 1 if an error
     local dry="${1:-}" action fichier copie date rc=0 i
     local -a lignes=()

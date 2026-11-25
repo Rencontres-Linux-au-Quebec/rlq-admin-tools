@@ -98,6 +98,32 @@ class JournalRevert(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertIn("copie absente", out)
 
+    def test_preparer_fichier_existant_copie_puis_restaure(self):
+        fichier = os.path.join(self.racine, "conf.d", "zz.local")
+        os.makedirs(os.path.dirname(fichier))
+        self.ecrire(fichier, "D'ORIGINE\n")
+        rc, _, err = self.bash('journal_preparer "$1"', fichier)
+        self.assertEqual(rc, 0, err)
+        self.ecrire(fichier, "MODIFIE\n")
+        rc, _, err = self.bash("journal_restaurer")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(self.lire(fichier), "D'ORIGINE\n")
+        self.assertIn("remplacer\t", self.lire(self.journal))
+
+    def test_preparer_fichier_absent_puis_retire(self):
+        fichier = os.path.join(self.racine, "jail.d", "nouveau.conf")
+        os.makedirs(os.path.dirname(fichier))
+        rc, _, err = self.bash('journal_preparer "$1"', fichier)
+        self.assertEqual(rc, 0, err)
+        self.ecrire(fichier, "CREE PAR LES OUTILS\n")
+        rc, _, err = self.bash("journal_restaurer")
+        self.assertEqual(rc, 0, err)
+        self.assertFalse(os.path.exists(fichier))
+
+    def test_preparer_hors_racines_refuse(self):
+        rc, _, _ = self.bash('journal_preparer "$1"', os.path.join(self.tmp, "x.conf"))
+        self.assertNotEqual(rc, 0)
+
     def test_pas_de_journal_rien_a_faire(self):
         rc, out, _ = self.bash("journal_restaurer")
         self.assertEqual(rc, 0)
