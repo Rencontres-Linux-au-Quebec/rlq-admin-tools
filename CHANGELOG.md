@@ -100,6 +100,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.8.20261124.192000 - Automatic detection of the Odoo database, with confirmation
+
+- Title: when no database is given, odoo-sql-maint finds the Odoo databases of the server and asks which one to use.
+- Reason for the request: the administrator ran `odoo-sql-maint --run xss-content` without a database and got "Aucune base definie". The program only read the database from --database or PG_DATABASE and never looked at the server. The request: detect the database automatically, and ask for a confirmation.
+- Changes:
+  - New function detect_odoo_databases: lists the databases of the server (pg_database, templates and databases that do not accept connections left out), then keeps those whose public schema has the table ir_module_module (a database is Odoo when it has that table).
+  - New function resolve_database UI: called by main when PG_DATABASE is empty, for --run and --export-drop-table (command line) and for the menu (dialog). With one base: "Use the Odoo database 'X'? [y/N]". With several: a numbered list (command line) or a dialog menu, then the same confirmation. Refused when no base is found or when the server cannot be listed.
+  - --yes: accepted only when exactly one Odoo base is found (the base is then used and the choice is printed); refused when several are found, so that a script never picks one at random.
+  - New messages db_none, db_detect_fail, db_list, db_pick, db_confirm, db_confirm_box, db_use, db_ambiguous, db_no_tty, db_cancel (French and English).
+  - --help: the line --database says that the base is detected and confirmed when missing.
+  - Files: odoo-sql-maint, nginx-tools-tests/test_odoo_sql_maint.py (test_17_detection_de_la_base_odoo).
+- Bugs fixed: symptom: "Aucune base definie. Utilisez --database ou PG_DATABASE dans un fichier de config." even though the server holds an Odoo database. Diagnosis: no code path asked the server for its databases. Fix: detection above.
+- Safeguards and edge cases:
+  - Without a terminal and without --yes nothing is guessed: the list of the Odoo bases is printed and the run is refused (exit code 4).
+  - A detected base is still checked by PROD_PATTERN for destructive queries: a production base needs --yes for those, as before. On a server that hosts a production and a test base, the confirmation is always asked.
+  - Detection only reads: pg_database and to_regclass. Nothing is written, and the query itself still runs in its transaction (rolled back with --dry-run).
+  - A database given by --database or PG_DATABASE (command line or configuration file) is used as before: no detection, no question.
+  - A database that refuses the connection is skipped by the query to pg_database (datallowconn) or, if it cannot be read, reported as not Odoo.
+  - The choice of the number and the confirmation are both needed in the command line; an empty answer or any answer other than y, o, yes or oui cancels.
+- Checks performed:
+  - bash -n; --version shows 1.8.20261124.192000.
+  - nginx-tools-tests/test_odoo_sql_maint.py, new test test_17_detection_de_la_base_odoo on a throwaway PostgreSQL 16 cluster: no terminal refused with the list (two Odoo bases, the non-Odoo base not listed), two bases with --yes refused, explicit --database runs, one base with --yes accepted and used.
+  - Not yet checked: the interactive confirmation in a real terminal and the dialog menu (to test on the server by hand).
+- Action required: on the server, update the installed copy (/opt/rlq-admin-tools) to this version. To skip the question on a server that has one Odoo base, nothing is needed; to fix the base for good, set PG_DATABASE in ~/.odoo-sql-maint.conf.
+
 ### 1.7.20261124.190500 - Read-only checks for the Odoo XSS advisory (CVE-2026-130029)
 
 - Reason for the request: Odoo published advisory ODOO-SA-2026-11-23 on 2026-11-23 (stored XSS in the HTML sanitizer, Odoo 20.0 and earlier, CVSS 7.1). The administrator asked to add the traces check to odoo-sql-maint: messages and chatter, Live Chat, HTML fields, persistence (admins, server actions, scheduled actions, API keys, views, parameters).
