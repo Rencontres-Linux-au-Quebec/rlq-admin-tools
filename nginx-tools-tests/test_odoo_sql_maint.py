@@ -149,6 +149,15 @@ class AvecPostgreSQL(unittest.TestCase):
         self.assertIn("Database detected and used: odoo_a", out)
         self.assertIn("Query finished", out)
 
+    def test_17_pas_de_question_de_mot_de_passe(self):
+        # 1.9: psql runs with -w: a server that asks for a password fails at once, with the hint about ~/.pgpass; nothing waits on the terminal.
+        conf = os.path.join(self.d, "mauvais-port.conf")
+        with open(conf, "w") as f:
+            f.write(f"PG_HOST={self.d}\nPG_PORT=1\nPG_USER=odoo\nUI_LANG=en\n")
+        rc, out = lancer("--run", "connection-test", "--dry-run", conf=conf, entree="")
+        self.assertEqual(rc, 4, out)
+        self.assertIn("pgpass", out)
+
     def test_16_sauvegardes_planifiees(self):
         rc, out = lancer("--run", "backup-crons-disable", "--yes", conf=self.conf)
         self.assertEqual(rc, 0, out)
