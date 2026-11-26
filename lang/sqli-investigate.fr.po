@@ -1,0 +1,218 @@
+# French translation of the messages of sqli-investigate (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays).
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: sqli-investigate\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "READ-ONLY investigation of the SQL injection attempts in the nginx access logs: every attempt, its answer, the fail2ban bans and the answers the banned addresses got afterwards."
+msgstr "Enquête EN LECTURE SEULE sur les tentatives d'injection SQL dans les journaux d'accès nginx : chaque tentative, sa réponse, les bannissements fail2ban et les réponses reçues ensuite par les adresses bannies."
+
+msgid "nginx access logs, glob (rotated files and .gz included; default: "
+msgstr "journaux d'accès nginx, glob (rotations et .gz inclus ; défaut : "
+
+msgid "Display the changelog of this program"
+msgstr "Affiche le journal des modifications de ce programme"
+
+msgid "This configuration file ONLY (default: "
+msgstr "Ce fichier de configuration SEUL (défaut : "
+
+msgid "Rewrite the configuration file from the NEW default configuration, keeping the values already set; the old file is first copied to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit"
+msgstr "Réécrit le fichier de configuration à partir de la NOUVELLE configuration par défaut, en gardant les valeurs déjà réglées ; l'ancien fichier est d'abord copié vers FICHIER.bak-AAAAMMJJ-HHMMSS (avec -c : ce fichier seulement). Puis quitte"
+
+msgid "fail2ban log, glob (default: "
+msgstr "journal fail2ban, glob (défaut : "
+
+msgid "fail2ban jail to examine (default: "
+msgstr "prison fail2ban à examiner (défaut : "
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : d'après LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "No reverse DNS lookup of the addresses (no names in the summary)"
+msgstr "Aucune recherche de nom DNS inverse pour les adresses (aucun nom dans le résumé)"
+
+msgid "Odoo log: counts the Odoo errors within 60 s of each attempt"
+msgstr "Journal Odoo : compte les erreurs Odoo à 60 s de chaque tentative"
+
+msgid "Results folder, created in mode 700 (default: "
+msgstr "Dossier des résultats, créé en mode 700 (défaut : "
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "Number of addresses detailed in the summary (default: "
+msgstr "Nombre d'adresses détaillées dans le résumé (défaut : "
+
+msgid "Display each step and each external command run"
+msgstr "Affiche chaque étape et chaque commande externe lancée"
+
+msgid "configuration file not found: "
+msgstr "fichier de configuration introuvable : "
+
+msgid "ERROR: --top must be a positive number."
+msgstr "ERREUR : --top doit être un nombre positif."
+
+msgid "ERROR: "
+msgstr "ERREUR : "
+
+msgid "WARNING: "
+msgstr "ATTENTION : "
+
+msgid "Configuration read: "
+msgstr "Configuration lue : "
+
+msgid "  Options: access logs "
+msgstr "  Options : journaux "
+
+msgid " · jail "
+msgstr " · prison "
+
+msgid " · output "
+msgstr " · dossier "
+
+msgid " addresses"
+msgstr " adresses"
+
+msgid " · no DNS lookup"
+msgstr " · sans recherche DNS"
+
+msgid " · Odoo log "
+msgstr " · journal Odoo "
+
+msgid "none (default values)"
+msgstr "aucun (valeurs par défaut)"
+
+msgid ", then "
+msgstr ", puis "
+
+msgid " (the last one wins)"
+msgstr " (le dernier l'emporte)"
+
+msgid " (requested by -c/--config: no other file read)"
+msgstr " (demandé par -c/--config : aucun autre fichier lu)"
+
+msgid "no fail2ban log: "
+msgstr "aucun journal fail2ban : "
+
+msgid "no nginx access log: "
+msgstr "aucun journal d'accès nginx : "
+
+msgid "fail2ban-client not found: the jail state was not read"
+msgstr "fail2ban-client introuvable : état de la prison non relevé"
+
+msgid "fail2ban-client: "
+msgstr "fail2ban-client : "
+
+msgid "Changelog not found: "
+msgstr "Journal des modifications introuvable : "
+
+msgid "No entry for "
+msgstr "Aucune entrée pour "
+
+msgid ".py in "
+msgstr ".py dans "
+
+msgid "--report-err unavailable (apps/_rapport.py missing): normal run."
+msgstr "--report-err indisponible (apps/_rapport.py absent) : exécution normale."
+
+msgid "\nInterrupted (Ctrl-C)."
+msgstr "\nInterrompu (Ctrl-C)."
+
+msgid "  [verbose] "
+msgstr "  [détaillé] "
+
+msgid " attempts, "
+msgstr " tentatives, "
+
+msgid " fail2ban events, "
+msgstr " événements fail2ban, "
+
+msgid " addresses tracked"
+msgstr " adresses suivies"
+
+msgid "No SQL injection attempt found in the logs read."
+msgstr "Aucune tentative d'injection SQL trouvée dans les journaux lus."
+
+msgid "Investigation summary ("
+msgstr "Résumé de l'investigation ("
+
+msgid "Attempts: "
+msgstr "Tentatives : "
+
+msgid ", from "
+msgstr ", du "
+
+msgid " to "
+msgstr " au "
+
+msgid "Families: "
+msgstr "Familles : "
+
+msgid "Answers (HTTP code): "
+msgstr "Réponses (code HTTP) : "
+
+msgid "Attempts answered with 2xx: "
+msgstr "Tentatives répondues en 2xx : "
+
+msgid " (a 200 answer does not prove the absence of injection: see the SQL requests)"
+msgstr " (une réponse 200 ne prouve pas l'absence d'injection : voir les requêtes SQL)"
+
+msgid "Attempts with an Odoo error within ±"
+msgstr "Tentatives avec une erreur Odoo à ±"
+
+msgid " s: "
+msgstr " s : "
+
+msgid "Most active addresses (top "
+msgstr "Adresses les plus actives (top "
+
+msgid " attempts, from "
+msgstr " tentatives, du "
+
+msgid " families: "
+msgstr " familles : "
+
+msgid "    answers: "
+msgstr "    réponses : "
+
+msgid " [banned now]"
+msgstr " [banni maintenant]"
+
+msgid "Jail bans (or none)"
+msgstr "Bannissements de la prison (ou aucun)"
+
+msgid "  No ban read in the fail2ban log."
+msgstr "  Aucun bannissement lu dans le journal de fail2ban."
+
+msgid " banned at "
+msgstr " banni à "
+
+msgid " request(s) after the ban, "
+msgstr " requête(s) après le bannissement, "
+
+msgid " with 2xx"
+msgstr " en 2xx"
+
+msgid "Current state of the jail "
+msgstr "État actuel de la prison "
+
+msgid " (fail2ban-client status):"
+msgstr " (fail2ban-client status) :"
+
+msgid "(unavailable)"
+msgstr "(indisponible)"
+
+msgid "Events read: "
+msgstr "Événements lus : "
+
+msgid "Results written to: "
+msgstr "Fichiers écrits dans : "
+
+msgid "  sqli-requests.tsv (every attempt), sqli-summary.txt (summary), sqli-bans.txt (bans and state of the jail)"
+msgstr "  sqli-requests.tsv (chaque tentative), sqli-summary.txt (résumé), sqli-bans.txt (bannissements et état de la prison)"

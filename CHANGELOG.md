@@ -4,6 +4,18 @@ Version numbers follow `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time of the change).
 Each program has its own section; the most recent version comes first.
 Earlier history was archived outside this repository when this file was created.
 
+## sqli-investigate.py
+
+### 0.1.20261126.091840 - READ-ONLY investigation of the SQL injection attempts in the nginx logs (sqli-investigate.py)
+
+- Title: new program sqli-investigate.py lists every SQL injection attempt of the access logs (family, answer, user agent), the fail2ban bans of the jail, and the answers the banned addresses still received after each ban. No change to the existing programs.
+- Reason: request of the administrator on 2026-11-26: collect-all-advise.sh gives no details of the SQL injection attempts (it anonymises by default, reads the details of 4xx codes only, does not read the fail2ban jail and does not see the SQL requests), so an investigation program is needed. The administrator also asked that the new program follow the same rules as the others (options, documentation, changelog).
+- Changes: sqli-investigate.py (new): read_config(), scan_access(), read_bans(), read_odoo_errors(), fail2ban_state(), build_summary(), show_changelog(), main(); source written in English (as the other migrated programs), French messages in lang/sqli-investigate.fr.po (the French-source draft with lang/sqli-investigate.en.po was removed); entry points protected_main() and launch_with_report(); doc/en/sqli-investigate.conf.example lists the command-line-only options and the ANONYMIZE key, launch_with_report(). Options (alphabetical): --access-log, --anonymize (added by apps/_i18n.py), --changelog, -c/--config, --config-merge, --fail2ban-log, --jail, --lang, --no-lookup, --odoo-log, --output, --report-err, --top, -v/--verbose, --version. Writes sqli-requests.tsv, sqli-summary.txt and sqli-bans.txt in --output (folder mode 700, files mode 600). Configuration: /etc/default/sqli-investigate.conf then ~/.sqli-investigate.conf (keys ACCESS_LOG, FAIL2BAN_LOG, JAIL, LANGUAGE, NO_LOOKUP, ODOO_LOG, OUTPUT, TOP). Files: doc/en/sqli-investigate.conf.example, doc/fr/sqli-investigate.conf.example, doc/en/20-sqli-investigate.md, doc/fr/20-sqli-investigate.md, lang/sqli-investigate.en.po, nginx-tools-tests/test_sqli_investigate.py.
+- Bugs fixed: none (new program).
+- Safeguards and edge cases: read-only: no ban, no unban, no service restart, no write outside --output; the families are searched in the decoded URL; rotated and .gz logs are read; a missing or unreadable file is reported as a warning and skipped; a missing fail2ban-client is reported, not fatal; a 2xx answer is reported as NO proof of absence of injection; --top must be positive; the configuration file is created only at the first run, never with -c, --help, --version or --changelog.
+- Checks performed: synthetic logs only (addresses of RFC 5737 documentation ranges, no real address, no real name): each family detected, a ban followed by 2xx answers counted, a rotated .gz file read, an Odoo error near an attempt counted, the output files written with the right modes, the first line of every run, --version, --changelog, --config-merge, -c with a missing file.
+- Action required: none for the program. Before relying on the fail2ban part on a server, check that the jail name (JAIL or --jail) and the log paths (ACCESS_LOG, FAIL2BAN_LOG) match that server. Check the nginx log_format of that server (the program reads the combined format: address first, then time, request, status and size).
+
 ## Application profiles (apps/)
 
 ### 0.1.20261125.161408 - Read-only detection of YunoHost applications (apps/_yunohost.py)

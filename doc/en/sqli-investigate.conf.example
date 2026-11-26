@@ -1,0 +1,36 @@
+# Configuration file of sqli-investigate.py (example: every key, commented out = default value).
+# Files read IN THIS ORDER (the last one wins); the command line always has priority over the files:
+#   1. /etc/default/sqli-investigate.conf    (system file)
+#   2. ~/.sqli-investigate.conf              (if it exists: the user's settings)
+# -c/--config FILE: that file ALONE. The program always displays which file(s) it reads, then a summary of the important options.
+# Format: KEY=value, one per line; # = comment; quotes optional; booleans: yes / no. This file is READ, never executed.
+
+# --- Options (alphabetical order) ---
+# --access-log: nginx access logs, glob (current and rotated files, .gz included)
+#ACCESS_LOG=/var/log/nginx/*-access.log*
+# --anonymize: pseudonymise what the program displays (IP addresses, e-mails, identifiers, tokens); the same key in app-default.conf
+# applies to every program (applied only when the output is a terminal)
+#ANONYMIZE=no
+# --fail2ban-log: fail2ban log, glob (rotations included)
+#FAIL2BAN_LOG=/var/log/fail2ban.log*
+# --jail: fail2ban jail whose bans are read and compared with the answers given afterwards
+#JAIL=nginx-sqli
+# en or fr (follows LC_ALL / LC_MESSAGES / LANG when absent); same as --lang
+#LANGUAGE=fr
+# --no-lookup: no reverse DNS lookup of the addresses
+#NO_LOOKUP=no
+# --odoo-log: Odoo log; counts the Odoo errors within 60 s of each attempt (empty: no Odoo log read)
+#ODOO_LOG=
+# --output: folder of the results, created in mode 700 (default: ~/audit/sqli-investigate/YYYYMMDD-HHMMSS)
+#OUTPUT=
+# --top: number of addresses detailed in the summary (positive number, default 20)
+#TOP=20
+
+# --- Command-line options ONLY (actions or one-off settings: no key here). Run "sqli-investigate.py --help" for the details. ---
+#   --changelog      Display the changelog of this program
+#   --config         This configuration file ONLY (see -c/--config above)
+#   --config-merge   Rewrite the configuration file from the NEW default configuration, keeping the values already set, then exit
+#   --lang           Display language: en or fr (same as the LANGUAGE key)
+#   --report-err     Print at the end an error report to copy and paste (program, version, server, failures, warnings)
+#   --verbose        Display each step and each external command run
+#   --version        Display the version and exit

@@ -19,7 +19,7 @@ from helpers import CONFIG_DIR, EnvTest, script_path, SCRIPTS_DIR
 NOM_SUITE = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
 
 PROGRAMMES = ["admin-menu.sh", "nginx-log-audit.sh", "nginx-hardening.sh", "system-hardening.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh", "odoo-update-module.sh",
-              "app-log-check.py", "app-health-check.py", "web-monitor.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", f"{NOM_SUITE}/run-all.sh"]
+              "app-log-check.py", "app-health-check.py", "web-monitor.py", "zip-versions.py", "sqli-investigate.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", f"{NOM_SUITE}/run-all.sh"]
 VERSION_RE = r"(\d+)\.(\d+)\.(\d{8})\.(\d{6})"
 
 
@@ -47,7 +47,7 @@ def launcher(name):
     return ["bash", script_path(name)] if name.endswith(".sh") else ["python3", script_path(name)]
 
 
-PROGRAMMES_ANGLAIS = ("app-health-check.py", "zip-versions.py", "odoo-warmup.py", "host-perf-audit.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "app-log-check.py", "web-monitor.py", "app-log-live.py")       # programs whose code is already in English (step-by-step migration)
+PROGRAMMES_ANGLAIS = ("app-health-check.py", "zip-versions.py", "sqli-investigate.py", "odoo-warmup.py", "host-perf-audit.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "app-log-check.py", "web-monitor.py", "app-log-live.py")       # programs whose code is already in English (step-by-step migration)
 
 
 class Conventions(EnvTest):
@@ -175,7 +175,7 @@ class CompatibilitePython38(unittest.TestCase):
                  r"functools\.cache\b", r"math\.lcm", r"(:|->) ?(list|dict|tuple|set)\[", r": ?\w+ ?\| ?None\b"]
 
     def test_aucune_fonction_posterieure_a_python_3_8(self):
-        for name in ("app-health-check.py", "app-log-check.py", "web-monitor.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", "apps/_profile.py",
+        for name in ("app-health-check.py", "app-log-check.py", "web-monitor.py", "zip-versions.py", "sqli-investigate.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", "apps/_profile.py",
                      "apps/_reseau.py", "apps/_odoo_db.py", "apps/_bbb.py", "apps/_listes.py", "apps/_cache_ip.py", "apps/_courriel.py", "apps/_email_check.py",
                      "apps/_odoo_users.py", "apps/_sysperf.py", "apps/_record.py", "apps/_advisor.py"):
             src = open(script_path(name), encoding="utf-8").read().splitlines()
@@ -220,9 +220,9 @@ class RapportErreurs(unittest.TestCase):
 class RegleDesConfigurations(unittest.TestCase):
     """Règle commune des fichiers de configuration : /etc/default/<programme>.conf, PUIS ~/.<programme>.conf s'il existe, PUIS
     la ligne de commande (prioritaire) ; -c/--config : ce fichier seul ; les fichiers lus sont TOUJOURS affichés."""
-    PYTHON = ("web-monitor", "zip-versions", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "odoo-warmup", "app-health-check", "app-log-check", "app-log-live", "host-perf-audit")
+    PYTHON = ("web-monitor", "sqli-investigate", "zip-versions", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "odoo-warmup", "app-health-check", "app-log-check", "app-log-live", "host-perf-audit")
     BASH = ("admin-menu", "sync-crowdsec-blocklist", "odoo-backup", "odoo-update-module", "nginx-log-audit", "nginx-hardening", "system-hardening")
-    PROPRES = {"odoo-backup", "app-health-check", "odoo-mail-retry", "odoo-warmup"}        # programs that read their files themselves (in addition to the common rule)
+    PROPRES = {"odoo-backup", "app-health-check", "odoo-mail-retry", "odoo-warmup", "sqli-investigate"}        # programs that read their files themselves (in addition to the common rule)
     AVEC_CONFIGURATION = {f"{n}.py": (f"{n}.conf", f".{n}.conf") for n in PYTHON}
     AVEC_CONFIGURATION.update({f"{n}.sh": (f"{n}.conf", f".{n}.conf") for n in BASH})
 
@@ -293,7 +293,7 @@ class RegleDesConfigurations(unittest.TestCase):
 class CtrlC(unittest.TestCase):
     """Ctrl-C ne doit jamais afficher une trace d'appels Python : chaque programme Python l'intercepte au point d'entrée."""
     def test_programmes_python_interceptent_ctrl_c(self):
-        for name in ("web-monitor.py", "app-health-check.py", "app-log-check.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "host-perf-audit.py"):
+        for name in ("web-monitor.py", "app-health-check.py", "app-log-check.py", "zip-versions.py", "sqli-investigate.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "host-perf-audit.py"):
             with self.subTest(programme=name):
                 texte = open(script_path(name), encoding="utf-8").read()
                 # web-monitor: executer(); the others: principal_protege() - called by the entry point (lancer_avec_rapport)
@@ -596,7 +596,7 @@ class EnTeteDeVersion(unittest.TestCase):
     n'affiche que la version (une seule ligne, pas de doublon). Programmes seulement : les composants apps/ sont internes (leur sortie est
     lue par d'autres programmes)."""
     PROGRAMMES = ["nginx-hardening.sh", "nginx-log-audit.sh", "odoo-backup.sh", "odoo-update-module.sh", "sync-crowdsec-blocklist.sh", "system-hardening.sh", "web-monitor.py",
-                  "app-health-check.py", "app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", "zip-versions.py", "run-all.sh"]
+                  "app-health-check.py", "app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", "zip-versions.py", "sqli-investigate.py", "run-all.sh"]
     SUR_STDERR = ("app-log-live.py",)        # its standard output is the journal stream: the header goes to the error output
 
     def chemin(self, nom):
