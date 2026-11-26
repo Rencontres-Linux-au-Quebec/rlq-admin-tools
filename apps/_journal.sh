@@ -15,6 +15,7 @@
 
 JOURNAL_FICHIER="${NGINX_TOOLS_JOURNAL:-/var/lib/nginx-tools/installed-files.tsv}"
 JOURNAL_RACINES="${NGINX_TOOLS_JOURNAL_ROOTS:-/etc/nginx /etc/fail2ban /etc/logrotate.d /etc/systemd}"
+JOURNAL_SAUVEGARDES="${NGINX_TOOLS_JOURNAL_BACKUPS:-/var/lib/nginx-tools/journal-backups}"
 
 journal_sous_racine_autorisee() {       # $1 file : 0 if it is under one of the allowed roots
     local chemin="$1" racine
@@ -34,11 +35,16 @@ journal_ajouter() {                      # $1 creer|remplacer, $2 file, $3 backu
 }
 
 journal_preparer() {                     # $1 file about to be created or replaced: copies it first, then records it; 1 if refused or failed
-    local fichier="$1" action=creer copie=""
+    local fichier="$1" action=creer copie="" a_part
     journal_sous_racine_autorisee "$fichier" || return 1
     if [[ -e "$fichier" ]]; then
         action=remplacer
-        copie="$fichier.before-revert-$(date +%Y%m%d-%H%M%S)"
+        # The copy goes to JOURNAL_SAUVEGARDES, never next to the file: logrotate reads every file of /etc/logrotate.d
+        # (a copy there declared the same logs twice: "duplicate log entry", and no log rotated on the server), and nginx
+        # reads every file included by its configuration. The name is unique (mktemp) and keeps the original path, flattened.
+        mkdir -p -- "$JOURNAL_SAUVEGARDES" 2>/dev/null || return 1
+        a_part="${fichier//\//_}"
+        copie="$(mktemp "$JOURNAL_SAUVEGARDES/$(date +%Y%m%d-%H%M%S)-${a_part}-XXXXXX")" || return 1
         cp -p -- "$fichier" "$copie" || return 1
     fi
     journal_ajouter "$action" "$fichier" "$copie"

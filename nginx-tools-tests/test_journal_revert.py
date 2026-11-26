@@ -27,10 +27,12 @@ class JournalRevert(unittest.TestCase):
         self.racine = os.path.join(self.tmp, "etc-nginx")
         os.makedirs(self.racine)
         self.journal = os.path.join(self.tmp, "installed-files.tsv")
+        self.sauvegardes = os.path.join(self.tmp, "journal-backups")
 
     def bash(self, script, *args):
-        env = dict(os.environ, NGINX_TOOLS_JOURNAL=self.journal, NGINX_TOOLS_JOURNAL_ROOTS=self.racine)
-        r = subprocess.run(["bash", "-c", f'. "{BIBLIO}"; {script}', "bash", *args], capture_output=True,
+        env = dict(os.environ, NGINX_TOOLS_JOURNAL=self.journal, NGINX_TOOLS_JOURNAL_ROOTS=self.racine,
+                   NGINX_TOOLS_JOURNAL_BACKUPS=self.sauvegardes)
+        r = subprocess.run(["bash", "-c", f'. "{BIBLIO}"; {script}', "bash", *args], capture_output=True, check=False,
                            text=True, env=env, timeout=60)
         return r.returncode, r.stdout, r.stderr
 
@@ -48,7 +50,7 @@ class JournalRevert(unittest.TestCase):
         self.ecrire(cree, "x")
         rc, _, err = self.bash('journal_ajouter creer "$1" ""', cree)
         self.assertEqual(rc, 0, err)
-        rc, out, err = self.bash("journal_restaurer")
+        rc, _, err = self.bash("journal_restaurer")
         self.assertEqual(rc, 0, err)
         self.assertFalse(os.path.exists(cree))
 
@@ -86,7 +88,7 @@ class JournalRevert(unittest.TestCase):
         hors = os.path.join(self.tmp, "ailleurs.conf")
         self.ecrire(hors, "ne pas supprimer")
         self.ecrire(self.journal, f"creer\t{hors}\t-\t20261125-170000\n")
-        rc, out, _ = self.bash("journal_restaurer")
+        rc, _, _ = self.bash("journal_restaurer")
         self.assertNotEqual(rc, 0)
         self.assertTrue(os.path.exists(hors))
 
@@ -109,6 +111,33 @@ class JournalRevert(unittest.TestCase):
         self.assertEqual(rc, 0, err)
         self.assertEqual(self.lire(fichier), "D'ORIGINE\n")
         self.assertIn("remplacer\t", self.lire(self.journal))
+
+    def test_copie_hors_des_dossiers_lus_par_logrotate_et_nginx(self):
+        # 2.128: the copy was written next to the file (fail2ban.before-revert-... in /etc/logrotate.d): logrotate then
+        # refused its whole configuration. The copy must be outside the file's directory.
+        fichier = os.path.join(self.racine, "logrotate.d", "fail2ban")
+        os.makedirs(os.path.dirname(fichier))
+        self.ecrire(fichier, "/var/log/fail2ban/*.log {\n}\n")
+        rc, _, err = self.bash('journal_preparer "$1"', fichier)
+        self.assertEqual(rc, 0, err)
+        copie = self.lire(self.journal).split("\t")[2]
+        self.assertFalse(os.path.dirname(copie) == os.path.dirname(fichier), copie)
+        self.assertTrue(copie.startswith(self.sauvegardes + os.sep), copie)
+        self.assertEqual(sorted(os.listdir(os.path.dirname(fichier))), ["fail2ban"])
+        self.ecrire(fichier, "MODIFIE\n")
+        rc, _, err = self.bash("journal_restaurer")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("/var/log/fail2ban", self.lire(fichier))
+
+    def test_copies_successives_distinctes(self):
+        fichier = os.path.join(self.racine, "conf.d", "zz.local")
+        os.makedirs(os.path.dirname(fichier))
+        self.ecrire(fichier, "A\n")
+        self.assertEqual(self.bash('journal_preparer "$1"', fichier)[0], 0)
+        self.assertEqual(self.bash('journal_preparer "$1"', fichier)[0], 0)
+        copies = [l.split("\t")[2] for l in self.lire(self.journal).splitlines()]
+        self.assertEqual(len(set(copies)), 2)
+        self.assertTrue(all(os.path.exists(c) for c in copies))
 
     def test_preparer_fichier_absent_puis_retire(self):
         fichier = os.path.join(self.racine, "jail.d", "nouveau.conf")
