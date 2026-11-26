@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.128.20261125.184722"
+readonly SCRIPT_VERSION="2.129.20261126.073023"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3456,7 +3456,9 @@ f2b_static404_local() {   # $1 filter .conf of the jail: content of the .local f
 # 2.128: this jail is defined by hand on the server (not installed here). When it still bans directly (iptables, no nginx-gate-ban),
 # say so: it bypasses the score of nginx-log-audit.sh and the white list. Only a warning: the server file is never rewritten.
 if command -v fail2ban-client >/dev/null 2>&1 && [[ -r /etc/fail2ban/jail.d/nginx-badrequests.conf || -r /etc/fail2ban/jail.local ]]; then
-    f2b_badreq_def=$(cat /etc/fail2ban/jail.d/nginx-badrequests.conf /etc/fail2ban/jail.local 2>/dev/null | sed -n '/^\[nginx-badrequests\]/,/^\[/p')
+    # 2.129: cat fails when one of the two files is absent; under set -o pipefail that stopped the whole script (2.128, on
+    # 104 and 105: the steps after 9b bis were not run). A missing file only means no definition here.
+    f2b_badreq_def=$(cat /etc/fail2ban/jail.d/nginx-badrequests.conf /etc/fail2ban/jail.local 2>/dev/null | sed -n '/^\[nginx-badrequests\]/,/^\[/p' || true)
     if [[ -n "$f2b_badreq_def" ]] && ! grep -q 'nginx-gate-ban' <<<"$f2b_badreq_def"; then
         warn "Jail nginx-badrequests : bannissement direct (sans la porte de nginx-log-audit.sh). Remplacer « action » par « nginx-gate-ban[name=nginx-badrequests] » dans sa définition, puis recharger fail2ban."
     fi

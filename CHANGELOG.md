@@ -5047,6 +5047,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.129.20261126.073023 - Revert copies out of logrotate.d; missing fail2ban jail file no longer stops the script
+
+- Motif de la demande: the run of nginx-hardening.sh --update on the guests of 2026-11-25 (host-perf-audit, 6 guests) failed everywhere. Two causes come from this program: (a) on 102, 430 and 433 logrotate refused its whole configuration ("fail2ban.before-revert-20261125-...:1 duplicate log entry for /var/log/fail2ban"), so no log rotated; (b) on 104 and 105 the script stopped at line 3459 ("ARRET INATTENDU DU SCRIPT"), and the steps after 9b bis were not run.
+- Details of the changes:
+  - apps/_journal.sh: journal_preparer() writes the backup copy of a replaced file to JOURNAL_SAUVEGARDES (new variable, NGINX_TOOLS_JOURNAL_BACKUPS, default /var/lib/nginx-tools/journal-backups) instead of next to the file ("$fichier.before-revert-..."). The name is made with mktemp (unique) and keeps the original path, flattened. The journal line records the new copy path, so journal_restaurer() works unchanged.
+  - nginx-hardening.sh: the f2b_badreq_def=$(cat ... | sed ...) line (jail nginx-badrequests, read from /etc/fail2ban/jail.d/nginx-badrequests.conf and /etc/fail2ban/jail.local) ends with "|| true". Under set -o pipefail, cat fails when one of the two files is absent, which stopped the script. A missing file now means "no definition here".
+  - SCRIPT_VERSION 2.128.20261125.184722 -> 2.129.20261126.073023.
+  - nginx-tools-tests/test_journal_revert.py: 3 tests added (copy outside the file's directory and restored; two successive copies distinct; BACKUPS redirected in the test environment).
+  - nginx-tools-tests/test_badrequests_def_absente.py: new, 3 tests on the exact line of the script, with the two paths redirected: both missing, one present, definition extracted alone.
+- Bugs fixed:
+  - Symptom: "duplicate log entry for /var/log/fail2ban" in logrotate, logs no longer rotate on 102, 430, 433. Diagnosis: the copy fail2ban.before-revert-<date> was written by journal_preparer() into /etc/logrotate.d, which logrotate reads entirely. Fix: copies go outside the directories read by logrotate and nginx.
+  - Symptom: script stopped at line 3459 on 104 and 105 with exit code 1. Diagnosis: cat on a missing jail file under pipefail. Fix: "|| true" on the pipeline.
+- Garde-fous et cas limites traités:
+  - Restoring a file still checks that its path is under NGINX_TOOLS_JOURNAL_ROOTS; the backup path is not checked against those roots (it is only read).
+  - The backup directory is created with mkdir -p; if it cannot be created or written, journal_preparer() refuses (return 1), as before.
+  - Two backups of the same file in the same second get different names (mktemp).
+  - Other ".before-..." copies in the script (sites-enabled, nginx conf.d, jail.local) are NOT changed by this version: they are not in logrotate.d, and their handling is out of scope here.
+- Verifications effectuees: test_badrequests_def_absente.py fails on 2.128 (3 failures) and passes on 2.129; test_journal_revert.py passes (16 tests in the two modules). Full run-all.sh: see the pull request. Not run on any real server.
+- Action requise de ma part: on each guest that shows the error, remove the old copies left by 2.127 and 2.128 from /etc/logrotate.d, after checking them, for example: mkdir -p /var/backups/old-revert && mv /etc/logrotate.d/*.before-revert-* /var/backups/old-revert/ ; then logrotate -d /etc/logrotate.conf must show no error. Then copy the new version (sync) and run nginx-hardening.sh --update again. Address the nginx certificate problem on 101 first (see the report of 2026-11-25); this version does not repair it.
+
 ### 2.128.20261125.184722 - fail2ban bans go through the nginx-log-audit.sh gate (no more direct bans)
 
 - Motif de la demande: the members' logs of 2026-11-25 (three exports, period 2026-11-22 to 2026-11-25) show about 25 addresses banned by fail2ban, and several members had their address banned. The jails nginx-blocked-probes and nginx-catchall banned directly with iptables, without the score of nginx-log-audit.sh (threshold 3), without the white list and without the CDN check, which the project rules forbid. Request of the administrator: a ban must go through the gate.
