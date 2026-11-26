@@ -222,7 +222,7 @@ titre "0) Programmes présents dans $PROG_DIR"
 # de tests desactives un par un. Cas typique : nginx-tools.zip extrait (dossier nginx-tools/) sans l'etape de copie.
 MANQUANTS=0
 for attendu in nginx-hardening.sh nginx-log-audit.sh sync-crowdsec-blocklist.sh odoo-backup.sh odoo-update-module.sh app-health-check.py app-log-check.py \
-               web-monitor.py zip-versions.py app-log-live.py odoo-mail-retry.py odoo-chat-post.py odoo-warmup.py host-perf-audit.py apps/_profile.sh apps/_profile.py apps/_rapport.sh apps/_rapport.py apps/_bbb.py \
+               web-monitor.py zip-versions.py sqli-investigate.py app-log-live.py odoo-mail-retry.py odoo-chat-post.py odoo-warmup.py host-perf-audit.py apps/_profile.sh apps/_profile.py apps/_rapport.sh apps/_rapport.py apps/_bbb.py \
                apps/_reseau.py apps/_odoo_db.py apps/_listes.py apps/_listes.sh apps/_cache_ip.py apps/_courriel.py apps/_email_check.py apps/_odoo_users.py apps/_sysperf.py apps/_i18n.py apps/_i18n.sh apps/_config.py apps/_traduire.py apps/config-entete.txt apps/odoo.conf apps/bbb.conf; do
     if [[ -f "$attendu" ]]; then
         [[ "$VERBOSE" == "1" ]] && ok "$attendu"

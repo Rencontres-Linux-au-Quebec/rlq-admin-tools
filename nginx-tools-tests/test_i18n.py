@@ -14,8 +14,8 @@ from helpers import sans_origine, SCRIPTS_DIR, EnvTest, script_path
 from i18n_tools import charger_i18n, messages_francais, lire_po_brut
 from i18n_tools_sh import messages_francais_sh
 
-SOURCE_ANGLAISE = ("app-health-check", "zip-versions", "odoo-warmup", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "app-log-check", "web-monitor", "app-log-live", "host-perf-audit")       # programs whose code is in English (catalogue lang/PROGRAM.fr.po) - step-by-step migration
-PROGRAMMES_PYTHON = {"web-monitor": "WEB_MONITOR_LANG", "zip-versions": "ZIP_VERSIONS_LANG", "odoo-mail-retry": "ODOO_MAIL_RETRY_LANG", "odoo-chat-post": "ODOO_CHAT_POST_LANG", "odoo-docs": "ODOO_DOCS_LANG", "odoo-warmup": "ODOO_WARMUP_LANG", "app-health-check": "APP_HEALTH_CHECK_LANG",
+SOURCE_ANGLAISE = ("sqli-investigate", "app-health-check", "zip-versions", "odoo-warmup", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "app-log-check", "web-monitor", "app-log-live", "host-perf-audit")       # programs whose code is in English (catalogue lang/PROGRAM.fr.po) - step-by-step migration
+PROGRAMMES_PYTHON = {"sqli-investigate": "SQLI_INVESTIGATE_LANG", "web-monitor": "WEB_MONITOR_LANG", "zip-versions": "ZIP_VERSIONS_LANG", "odoo-mail-retry": "ODOO_MAIL_RETRY_LANG", "odoo-chat-post": "ODOO_CHAT_POST_LANG", "odoo-docs": "ODOO_DOCS_LANG", "odoo-warmup": "ODOO_WARMUP_LANG", "app-health-check": "APP_HEALTH_CHECK_LANG",
                      "app-log-check": "APP_LOG_CHECK_LANG", "app-log-live": "APP_LOG_LIVE_LANG", "host-perf-audit": "HOST_PERF_AUDIT_LANG"}
 PROGRAMMES_BASH = {"sync-crowdsec-blocklist": "SYNC_CROWDSEC_BLOCKLIST_LANG", "odoo-backup": "ODOO_BACKUP_LANG", "odoo-update-module": "ODOO_UPDATE_MODULE_LANG", "nginx-log-audit": "NGINX_LOG_AUDIT_LANG",
                    "nginx-hardening": "NGINX_HARDENING_LANG"}

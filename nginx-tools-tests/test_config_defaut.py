@@ -104,7 +104,7 @@ CLI_SEULEMENT = {
 class ModelesComplets(unittest.TestCase):
     """Chaque doc/en/PROGRAMME.conf.example (et celui de run-all) cite TOUTES les options longues de l'aide du programme : celles qui se configurent (CLÉ=valeur) et, en fin de
     fichier, celles de la ligne de commande seulement."""
-    PROGRAMMES = ("app-health-check.py", "app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "web-monitor.py", "zip-versions.py", "host-perf-audit.py", "nginx-hardening.sh", "nginx-log-audit.sh",
+    PROGRAMMES = ("app-health-check.py", "app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "web-monitor.py", "zip-versions.py", "sqli-investigate.py", "host-perf-audit.py", "nginx-hardening.sh", "nginx-log-audit.sh",
                   "odoo-backup.sh", "odoo-update-module.sh", "sync-crowdsec-blocklist.sh", "system-hardening.sh")      # 2026-11-09: every program
 
     def test_toutes_les_options_sont_dans_le_modele(self):
