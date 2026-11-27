@@ -621,6 +621,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.13.20261127.090200 - Raw-log archive restricted to root (folder 0750, archive 0640)
+
+- Title: the archive of the raw logs is no longer readable by all local users
+- Reason for the request: the archive contains IP addresses, e-mail addresses and database errors; the administrator asked for a restricted mode after the review of PR #373 (version 1.12.20261126.222210 made it readable by all)
+- Changes: collect-all-advise.sh: archiver_journaux() sets the archive to 0640 (was 0644) and the folder /var/lib/collect-all-advise/ to 0750 (was 0755); header comment updated. test_collect_all_advise.py: test_journaux_bruts_archives_reservees_a_root replaces test_journaux_bruts_archives_lisibles_par_tous and checks 0640 and 0750.
+- Bugs fixed: none.
+- Safeguards and edge cases: the modes of the files inside the archive are kept as they are (the logs stay root:adm 0640 on the host). Users other than root cannot read the archive; to give access to a group, a later change would have to set its group (not done here). The temporary .part file keeps the restricted mode before the rename.
+- Checks: test_collect_all_advise: 27 tests, including the renamed archive test; run-all.sh ruff gate.
+- Action required: none for the program. Existing archives created by version 1.12.20261126.222210 keep their mode 0644: run chmod 0640 and chmod 0750 on /var/lib/collect-all-advise/ to restrict them (see the server clean-up in the pull request).
+
 ### 1.12.20261126.222210 - Raw logs of the host packed in /var/lib/collect-all-advise/, readable by all
 
 - Title: the collection also packs the raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) in one archive

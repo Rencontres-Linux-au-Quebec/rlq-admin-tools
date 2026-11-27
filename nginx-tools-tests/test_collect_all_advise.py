@@ -221,15 +221,15 @@ class CollectAllAdvise(unittest.TestCase):
         self.env["NGINX_TOOLS_VAR_ROOT"] = var
         return var
 
-    def test_journaux_bruts_archives_lisibles_par_tous(self):
+    def test_journaux_bruts_archives_reservees_a_root(self):
         var = self._journaux_factices()
         self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1", "--no-security")
         dossier = os.path.join(var, "collect-all-advise")
         archives = [n for n in os.listdir(dossier) if n.endswith(".logs.tar.xz")]
         self.assertEqual(len(archives), 1, archives)
         chemin = os.path.join(dossier, archives[0])
-        self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o644)
-        self.assertEqual(stat.S_IMODE(os.stat(dossier).st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(os.stat(dossier).st_mode), 0o750)
         membres = subprocess.run(["tar", "-tJf", chemin], capture_output=True, text=True, check=True).stdout.split()
         for attendu in ("log/nginx/site-access.log", "log/fail2ban.log.1", "log/postgresql/pg.log"):
             self.assertIn(attendu, membres)
