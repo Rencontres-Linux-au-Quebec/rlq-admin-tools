@@ -21,7 +21,7 @@
 #NO_LOOKUP=no
 # --odoo-log: Odoo log; counts the Odoo errors within 60 s of each attempt (empty: no Odoo log read)
 #ODOO_LOG=
-# --output: folder of the results, created in mode 700 (default: ~/audit/sqli-investigate/YYYYMMDD-HHMMSS)
+# --output: folder of the results, created in mode 700 (default: /var/lib/sqli-investigate/YYYYMMDD-HHMMSS)
 #OUTPUT=
 # --top: number of addresses detailed in the summary (positive number, default 20)
 #TOP=20

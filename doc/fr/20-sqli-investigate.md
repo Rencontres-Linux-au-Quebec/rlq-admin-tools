@@ -14,7 +14,7 @@ sqli-investigate.py --report-err                 # rapport à copier-coller en c
 
 ## Ce qui est écrit
 
-Seulement dans `--output` (dossier en mode 700, fichiers en mode 600), par défaut `~/audit/sqli-investigate/AAAAMMJJ-HHMMSS` :
+Seulement dans `--output` (dossier en mode 700, fichiers en mode 600), par défaut `/var/lib/sqli-investigate/AAAAMMJJ-HHMMSS` (le programme doit alors tourner en root) :
 
 * `sqli-requests.tsv` : chaque tentative (heure, adresse, méthode, code HTTP, taille, famille, référent, agent, URL décodée, fichier lu).
 * `sqli-summary.txt` : adresses les plus actives, réponses, agents, bannissements et réponses reçues après chaque bannissement.
