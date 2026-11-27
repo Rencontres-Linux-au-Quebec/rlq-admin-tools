@@ -29,6 +29,7 @@
 #   --name REGEX                 only the guests whose name matches REGEX (default: bbb|odoo)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
+#   --no-logs                    no archive of the raw logs in /var/lib/collect-all-advise/
 #   --no-security                no check of the security updates
 #   --no-sync                    never offer to update the suite in the guests before the collection
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
@@ -42,6 +43,7 @@
 # read, never executed). KEY=VALUE lines, with # comments:
 #   ANONYMIZE=yes               yes or no (--anonymize / --no-anonymize)
 #   ARCHIVE=yes                 yes or no (--no-archive)
+#   LOGS=yes                    yes or no (--no-logs): raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) packed in /var/lib/collect-all-advise/
 #   SECURITY=yes                yes or no (--no-security): check of the pending security updates of the host and the guests
 #   SYNC=ask                    ask, yes or no (--sync / --no-sync): update the suite in the guests that are behind, before the collection
 #   DAYS=2                      analysis window in days (--days)
@@ -60,7 +62,10 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.11.20261125.125636"
+readonly SCRIPT_VERSION="1.12.20261126.222210"
+# Roots of the raw logs and of the archive of the logs (variables only for the tests).
+RACINE_LOG="${NGINX_TOOLS_LOG_ROOT:-/var/log}"
+RACINE_VAR="${NGINX_TOOLS_VAR_ROOT:-/var/lib}"
 readonly SCRIPT_NAME="collect-all-advise"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -225,6 +230,8 @@ creer_config() {
 ANONYMIZE=yes
 # yes: the reports are packed in one archive collect-all-advise.HOST.AAAA-MM-JJ.tar.xz; no: the folder only.
 ARCHIVE=yes
+# yes: the raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) are packed in /var/lib/collect-all-advise/, readable by all; no: none.
+LOGS=yes
 # analysis window in days, from 1 to 366.
 DAYS=$jours
 # folder of the reports and of the archive.
@@ -294,6 +301,7 @@ aide() {
 --name REGEX                 seulement les machines dont le nom correspond (défaut bbb|odoo) / only the guests whose name matches (default bbb|odoo)
 --no-anonymize               garde les vraies adresses, courriels et noms / keep the real addresses, e-mails and names
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
+--no-logs                    pas d'archive des journaux bruts dans /var/lib/collect-all-advise/ / no archive of the raw logs in /var/lib/collect-all-advise/
 --no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
 --no-sync                    ne propose pas de mettre à jour la suite dans les invités / never offer to update the suite in the guests
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
@@ -741,6 +749,37 @@ archiver() {
     printf '%s\n' "[OK] $(t "archive" "archive") : $archive"
 }
 
+# archiver_journaux: the raw logs of the host (nginx, Odoo, PostgreSQL in their folders, fail2ban) in
+# RACINE_VAR/collect-all-advise/HOST.AAAA-MM-JJ.logs.tar.xz, readable by all (folder 0755, archive 0644).
+# Only the readable files are packed; the number of files is given. The archive is written under a temporary name, then renamed.
+archiver_journaux() {
+    local hote date_jour dossier base archive tmp liste n=2 nombre
+    hote="$(uname -n)"
+    date_jour="$(date +%Y-%m-%d)"
+    dossier="$RACINE_VAR/$SCRIPT_NAME"
+    base="$dossier/$SCRIPT_NAME.$hote.$date_jour.logs"
+    archive="$base.tar.xz"
+    while [[ -e "$archive" ]]; do
+        archive="$base-$n.tar.xz"
+        n=$((n + 1))
+    done
+    mkdir -p "$dossier" && chmod 0755 "$dossier" || { printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "dossier des journaux impossible" "logs folder not created") : $dossier"; return 1; }
+    liste="$(mktemp)"
+    tmp="$archive.part"
+    # paths relative to the parent of RACINE_LOG, so that the archive stores log/nginx/... (no leading slash)
+    if ! (cd "$RACINE_LOG/.." && { find "$(basename "$RACINE_LOG")/nginx" "$(basename "$RACINE_LOG")/odoo" "$(basename "$RACINE_LOG")/postgresql" \
+            -type f -readable -print0 2>/dev/null; find "$(basename "$RACINE_LOG")" -maxdepth 1 -type f -name 'fail2ban.log*' -readable -print0; } > "$liste") \
+        || ! (cd "$RACINE_LOG/.." && tar --null -T "$liste" -cJf "$tmp" 2>/dev/null); then
+        rm -f "$liste" "$tmp"
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "archive des journaux non créée" "logs archive not created") : $archive"
+        return 1
+    fi
+    nombre="$(tr -cd '\0' < "$liste" | wc -c)"
+    rm -f "$liste"
+    chmod 0644 "$tmp" && mv -f "$tmp" "$archive"
+    printf '%s\n' "[OK] $(t "journaux bruts" "raw logs") : $archive ($nombre $(t "fichier(s)" "file(s)"))"
+}
+
 # ------------------------------------------------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------------------------------------------------
@@ -771,6 +810,8 @@ ANONYMIZE_OPT="--anonymize"
 if [[ "$(oui_non "${CFG[ANONYMIZE]:-yes}")" == 0 ]]; then ANONYMIZE_OPT="--no-anonymize"; fi
 ARCHIVE=1
 if [[ "$(oui_non "${CFG[ARCHIVE]:-yes}")" == 0 ]]; then ARCHIVE=0; fi
+LOGS_ARCHIVE=1
+if [[ "$(oui_non "${CFG[LOGS]:-yes}")" == 0 ]]; then LOGS_ARCHIVE=0; fi
 SECURITY=1
 if [[ "$(oui_non "${CFG[SECURITY]:-yes}")" == 0 ]]; then SECURITY=0; fi
 SYNC="${CFG[SYNC]:-ask}"
@@ -806,6 +847,7 @@ while [[ $# -gt 0 ]]; do
         --name=*) NAME_RE="${1#--name=}"; shift ;;
         --no-anonymize) ANONYMIZE_OPT="--no-anonymize"; shift ;;
         --no-archive) ARCHIVE=0; shift ;;
+        --no-logs) LOGS_ARCHIVE=0; shift ;;
         --no-security) SECURITY=0; shift ;;
         --no-sync) SYNC="no"; shift ;;
         --program)
@@ -928,6 +970,11 @@ if (( ARCHIVE == 1 && RAPPORTS_OK > 0 )); then
     archiver || ARCHIVE_OK=0
 fi
 
+LOGS_OK=1
+if (( LOGS_ARCHIVE == 1 )); then
+    archiver_journaux || LOGS_OK=0
+fi
+
 printf '%s\n' "$(t "Rapports collectés : $RAPPORTS_OK · en échec : $RAPPORTS_KO · dossier : $RUN" \
     "Reports collected: $RAPPORTS_OK · failed: $RAPPORTS_KO · folder: $RUN")"
 
@@ -935,5 +982,5 @@ if (( SECURITY == 1 )); then
     mises_a_jour_securite
 fi
 
-if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 )); then exit 1; fi
+if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 || LOGS_OK == 0 )); then exit 1; fi
 exit 0

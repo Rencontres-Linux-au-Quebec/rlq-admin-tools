@@ -3,6 +3,7 @@ import datetime
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -204,6 +205,40 @@ class CollectAllAdvise(unittest.TestCase):
         r = self.lancer("--days", "2", "--dest", self.dest, "--no-archive", "--no-anonymize")
         self.assertIn("--no-anonymize", open(self.app_log).read())
         self.assertFalse([n for n in os.listdir(self.dest) if n.endswith(".tar.xz")])
+
+    def _journaux_factices(self):
+        log, var = os.path.join(self.d, "log"), os.path.join(self.d, "var")
+        for sous in ("nginx", "odoo", "postgresql"):
+            os.makedirs(os.path.join(log, sous))
+        with open(os.path.join(log, "nginx", "site-access.log"), "w", encoding="utf-8") as f:
+            f.write('192.0.2.7 - - [26/Nov/2026:10:00:00 -0500] "GET / HTTP/1.1" 200 12 "-" "test"\n')
+        with open(os.path.join(log, "fail2ban.log.1"), "w", encoding="utf-8") as f:
+            f.write("2026-11-26 10:00:01 fail2ban.actions NOTICE [nginx-sqli] Ban 192.0.2.7\n")
+        with open(os.path.join(log, "postgresql", "pg.log"), "w", encoding="utf-8") as f:
+            f.write("ERROR:  syntax error\n")
+        os.makedirs(var)
+        self.env["NGINX_TOOLS_LOG_ROOT"] = log
+        self.env["NGINX_TOOLS_VAR_ROOT"] = var
+        return var
+
+    def test_journaux_bruts_archives_lisibles_par_tous(self):
+        var = self._journaux_factices()
+        self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1", "--no-security")
+        dossier = os.path.join(var, "collect-all-advise")
+        archives = [n for n in os.listdir(dossier) if n.endswith(".logs.tar.xz")]
+        self.assertEqual(len(archives), 1, archives)
+        chemin = os.path.join(dossier, archives[0])
+        self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o644)
+        self.assertEqual(stat.S_IMODE(os.stat(dossier).st_mode), 0o755)
+        membres = subprocess.run(["tar", "-tJf", chemin], capture_output=True, text=True, check=True).stdout.split()
+        for attendu in ("log/nginx/site-access.log", "log/fail2ban.log.1", "log/postgresql/pg.log"):
+            self.assertIn(attendu, membres)
+        self.assertFalse([n for n in os.listdir(dossier) if n.endswith(".part")])
+
+    def test_no_logs_n_archive_pas_les_journaux(self):
+        var = self._journaux_factices()
+        self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1", "--no-security", "--no-logs")
+        self.assertFalse(os.path.exists(os.path.join(var, "collect-all-advise")))
 
     def test_archive_du_meme_jour_ne_remplace_pas_la_precedente(self):
         self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1")
