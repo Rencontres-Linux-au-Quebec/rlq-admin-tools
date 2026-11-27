@@ -193,11 +193,17 @@ msgstr "  Aucun bannissement lu dans le journal de fail2ban."
 msgid " banned at "
 msgstr " banni à "
 
-msgid " request(s) after the ban, "
-msgstr " requête(s) après le bannissement, "
+msgid " request(s) during the ban, "
+msgstr " requête(s) pendant le bannissement, "
 
 msgid " with 2xx"
 msgstr " en 2xx"
+
+msgid "; ban ended: "
+msgstr "; bannissement levé : "
+
+msgid "still active"
+msgstr "toujours actif"
 
 msgid "Current state of the jail "
 msgstr "État actuel de la prison "
