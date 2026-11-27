@@ -62,7 +62,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.12.20261126.222210"
+readonly SCRIPT_VERSION="1.13.20261127.090200"
 # Roots of the raw logs and of the archive of the logs (variables only for the tests).
 RACINE_LOG="${NGINX_TOOLS_LOG_ROOT:-/var/log}"
 RACINE_VAR="${NGINX_TOOLS_VAR_ROOT:-/var/lib}"
@@ -750,7 +750,7 @@ archiver() {
 }
 
 # archiver_journaux: the raw logs of the host (nginx, Odoo, PostgreSQL in their folders, fail2ban) in
-# RACINE_VAR/collect-all-advise/HOST.AAAA-MM-JJ.logs.tar.xz, readable by all (folder 0755, archive 0644).
+# RACINE_VAR/collect-all-advise/HOST.AAAA-MM-JJ.logs.tar.xz, readable by root only (folder 0750, archive 0640).
 # Only the readable files are packed; the number of files is given. The archive is written under a temporary name, then renamed.
 archiver_journaux() {
     local hote date_jour dossier base archive tmp liste n=2 nombre
@@ -763,7 +763,7 @@ archiver_journaux() {
         archive="$base-$n.tar.xz"
         n=$((n + 1))
     done
-    mkdir -p "$dossier" && chmod 0755 "$dossier" || { printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "dossier des journaux impossible" "logs folder not created") : $dossier"; return 1; }
+    mkdir -p "$dossier" && chmod 0750 "$dossier" || { printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "dossier des journaux impossible" "logs folder not created") : $dossier"; return 1; }
     liste="$(mktemp)"
     tmp="$archive.part"
     # paths relative to the parent of RACINE_LOG, so that the archive stores log/nginx/... (no leading slash)
@@ -776,7 +776,7 @@ archiver_journaux() {
     fi
     nombre="$(tr -cd '\0' < "$liste" | wc -c)"
     rm -f "$liste"
-    chmod 0644 "$tmp" && mv -f "$tmp" "$archive"
+    chmod 0640 "$tmp" && mv -f "$tmp" "$archive"
     printf '%s\n' "[OK] $(t "journaux bruts" "raw logs") : $archive ($nombre $(t "fichier(s)" "file(s)"))"
 }
 
