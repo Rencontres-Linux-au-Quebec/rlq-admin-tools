@@ -6,6 +6,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sqli-investigate.py
 
+### 0.2.20261126.205025 - Requests counted only inside effective ban periods (sqli-investigate.py)
+
+- Title: the "during the ban" count uses the ban periods (Ban to Unban), not every request after a Ban
+- Reason: the first run on the server (2026-11-26) counted requests after each Ban without taking the Unban events into account, so an address unbanned and attacked again was counted several times, and requests from the periods when it was not banned were reported as "under ban". The summary of 2026-11-26 was therefore wrong in both directions.
+- Changes: sqli-investigate.py: new function ban_windows(events) returns (start, address, end) periods; build_summary() takes these periods instead of the Ban list and prints one line per period: "banned at ...: N request(s) during the ban, M with 2xx; ban ended: <time or still active>". main() passes the periods. __version__ is read dynamically by --version. lang/sqli-investigate.fr.po: new translations for the new wording. nginx-tools-tests/test_sqli_investigate.py: test_fenetres_de_bannissement_effectif (unbanned then banned again, requests between the two periods are not counted), and the French display test updated.
+- Bugs fixed: symptom: "N request(s) after the ban" far above the real number for addresses banned, unbanned and banned again (for example 34,667 for one address). Diagnosis: the count ignored the Unban events and every period after the first Ban. Fix: count only the requests between Ban and the matching Unban, or up to now while the address is still banned.
+- Safeguards and edge cases: a Ban received while the address is already banned does not open a second period; a Unban without a Ban is ignored; a period still open at the end of the logs is shown as "still active"; the program still never bans, unbans or changes a configuration.
+- Checks: 15 tests of test_sqli_investigate pass (including the new one); ruff --select E9,F --target-version py38 passes; catalogue fr updated for the new text.
+- Action required: none for this change. The counts already written in the output folder of 2026-11-26 must be recomputed by running the program again (bans read from fail2ban.log* only; periods whose Ban line was rotated away are not counted).
+
 ### 0.1.20261126.091840 - READ-ONLY investigation of the SQL injection attempts in the nginx logs (sqli-investigate.py)
 
 - Title: new program sqli-investigate.py lists every SQL injection attempt of the access logs (family, answer, user agent), the fail2ban bans of the jail, and the answers the banned addresses still received after each ban. No change to the existing programs.

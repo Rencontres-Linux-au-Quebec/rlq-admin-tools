@@ -125,6 +125,22 @@ class Analyse(unittest.TestCase):
         self.assertEqual(apres, [200, 200])        # the two requests after the ban of 04:18:44 (04:18:51 and 04:19:22)
         self.assertEqual(avertissements, [])
 
+    def test_fenetres_de_bannissement_effectif(self):
+        """Only the requests inside an effective ban count: a request after an Unban (or between two bans) is not a request under ban."""
+        import datetime as dt
+        def heure(h, m=0):
+            return dt.datetime(2026, 11, 26, h, m, 0).astimezone()
+        evenements = [(heure(1), "Ban", "198.51.100.10"), (heure(2), "Unban", "198.51.100.10"),
+                      (heure(5), "Ban", "198.51.100.10"), (heure(6), "Ban", "198.51.100.10")]
+        self.assertEqual(PROG.ban_windows(evenements),
+                         [(heure(1), "198.51.100.10", heure(2)), (heure(5), "198.51.100.10", None)])
+        reponses = {"198.51.100.10": [(heure(1, 30), 200), (heure(3), 200), (heure(5, 30), 404)]}
+        lignes = PROG.build_summary([], reponses, PROG.ban_windows(evenements), {}, {}, None, 5, lambda c, t: t)
+        self.assertIn("  198.51.100.10 banned at 2026-11-26 01:00:00: 1 request(s) during the ban, 1 with 2xx; ban ended: 2026-11-26 02:00:00",
+                      lignes)
+        self.assertIn("  198.51.100.10 banned at 2026-11-26 05:00:00: 1 request(s) during the ban, 0 with 2xx; ban ended: still active",
+                      lignes)
+
     def test_fail2ban_absent_signale(self):
         avertissements = []
         self.assertEqual(PROG.read_bans(os.path.join(self.tmp, "absent*"), "nginx-sqli", avertissements), [])
@@ -162,7 +178,7 @@ class Execution(Environnement):
         self.assertEqual(code, 0, erreur)
         self.assertTrue(sortie.startswith(f"{PROGRAMME[:-3]}.py v"))
         self.assertIn("Tentatives : 6", sortie)
-        self.assertIn("banni à 2026-11-26 04:18:44: 2 requête(s) après le bannissement, 2 en 2xx", sortie)
+        self.assertIn("banni à 2026-11-26 04:18:44: 2 requête(s) pendant le bannissement, 2 en 2xx", sortie)
         dossier = os.path.join(self.tmp, "out")
         self.assertEqual(stat.S_IMODE(os.stat(dossier).st_mode), 0o700)
         for nom in ("sqli-requests.tsv", "sqli-summary.txt", "sqli-bans.txt"):

@@ -45,7 +45,7 @@ import subprocess
 import sys
 import urllib.parse
 
-__version__ = "0.1.20261126.091840"
+__version__ = "0.2.20261126.205025"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -279,7 +279,20 @@ def write_private(path, text):
         fh.write(text)
 
 
-def build_summary(attempts, answers, bans, banned_now, names, odoo_errors, top, color):
+def ban_windows(events):
+    """Effective ban periods from the (time, action, address) events: (start, address, end) where end is the matching Unban, or None
+    while the address is still banned. A repeated Ban while already banned does not start a new period."""
+    open_bans, windows = {}, []
+    for when, act, ip in sorted(events, key=lambda e: e[0]):
+        if act == "Ban" and ip not in open_bans:
+            open_bans[ip] = when
+        elif act == "Unban" and ip in open_bans:
+            windows.append((open_bans.pop(ip), ip, when))
+    windows += [(start, ip, None) for ip, start in open_bans.items()]
+    return sorted(windows, key=lambda w: w[0])
+
+
+def build_summary(attempts, answers, windows, banned_now, names, odoo_errors, top, color):
     """Summary lines. color: function (code, text) -> text (identity when the output is not a terminal)."""
     lines = []
     if not attempts:
@@ -312,12 +325,13 @@ def build_summary(attempts, answers, bans, banned_now, names, odoo_errors, top, 
             lines.append("    agents: " + " | ".join("%s ×%d" % (k[:70], v) for k, v in agents.most_common(3)))
     lines.append("")
     lines.append(color("1;33", "Jail bans (or none)"))
-    if not bans:
+    if not windows:
         lines.append("  No ban read in the fail2ban log.")
-    for when, ip in bans:
-        after = [s for ts, s in answers.get(ip, []) if ts > when]
-        ok_after = sum(1 for s in after if 200 <= s < 300)
-        lines.append("  %s banned at %s: %d request(s) after the ban, %d with 2xx" % (ip, fmt(when), len(after), ok_after))
+    for start, ip, end in windows:
+        during = [s for ts, s in answers.get(ip, []) if ts >= start and (end is None or ts < end)]
+        ok_during = sum(1 for s in during if 200 <= s < 300)
+        lines.append("  %s banned at %s: %d request(s) during the ban, %d with 2xx; ban ended: %s"
+                     % (ip, fmt(start), len(during), ok_during, fmt(end) if end else "still active"))
     return lines
 
 
@@ -450,7 +464,7 @@ def main():
         for ip, _ in collections.Counter(a["ip"] for a in attempts).most_common(top):
             names[ip] = "(" + (reverse_name(ip, cache) or "no name") + ")"
 
-    bans = [(when, ip) for when, act, ip in bans_events if act == "Ban"]
+    windows = ban_windows(bans_events)
     os.makedirs(output, mode=0o700, exist_ok=True)
     os.chmod(output, 0o700)
     tsv = ["time\tip\tmethod\tstatus\tbytes\tfamilies\treferer\tuser_agent\tdecoded_url\tfile"]
@@ -458,7 +472,7 @@ def main():
         tsv.append("\t".join([fmt(a["time"]), a["ip"], a["method"], str(a["status"]), a["size"], ",".join(a["families"]),
                               shell_safe(a["referer"]), shell_safe(a["agent"]), shell_safe(a["url"]), a["file"]]))
     write_private(os.path.join(output, "sqli-requests.tsv"), "\n".join(tsv) + "\n")
-    summary = build_summary(attempts, answers, bans, banned_now, names, odoo_errors, top, lambda code, text: text)
+    summary = build_summary(attempts, answers, windows, banned_now, names, odoo_errors, top, lambda code, text: text)
     write_private(os.path.join(output, "sqli-summary.txt"), "\n".join(summary) + "\n")
     state = fail2ban_state(jail, warnings)
     bans_text = ["Current state of the jail %s (fail2ban-client status):" % jail, state or "(unavailable)", "",
@@ -467,7 +481,7 @@ def main():
     write_private(os.path.join(output, "sqli-bans.txt"), "\n".join(bans_text) + "\n")
 
     color = (lambda code, text: "\x1b[%sm%s\x1b[0m" % (code, text)) if sys.stdout.isatty() and not os.environ.get("NO_COLOR") else (lambda c, t: t)
-    print("\n".join(build_summary(attempts, answers, bans, banned_now, names, odoo_errors, top, color)))
+    print("\n".join(build_summary(attempts, answers, windows, banned_now, names, odoo_errors, top, color)))
     print("")
     print(f"Results written to: {output}")
     print("  sqli-requests.tsv (every attempt), sqli-summary.txt (summary), sqli-bans.txt (bans and state of the jail)")
