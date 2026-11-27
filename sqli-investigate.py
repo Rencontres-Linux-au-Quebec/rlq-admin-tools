@@ -27,7 +27,7 @@
 #   sqli-investigate.py --odoo-log FILE              also counts the Odoo errors within 60 s of each attempt
 #   sqli-investigate.py --jail nginx-sqli --top 10   jail to examine, ten addresses in the summary
 #   sqli-investigate.py --no-lookup                  no reverse DNS lookup of the addresses
-#   sqli-investigate.py --output DIR                 folder of the results (default: ~/audit/sqli-investigate/YYYYMMDD-HHMMSS)
+#   sqli-investigate.py --output DIR                 folder of the results (default: /var/lib/sqli-investigate/YYYYMMDD-HHMMSS)
 #   --access-log GLOB, --fail2ban-log GLOB, --lang en|fr, --verbose, --report-err, --version, --changelog, --config-merge
 
 import argparse
@@ -45,7 +45,7 @@ import subprocess
 import sys
 import urllib.parse
 
-__version__ = "0.2.20261126.205025"
+__version__ = "0.3.20261127.090500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -408,7 +408,7 @@ def main():
     parser.add_argument("--odoo-log", default=None, metavar="FILE",
                         help="Odoo log: counts the Odoo errors within 60 s of each attempt")
     parser.add_argument("--output", default=None, metavar="DIR",
-                        help="Results folder, created in mode 700 (default: ~/audit/sqli-investigate/YYYYMMDD-HHMMSS)")
+                        help="Results folder, created in mode 700 (default: /var/lib/sqli-investigate/YYYYMMDD-HHMMSS)")
     parser.add_argument("--report-err", action="store_true",
                         help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
     parser.add_argument("--top", type=int, default=None, metavar="N",
@@ -437,7 +437,7 @@ def main():
     top = args.top if args.top is not None else config.get("TOP", DEFAULT_TOP)
     no_lookup = args.no_lookup or config.get("NO_LOOKUP", False)
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    output = args.output or config.get("OUTPUT") or os.path.join(os.path.expanduser("~"), "audit", SCRIPT_NAME, stamp)
+    output = args.output or config.get("OUTPUT") or os.path.join("/var/lib", SCRIPT_NAME, stamp)
     if top < 1:
         eprint("ERROR: --top must be a positive number.")
         return 2

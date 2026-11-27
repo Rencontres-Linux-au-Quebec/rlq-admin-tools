@@ -18,7 +18,7 @@
 #NO_LOOKUP=no
 # --odoo-log : journal d'Odoo ; compte les erreurs Odoo à 60 s de chaque tentative (vide : aucun journal Odoo lu)
 #ODOO_LOG=
-# --output : dossier des résultats, créé en mode 700 (défaut : ~/audit/sqli-investigate/AAAAMMJJ-HHMMSS)
+# --output : dossier des résultats, créé en mode 700 (défaut : /var/lib/sqli-investigate/AAAAMMJJ-HHMMSS)
 #OUTPUT=
 # --top : nombre d'adresses détaillées dans le résumé (nombre positif, défaut 20)
 #TOP=20

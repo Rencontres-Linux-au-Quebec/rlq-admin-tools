@@ -14,7 +14,7 @@ sqli-investigate.py --report-err                 # paste-ready report in case of
 
 ## What is written
 
-Only in `--output` (folder mode 700, files mode 600), by default `~/audit/sqli-investigate/YYYYMMDD-HHMMSS`:
+Only in `--output` (folder mode 700, files mode 600), by default `/var/lib/sqli-investigate/YYYYMMDD-HHMMSS` (the program must then run as root):
 
 * `sqli-requests.tsv`: every attempt (time, address, method, HTTP code, size, family, referer, user agent, decoded URL, file read).
 * `sqli-summary.txt`: most active addresses, answers, user agents, bans and the answers received after each ban.

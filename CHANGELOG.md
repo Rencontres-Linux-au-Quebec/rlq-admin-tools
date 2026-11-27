@@ -6,6 +6,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sqli-investigate.py
 
+### 0.3.20261127.090500 - Results written to /var/lib/sqli-investigate/ instead of the home folder
+
+- Title: the default folder of the results is now /var/lib/sqli-investigate/YYYYMMDD-HHMMSS
+- Reason for the request: the results (requests, summary, bans) are data kept on the server, not a personal folder; /var/lib is the place used by the other tools (collect-all-advise, nginx-tools)
+- Changes: sqli-investigate.py: default output (main) and help text (--output) and header comment; __version__. doc/en and doc/fr: 20-sqli-investigate.md and the sqli-investigate.conf.example files of both languages.
+- Bugs fixed: none.
+- Safeguards and edge cases: the folder keeps mode 700 and the files mode 600, as before. The default needs root (or write access to /var/lib); a user who is not root must pass --output or OUTPUT in the configuration, otherwise the creation fails and the program reports the error. An existing --output or OUTPUT setting is unchanged.
+- Checks: test_sqli_investigate (see the pull request for the results of the testeur run); no test reads the default folder, so the change is checked by the help text and the code review.
+- Action required: the program does not move the results already written in /root/audit or ~/audit on the server; move them by hand to /var/lib/sqli-investigate/ (commands in the pull request).
+
 ### 0.2.20261126.205025 - Requests counted only inside effective ban periods (sqli-investigate.py)
 
 - Title: the "during the ban" count uses the ban periods (Ban to Unban), not every request after a Ban
