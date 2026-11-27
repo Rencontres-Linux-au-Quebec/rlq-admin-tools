@@ -611,6 +611,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.12.20261126.222210 - Raw logs of the host packed in /var/lib/collect-all-advise/, readable by all
+
+- Title: the collection also packs the raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) in one archive
+- Reason for the request: the administrator needs the complete logs of the SQL injection attempts and of the bans; the existing archive only contains the Markdown reports of the run, which do not show the requests.
+- Changes: collect-all-advise.sh: new function archiver_journaux() writes /var/lib/collect-all-advise/collect-all-advise.HOST.AAAA-MM-JJ.logs.tar.xz (suffix -2, -3... on the same day), folder mode 0755, archive mode 0644, written under a .part name then renamed. New option --no-logs (help in French and English), new configuration key LOGS=yes (template and header). Sources: /var/log/nginx, /var/log/odoo, /var/log/postgresql (files, including rotations) and /var/log/fail2ban.log*. Only readable files are packed. Two roots can be redirected for the tests only: NGINX_TOOLS_LOG_ROOT and NGINX_TOOLS_VAR_ROOT. SCRIPT_VERSION updated. Exit status 1 if the logs archive fails.
+- Bugs fixed: none.
+- Safeguards and edge cases: the raw logs contain IP addresses, e-mail addresses and database errors; the archive is readable by ALL local users (mode 0644 in a 0755 folder) as requested, and it is NOT anonymised (the --anonymize option does not apply to it); --no-logs or LOGS=no disables it; a missing source folder is skipped without error; an unreadable file is left out; a failed archive is removed (never left under its final name).
+- Checks: test_collect_all_advise: 27 tests OK, including test_journaux_bruts_archives_lisibles_par_tous (members, modes, no .part file) and test_no_logs_n_archive_pas_les_journaux.
+- Action required: decide whether the archive must stay readable by all users of the server (the logs include addresses and e-mail addresses). If not, change the mode in archiver_journaux() to 0640 and the folder to 0750. Run as root (sudo) to read /var/log/postgresql and fail2ban.log*.
+
 ### 1.11.20261125.125636 - SSH port of the VMs, advice on SSH failures, details of a failed security update
 
 - Reason for the request: on 2026-11-25 the run on proxmox1 failed for VM 433 ("ssh: connect to host 51.161.38.15 port 22: Connection
