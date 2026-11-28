@@ -157,6 +157,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.10.20261128.104906 - Several queries in one run (--run NAME,NAME...)
+
+- Title: run several queries of the catalogue in one command, in the order given
+- Reason for the request: the administrator must run xss-content, xss-persistence and push-count together during an investigation, without opening the menu each time.
+- Changes: odoo-sql-maint: --run accepts a list separated by commas (for example --run xss-content,xss-persistence,push-count). A header "=== NAME (n/total) ===" precedes each query when the list has more than one name. Help text updated (English and French). Function run_cli() rewritten; the single-name behaviour is unchanged.
+- Bugs fixed: none.
+- Safeguards and edge cases: every name is checked before the first query runs: one unknown or empty name (for example a trailing comma) refuses the whole list with exit code 2 and runs nothing. The exit code is the worst one of the queries. Destructive queries keep their confirmation, one by one. --dry-run applies to every query of the list.
+- Checks: test_odoo_sql_maint: 8 tests pass, including the two new ones (refusal of a list with an unknown name, headers in order for a valid list).
+- Action required: none. Deploy the new version to odoo18 before using the list: sudo -u odoo /opt/rlq-admin-tools/odoo-sql-maint --run xss-content,xss-persistence
+
 ### 1.9.20261124.195500 - No password prompt in the middle of the run (psql -w)
 
 - Title: psql never asks for a password on the terminal; a missing password now fails at once with a hint about ~/.pgpass.
