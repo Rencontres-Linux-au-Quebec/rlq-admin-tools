@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.129.20261126.073023"
+readonly SCRIPT_VERSION="2.130.20261127.192500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -159,6 +159,8 @@ ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
 CDN="${CDN:-none}"       # --cdn none|cloudflare (step 12c: cdn-realip.conf)
 CDN_A_ENREGISTRER=""     # 2.73: --cdn given on the command line (none|cloudflare) -> written as CDN= in the state file
 ODOO_SERVICE=""
+BADREQUESTS_GATE=0   # 2.130: --badrequests-gate (opt-in)
+ODOO_LIST_DB_OFF=0  # 2.130: --odoo-list-db-off (opt-in)
 TIMEZONE=""            # empty: default below (asked the first time); "none": change nothing
 TIMEZONE_DEFAUT="America/Montreal"
 MAIL_HOST=""; MAIL_PORT=""; MAIL_SECURITY=""; MAIL_USER=""; MAIL_FROM=""; MAIL_TO=""   # programs' mail (step 0d): empty = read from the common file, otherwise asked
@@ -222,6 +224,8 @@ if declare -F config_lire >/dev/null; then
     config_defaut ODOO_TMPDIR_RAM ODOO_TMPDIR_RAM ODOO_TMPDIR_RAM booleen
     config_defaut ODOO_PRELOAD_STATICS ODOO_PRELOAD_STATICS --odoo-preload-statics booleen
     config_defaut ODOO_TRIM_ADDONS_PATH ODOO_TRIM_ADDONS_PATH --odoo-trim-addons-path booleen
+    config_defaut BADREQUESTS_GATE BADREQUESTS_GATE --badrequests-gate booleen
+    config_defaut ODOO_LIST_DB_OFF ODOO_LIST_DB_OFF --odoo-list-db-off booleen
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -242,6 +246,8 @@ fi
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
 # Journal des fichiers installés (2.126) : base de --revert-base.
 [[ -r "$SCRIPT_DIR/apps/_journal.sh" ]] && . "$SCRIPT_DIR/apps/_journal.sh"
+# Corrections opt-in (2.130) : --badrequests-gate, --odoo-list-db-off.
+[[ -r "$SCRIPT_DIR/apps/_correctifs.sh" ]] && . "$SCRIPT_DIR/apps/_correctifs.sh"
 
 ARGS_INITIAUX=("$@")   # options recues (2.61) : le menu (--menu) relance ce programme avec les memes options
 while [[ $# -gt 0 ]]; do
@@ -280,6 +286,8 @@ while [[ $# -gt 0 ]]; do
         --odoo-conf) ODOO_CONF="${2:-}"; shift 2 ;;
         --odoo-preload-statics) ODOO_PRELOAD_STATICS=1; shift ;;
         --odoo-trim-addons-path) ODOO_TRIM_ADDONS_PATH=1; shift ;;
+        --badrequests-gate) BADREQUESTS_GATE=1; shift ;;
+        --odoo-list-db-off) ODOO_LIST_DB_OFF=1; shift ;;
         --odoo-conf-paths) ODOO_CONF_PATHS="${2:-}"; shift 2 ;;
         --workers) ODOO_WORKERS_OVERRIDE="${2:-}"; shift 2 ;;
         --cron-threads) ODOO_CRON_OVERRIDE="${2:-}"; shift 2 ;;
@@ -323,6 +331,7 @@ Options (par ordre alphabétique) :
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)
   --mail-from ADDRESS          expéditeur des courriels de la suite (défaut : l'identifiant du relais)
+  --badrequests-gate           avec --update : la jail nginx-badrequests bannit par nginx-log-audit.sh (action nginx-gate-ban), jamais directement (copie .bak avant, contrôle fail2ban) ; clé BADREQUESTS_GATE
   --mail-host HOST             relais SMTP des courriels des programmes Python et Bash (étape 0d ; demandé la première fois avec --update)
   --mail-port PORT             port du relais SMTP (défaut : 587)
   --mail-security MODE         chiffrement : starttls (défaut), ssl ou none
@@ -335,6 +344,7 @@ Options (par ordre alphabétique) :
                                /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)
   --odoo-gevent-port PORT      port gevent (websocket) d'Odoo à vérifier (défaut : celui de la configuration d'Odoo)
   --odoo-http-port PORT        port HTTP d'Odoo à vérifier (défaut : celui de la configuration d'Odoo)
+  --odoo-list-db-off           avec --update : list_db = False dans la configuration d'Odoo (copie .bak avant, contrôle de lecture) ; redémarrer Odoo ensuite ; clé ODOO_LIST_DB_OFF
   --odoo-preload-statics       avec --update : le processus principal d'Odoo dresse une fois la liste des dossiers static avant ses workers (module rlq_preload_statics) ; clé ODOO_PRELOAD_STATICS
   --odoo-service NAME         unité systemd d'Odoo (défaut : détectée)
   --odoo-trim-addons-path      avec --update : addons_path réduit aux dossiers qui contiennent un module installé (copie .bak avant) ; clé ODOO_TRIM_ADDONS_PATH
@@ -3081,6 +3091,15 @@ else
         pass "list_db désactivé — la liste des bases n'est renvoyée par AUCUNE route, pas même /jsonrpc (service « db », méthode « list »), que nginx ne peut pas filtrer. (Effet voulu : le gestionnaire de bases d'Odoo est aussi désactivé, y compris pour les IP autorisées.)"
     else
         warn "list_db absent ou actif dans $ODOO_CONF (actif par défaut dans Odoo) : la liste des bases peut être demandée."
+        if [[ "$ODOO_LIST_DB_OFF" == "1" && "$CHECK_ONLY" != "1" ]]; then
+            lb_rc=0
+            correctif_liste_bases_off "$ODOO_CONF" "${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}/correctifs" "$SCRIPT_DIR/apps/_odoo_conf_check.py" || lb_rc=$?
+            case "$lb_rc" in
+                0) warn "list_db = False écrit dans $ODOO_CONF (copie .bak dans le dossier de sauvegarde). Le message ci-dessus décrit l'état AVANT cette correction. REDÉMARREZ ODOO pour l'appliquer : systemctl restart ${ODOO_SERVICE:-<service-odoo>} (le gestionnaire de bases est alors désactivé : le réactiver le temps d'une opération)." ;;
+                2) pass "list_db déjà désactivé dans $ODOO_CONF" ;;
+                *) fail "list_db non modifié dans $ODOO_CONF (copie refusée ou configuration illisible après modification) : rien n'a été remplacé." ;;
+            esac
+        fi
         if [[ "$db_rule_all" == "1" ]]; then
             echo "         Réservées par nginx aux IP autorisées (allow) : toutes les routes /web/database/* (manager, selector, list,"
             echo "         backup, drop, restore, duplicate, create, change_password), /xmlrpc/db et /xmlrpc/2/db."
@@ -3460,7 +3479,35 @@ if command -v fail2ban-client >/dev/null 2>&1 && [[ -r /etc/fail2ban/jail.d/ngin
     # 104 and 105: the steps after 9b bis were not run). A missing file only means no definition here.
     f2b_badreq_def=$(cat /etc/fail2ban/jail.d/nginx-badrequests.conf /etc/fail2ban/jail.local 2>/dev/null | sed -n '/^\[nginx-badrequests\]/,/^\[/p' || true)
     if [[ -n "$f2b_badreq_def" ]] && ! grep -q 'nginx-gate-ban' <<<"$f2b_badreq_def"; then
-        warn "Jail nginx-badrequests : bannissement direct (sans la porte de nginx-log-audit.sh). Remplacer « action » par « nginx-gate-ban[name=nginx-badrequests] » dans sa définition, puis recharger fail2ban."
+        if [[ "$BADREQUESTS_GATE" == "1" && "$CHECK_ONLY" != "1" ]]; then
+            br_sauv="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}/correctifs"
+            br_fichier=""
+            for br_cand in /etc/fail2ban/jail.d/nginx-badrequests.conf /etc/fail2ban/jail.local; do
+                if [[ -r "$br_cand" ]] && grep -q '^\[nginx-badrequests\]' "$br_cand"; then br_fichier="$br_cand"; break; fi
+            done
+            if [[ -z "$br_fichier" || ! -f /etc/fail2ban/action.d/nginx-gate-ban.conf ]]; then
+                fail "Jail nginx-badrequests : --badrequests-gate impossible (fichier de la jail ou action nginx-gate-ban absent) : relancer --update d'abord."
+            else
+                br_rc=0
+                correctif_porte_badrequests "$br_fichier" "$br_sauv" || br_rc=$?
+                if [[ "$br_rc" == 0 ]]; then
+                    if fail2ban-client -t >/dev/null 2>&1 && fail2ban-client reload >/dev/null 2>&1; then
+                        pass "Jail nginx-badrequests : action remplacée par nginx-gate-ban dans $br_fichier (copie .bak dans $br_sauv), fail2ban rechargé."
+                    else
+                        br_copie="$(ls -1t -- "$br_sauv/$(basename -- "$br_fichier")".*.bak 2>/dev/null | head -1)"
+                        [[ -n "$br_copie" ]] && correctif_restaurer "$br_fichier" "$br_copie"
+                        fail2ban-client reload >/dev/null 2>&1 || true
+                        fail "Jail nginx-badrequests : fail2ban refuse la nouvelle définition — ancien fichier remis en place ($br_fichier), fail2ban rechargé."
+                    fi
+                elif [[ "$br_rc" == 2 ]]; then
+                    warn "Jail nginx-badrequests : aucune ligne « action » trouvée dans la section de $br_fichier : modifier à la main (nginx-gate-ban)."
+                else
+                    fail "Jail nginx-badrequests : impossible de modifier $br_fichier."
+                fi
+            fi
+        else
+            warn "Jail nginx-badrequests : bannissement direct (sans la porte de nginx-log-audit.sh). Relancer avec --update --badrequests-gate (copie .bak avant, contrôle fail2ban), ou remplacer « action » par « nginx-gate-ban[name=nginx-badrequests] » à la main."
+        fi
     fi
 fi
 echo "--- 9c) Jail $F2B_BADREQ_JAIL : erreurs 404 sur les fichiers statiques d'Odoo ignorées ---"
@@ -3614,6 +3661,26 @@ LOGROTATE_DIR="${NGINX_HARDENING_LOGROTATE_DIR:-/etc/logrotate.d}"
 # and logrotate then stops with an error - no log of the machine rotated any more (seen on 2026-11-14 in every container).
 LR_COPIES_DIR="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}/logrotate"
 LR_DEPLACEES=0
+# 2.130: the copies written by 2.127 and 2.128 (fail2ban.before-revert-DATE, next to the file) were still in /etc/logrotate.d
+# on the guests after 2.129, which stopped logrotate ("duplicate log entry"). They are moved out here, and the journal line
+# that names them follows the move, so that --revert-base still finds them.
+for lr_ancienne in "$LOGROTATE_DIR"/*.before-revert-*; do
+    [[ -e "$lr_ancienne" ]] || continue
+    if [[ "$CHECK_ONLY" == "1" ]]; then
+        fail "copie $lr_ancienne laissée dans $LOGROTATE_DIR — logrotate la lit comme une configuration (« duplicate log entry ») et s'arrête : --update la déplacera dans $LR_COPIES_DIR."
+        continue
+    fi
+    mkdir -p "$LR_COPIES_DIR"
+    lr_dest="$LR_COPIES_DIR/$(basename -- "$lr_ancienne")"
+    [[ -e "$lr_dest" ]] && lr_dest="$lr_dest.$(date +%Y%m%d-%H%M%S)"
+    if mv -- "$lr_ancienne" "$lr_dest"; then
+        LR_DEPLACEES=$((LR_DEPLACEES + 1))
+        journal_renommer_copie "$lr_ancienne" "$lr_dest" || warn "Journal : la ligne de $lr_ancienne n'a pas été mise à jour vers $lr_dest (--revert-base ne retrouvera pas cette copie)."
+        pass "copie $lr_ancienne déplacée vers $lr_dest (logrotate la lisait dans $LOGROTATE_DIR)"
+    else
+        fail "impossible de déplacer $lr_ancienne hors de $LOGROTATE_DIR — logrotate reste bloqué ; déplacez-la à la main."
+    fi
+done
 for lr_nom in nginx fail2ban; do
     lr_f="$LOGROTATE_DIR/$lr_nom"
     lr_copie="$LR_COPIES_DIR/$lr_nom.before-nginx-hardening"

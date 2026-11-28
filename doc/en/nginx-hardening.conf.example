@@ -61,6 +61,11 @@
 # step 17c (2.116): addons_path reduced to the folders that hold a module installed in the databases (copy .bak before; a module to install
 # later needs its folder put back); option --odoo-trim-addons-path
 #ODOO_TRIM_ADDONS_PATH=no
+# 2.130: the jail nginx-badrequests bans through nginx-log-audit.sh (action nginx-gate-ban) instead of directly; the server file is
+# changed with a copy .bak before, and fail2ban checks it before it is reloaded; option --badrequests-gate
+#BADREQUESTS_GATE=no
+# 2.130: list_db = False in the Odoo configuration (no list of the databases; Odoo must be restarted after); copy .bak before; option --odoo-list-db-off
+#ODOO_LIST_DB_OFF=no
 # step 17: slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (conf.d file, reloaded without restart); no = step skipped
 #PG_LOGGING=yes
 # step 17: duration in milliseconds from which a query is written to the PostgreSQL log (log_min_duration_statement)

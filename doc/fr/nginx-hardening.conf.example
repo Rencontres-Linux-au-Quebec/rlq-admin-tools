@@ -61,6 +61,11 @@
 # étape 17c (2.116) : addons_path réduit aux dossiers qui contiennent un module installé dans les bases (copie .bak avant ; un module à installer
 # plus tard demande de remettre son dossier) ; option --odoo-trim-addons-path
 #ODOO_TRIM_ADDONS_PATH=no
+# 2.130 : la jail nginx-badrequests bannit par nginx-log-audit.sh (action nginx-gate-ban) au lieu de directement ; le fichier du serveur
+# est modifié avec une copie .bak avant, et fail2ban le contrôle avant rechargement ; option --badrequests-gate
+#BADREQUESTS_GATE=no
+# 2.130 : list_db = False dans la configuration d'Odoo (pas de liste des bases ; redémarrer Odoo ensuite) ; copie .bak avant ; option --odoo-list-db-off
+#ODOO_LIST_DB_OFF=no
 # étape 17 : requêtes lentes, verrous attendus, autovacuum et fichiers temporaires dans le journal de PostgreSQL (fichier conf.d, rechargé sans redémarrage) ; no = étape ignorée
 #PG_LOGGING=yes
 # étape 17 : durée en millisecondes à partir de laquelle une requête est écrite dans le journal de PostgreSQL (log_min_duration_statement)

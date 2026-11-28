@@ -93,3 +93,15 @@ journal_archiver() {                     # after a successful revert: the journa
     [[ -e "$JOURNAL_FICHIER" ]] || return 0
     mv -- "$JOURNAL_FICHIER" "$JOURNAL_FICHIER.reverted-$(date +%Y%m%d-%H%M%S)"
 }
+
+journal_renommer_copie() {               # $1 old copy path, $2 new copy path : the journal follows a copy moved out of logrotate.d
+    local ancien="$1" nouveau="$2" tmp
+    [[ -r "$JOURNAL_FICHIER" ]] || return 0
+    tmp="$(mktemp "$JOURNAL_FICHIER.XXXXXX")" || return 1
+    if awk -F'\t' -v OFS='\t' -v a="$ancien" -v n="$nouveau" '$3 == a { $3 = n } { print }' "$JOURNAL_FICHIER" > "$tmp" \
+        && chmod --reference="$JOURNAL_FICHIER" "$tmp" && mv -f -- "$tmp" "$JOURNAL_FICHIER"; then
+        return 0
+    fi
+    rm -f -- "$tmp"
+    return 1
+}

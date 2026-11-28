@@ -57,7 +57,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: the real system commands stay out of reach.)
 export PATH
 
-readonly SCRIPT_VERSION="1.4.20261123.165500"
+readonly SCRIPT_VERSION="1.5.20261127.192600"
 readonly SCRIPT_NAME="system-hardening"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -1188,13 +1188,54 @@ if (( SUPPORTED == 0 )); then
     if [[ "$MODE" != check ]]; then exit 1; fi
 fi
 
+# 1.5: SSH password logins (check, never changed here). A password can be guessed by a robot: the machine then accepts an account without a key.
+# The file read is the main configuration and the drop-ins of sshd_config.d (first value found wins, as sshd does; the
+# Match blocks are not read). Nothing is changed here: the change is made by the administrator, with a second session open.
+SSHD_CONFIG="${SYSTEM_HARDENING_SSHD_CONFIG:-/etc/ssh/sshd_config}"
+ssh_mots_de_passe() {   # echoes yes, no or unknown
+    local valeur="" f
+    local -a fichiers=()   # the drop-ins come first: the main file includes them at its top (Include), so they win
+    [[ -d "$(dirname -- "$SSHD_CONFIG")/sshd_config.d" ]] && fichiers+=("$(dirname -- "$SSHD_CONFIG")/sshd_config.d"/*.conf)
+    fichiers+=("$SSHD_CONFIG")
+    [[ -r "$SSHD_CONFIG" ]] || { echo unknown; return 0; }
+    for f in "${fichiers[@]}"; do
+        [[ -r "$f" ]] || continue
+        valeur="$(sed -n -E 's/^[[:space:]]*PasswordAuthentication[[:space:]]+([A-Za-z]+).*/\1/p' "$f" | head -1 | tr '[:upper:]' '[:lower:]')"
+        [[ -n "$valeur" ]] && break
+    done
+    [[ -n "$valeur" ]] || valeur="yes"   # sshd's default when no line says otherwise
+    echo "$valeur"
+}
+ssh_check() {
+    title "5. $(t "Connexion SSH par mot de passe" "SSH login by password")"
+    local valeur
+    valeur="$(ssh_mots_de_passe)"
+    case "$valeur" in
+        no)
+            pass "$(t "mots de passe refusés en SSH (PasswordAuthentication no, $SSHD_CONFIG)" "passwords refused by SSH (PasswordAuthentication no, $SSHD_CONFIG)")" ;;
+        yes)
+            echo "${C_RED}  ==============================================================================================${C_RESET}"
+            echo "${C_RED}  !! $(t "CONNEXION SSH PAR MOT DE PASSE ACTIVÉE : CE SERVEUR EST DEVINABLE" "SSH PASSWORD LOGIN ENABLED: THIS SERVER CAN BE GUESSED") !!${C_RESET}"
+            echo "${C_RED}  ==============================================================================================${C_RESET}"
+            echo "  $(t "Un robot qui essaie des mots de passe peut ouvrir un compte sans aucune clé. Ce réglage doit être changé."                 "A robot that tries passwords can open an account without any key. This setting must be changed.")"
+            echo "  $(t "À faire, dans cet ordre :" "To do, in this order:")"
+            echo "    1) $(t "installer votre clé publique dans ~/.ssh/authorized_keys du compte d'administration" "install your public key in ~/.ssh/authorized_keys of the administration account")"
+            echo "    2) $(t "ouvrir une SECONDE session SSH par clé et la garder ouverte" "open a SECOND SSH session with your key and keep it open")"
+            echo "    3) $(t "créer /etc/ssh/sshd_config.d/99-rlq-cles-seulement.conf contenant : PasswordAuthentication no"                 "create /etc/ssh/sshd_config.d/99-rlq-cles-seulement.conf containing: PasswordAuthentication no")"
+            echo "    4) $(t "tester : sshd -t puis systemctl reload ssh (ne fermez pas la session d'origine avant d'avoir réussi une connexion par clé)"                 "test: sshd -t then systemctl reload ssh (do not close the original session before a key login has worked)")"
+            fail "$(t "mots de passe acceptés en SSH : à corriger maintenant (voir ci-dessus)" "passwords accepted by SSH: to fix now (see above)")" ;;
+        *)
+            warn "$(t "configuration SSH illisible ($SSHD_CONFIG) : vérifier PasswordAuthentication à la main" "SSH configuration unreadable ($SSHD_CONFIG): check PasswordAuthentication by hand")" ;;
+    esac
+}
+
 case "$MODE" in
     update)
         if ! is_root; then echo "${C_RED}$(t "ERREUR : --update demande root (sudo)." "ERROR: --update needs root (sudo).")${C_RESET}" >&2; exit 1; fi
-        uu_apply; audit_apply; aide_apply; notify_apply; collect_apply ;;
+        uu_apply; audit_apply; aide_apply; notify_apply; collect_apply; ssh_check ;;
     rollback) rollback ;;
     baseline-update) aide_accept ;;
-    *) uu_check; audit_check; aide_check; notify_check; collect_check ;;
+    *) uu_check; audit_check; aide_check; notify_check; collect_check; ssh_check ;;
 esac
 
 echo

@@ -5099,6 +5099,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.130.20261127.192500 - Copies of 2.127/2.128 moved out of logrotate.d, opt-in corrections for the jail nginx-badrequests and for list_db
+
+- Title: the leftover fail2ban.before-revert-* copies are moved to /var/backups/nginx-hardening/logrotate; two opt-in corrections: --badrequests-gate and --odoo-list-db-off
+- Reason for the request: after 2.129 the guests still had the copies written by 2.127 and 2.128 in /etc/logrotate.d (logrotate stopped on "duplicate log entry"); the jail nginx-badrequests still banned directly on 104 and 105; list_db was still active on production (101 and 105).
+- Details of the changes:
+  - nginx-hardening.sh, step 11: every /etc/logrotate.d/*.before-revert-* file is moved to LR_COPIES_DIR (check mode: reported as a failure). The journal line that names the copy is rewritten to the new path (journal_renommer_copie), so --revert-base still finds it.
+  - nginx-hardening.sh, step 8: --odoo-list-db-off (key ODOO_LIST_DB_OFF) sets list_db = False in the Odoo configuration (added, or replaced), after a copy .bak; the new file is read by apps/_odoo_conf_check.py before it replaces the old one. The program does not restart Odoo: it says so.
+  - nginx-hardening.sh, step 9c: --badrequests-gate (key BADREQUESTS_GATE) replaces the action line of the section [nginx-badrequests] (jail.d/nginx-badrequests.conf or jail.local) by nginx-gate-ban, after a copy .bak; fail2ban-client -t must pass before the reload; otherwise the copy is put back.
+  - apps/_correctifs.sh (new library): correctif_liste_bases_off, correctif_porte_badrequests, correctif_restaurer.
+  - apps/_journal.sh: journal_renommer_copie().
+  - nginx-hardening.sh: options --badrequests-gate and --odoo-list-db-off (help, parser, configuration keys); doc/en and doc/fr nginx-hardening.conf.example.
+- Bugs fixed:
+  - Symptom: logrotate reports "duplicate log entry for /var/log/fail2ban" on 102, 430, 433 (and 101) after 2.129. Diagnosis: 2.127 and 2.128 left fail2ban.before-revert-DATE in /etc/logrotate.d, and 2.129 only stopped writing them there. Fix: the old copies are moved out at the next --update.
+- Garde-fous et cas limites traités:
+  - Only the copies matching *.before-revert-* in /etc/logrotate.d are moved; the other files of the folder are never touched.
+  - A destination name already used gets a date suffix; nothing is overwritten.
+  - --badrequests-gate needs the action file /etc/fail2ban/action.d/nginx-gate-ban.conf (written earlier by the same run); otherwise it stops with a failure.
+  - The two corrections only run with --update (never in check mode) and only when the option is given.
+  - The copies of the two corrections go to /var/backups/nginx-hardening/correctifs (never next to the file).
+- Verifications effectuees: nginx-tools-tests/test_correctifs.py (new, 10 tests); test_journal_revert and test_badrequests_def_absente; conventions, i18n, config and docs modules (see the pull request for the testeur results).
+- Action requise de ma part: (1) on each guest, after --update: check that logrotate -d /etc/logrotate.conf shows no error; (2) on 104 and 105: nginx-hardening.sh --update --badrequests-gate; (3) on the production Odoo (101, 105): nginx-hardening.sh --update --odoo-list-db-off, then restart Odoo (systemctl restart SERVICE), and re-enable the database manager only for an operation.
+
 ### 2.129.20261126.073023 - Revert copies out of logrotate.d; missing fail2ban jail file no longer stops the script
 
 - Motif de la demande: the run of nginx-hardening.sh --update on the guests of 2026-11-25 (host-perf-audit, 6 guests) failed everywhere. Two causes come from this program: (a) on 102, 430 and 433 logrotate refused its whole configuration ("fail2ban.before-revert-20261125-...:1 duplicate log entry for /var/log/fail2ban"), so no log rotated; (b) on 104 and 105 the script stopped at line 3459 ("ARRET INATTENDU DU SCRIPT"), and the steps after 9b bis were not run.
@@ -8056,6 +8078,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## system-hardening.sh
+
+### 1.5.20261127.192600 - Visible warning when SSH accepts passwords
+
+- Title: section 5 of the check reports, in red and with the steps to follow, a server where SSH accepts passwords
+- Reason for the request: the administrator had not seen that password logins were allowed; a password can be guessed by a robot.
+- Details of the changes: system-hardening.sh: new functions ssh_mots_de_passe() (reads PasswordAuthentication in the drop-ins of sshd_config.d, then in the main file, first value found) and ssh_check(); the check is run in the check mode and in --update. The variable SYSTEM_HARDENING_SSHD_CONFIG (default /etc/ssh/sshd_config) allows another file. Test: test_system_hardening.py (2 tests added).
+- Bugs fixed: none.
+- Garde-fous et cas limites traités: the program never changes the SSH configuration (a wrong change can lock the administrator out); the Match blocks are not read; an unreadable file gives a warning, not a pass.
+- Verifications effectuees: test_system_hardening.py (2 new tests); see the pull request for the testeur results.
+- Action requise de ma part: on each server with password logins, install a key for the administration account, open a second session with the key, then create /etc/ssh/sshd_config.d/99-rlq-cles-seulement.conf with "PasswordAuthentication no", run sshd -t and systemctl reload ssh.
 
 ### 1.4.20261123.165500 - Collect account on a VM (--collect-account, --collect-key)
 
