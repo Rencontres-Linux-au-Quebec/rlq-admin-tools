@@ -621,6 +621,34 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.15.20261128.105936 - SQL injection evidence collected in every running Odoo container, with a verdict
+
+- Title: the evidence of an SQL injection attack is collected for the attack window, in every running Odoo container, with a verdict per container.
+- Reason for the request: after the SQL injection attempts of 2026-11-28 around 06:00 (the health score fell to 0 %), the administrator needs to know whether the attack really affected the Odoo databases. The administrator does not run commands on the servers: the program collects the evidence, and the archive is sent for analysis.
+- Changes to collect-all-advise.sh:
+  - new function collecter_preuves_sqli(), called after the LXC logs; it runs in each running container that has odoo-sql-maint (SQLI_EVIDENCE, ODOO_SQL_MAINT):
+    - odoo-sql-maint --run SQLI_QUERIES (default xss-content,xss-persistence,push-count), as the odoo user (sudo -u odoo), output kept as it is;
+    - the lines of the window of the Odoo journal (journalctl -u UNIT --since --until) that mention psycopg, syntax, traceback or error, for each unit of SQLI_ODOO_UNITS (default erplibre erplibre_erplibre);
+    - the injection requests of the nginx access logs of the container (SQLI_NGINX_LOGS, default access.log and access.log.1), filtered by SQLI_MOTIF (union select, information_schema, pg_sleep, sleep(), benchmark(), waitfor delay, extractvalue(), updatexml(), or 1=1, quotes and %27);
+    - the verdict, computed by python3 -I (PY_SQLI), written in verdict.txt of the container folder.
+  - window: options --sqli-from DATE and --sqli-to DATE ("AAAA-MM-JJ HH:MM:SS", local time), config keys SQLI_FROM and SQLI_TO; default: the last 24 hours. An invalid or reversed window stops the program with exit code 2 before any collection.
+  - options --sqli-evidence (default) and --no-sqli-evidence; config key SQLI_EVIDENCE (yes or no). Help and header updated, options in alphabetical order.
+  - archive: RACINE_VAR/collect-all-advise/HOST.AAAA-MM-JJ.sqli-evidence.tar.xz (folder 0750, archive 0640, numbered if the same day is run again). Each run appends one line per container to RACINE_VAR/collect-all-advise/sqli-verdict.txt: date, VMID, name, verdict, requetes, critere1, critere2, critere3, sql_exit.
+  - exit status becomes 1 if a container could not be analysed (SQLI_OK). A real attack is reported with [ATTN] but does not change the exit status.
+- Criteria (confirmed by the administrator for a real attack):
+  1. xss-persistence (odoo-sql-maint output): a user, server action, scheduled action, API key or view created or modified in the window. Dates of Odoo are UTC and are compared as UTC.
+  2. the Odoo journal of the window: SQL errors or tracebacks (psycopg, ProgrammingError, syntax error, traceback).
+  3. an injection request of the window answered with a 5xx status by nginx.
+  Assumption to confirm: VERDICT=REEL when at least one criterion holds (the constant is in PY_SQLI, "any(criteres)"). Limit: the journal does not carry the request path, so criterion 2 is not restricted to the attacked paths; criterion 1 reads every date of the odoo-sql-maint output, including columns such as expiration dates.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - the containers without odoo-sql-maint are skipped (trace only); the nginx logs are read through pct exec, with the container's own paths;
+  - the regular expression is only grep and python input, never executed; the journal and nginx excerpts are kept in the staging folder (0700) and archived root-only;
+  - a missing journal unit gives no line (journalctl prints nothing that matches), not an error;
+  - the window is compared in epoch seconds in both directions (start and end included).
+- Checks: test_collect_all_advise: 32 tests OK. New tests: window, criteria and verdict on a fake odoo-sql-maint, journalctl and nginx log (one window request of 2 days ago excluded, one non-injection 500 excluded); no-evidence case; --no-sqli-evidence and invalid window (exit 2). The fake sudo accepts sudo -u USER. The tests use NGINX_TOOLS_SQLI_NGINX_LOGS and NGINX_TOOLS_ODOO_SQL_MAINT pointing to absent files, so no real log is read.
+- Action required: run the program on the Proxmox host (or the next scheduled run) and send the archive *.sqli-evidence.tar.xz and the line for odoo18 in sqli-verdict.txt. Confirm the verdict rule (one criterion or all three) and whether criterion 2 must be restricted to the attacked paths.
+
 ### 1.14.20261127.235742 - Logs of our programs copied from every running LXC container
 
 - Title: collect the logs of our programs from ALL the running LXC containers and centralise them in one archive
