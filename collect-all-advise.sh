@@ -38,7 +38,7 @@
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --remove-timer               disable and remove the systemd timer (root)
 #   --sqli-evidence              SQL injection evidence in EVERY running Odoo container (default; --no-sqli-evidence: none)
-#   --sqli-from "AAAA-MM-JJ HH:MM:SS"  start of the attack window, local time (default: 24 hours before now)
+#   --sqli-from "AAAA-MM-JJ HH:MM:SS"  start of the attack window, local time (default: --days before now)
 #   --sqli-to "AAAA-MM-JJ HH:MM:SS"    end of the attack window, local time (default: now)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
 #   --sync                       update the suite in the guests that are behind, without a question (host-perf-audit.py --guest-sync)
@@ -55,7 +55,7 @@
 #   LXC_LOG_PATHS=...           paths or globs looked for in each LXC, separated by spaces (no space inside a path)
 #   SQLI_EVIDENCE=yes           yes or no (--no-sqli-evidence): evidence of SQL injection in each Odoo container, archived as
 #                               *.sqli-evidence.tar.xz, with a verdict per container (sqli-verdict.txt)
-#   SQLI_FROM / SQLI_TO         attack window, "AAAA-MM-JJ HH:MM:SS" in local time (empty: the last 24 hours)
+#   SQLI_FROM / SQLI_TO         attack window, "AAAA-MM-JJ HH:MM:SS" in local time (empty: the last --days days)
 #   SQLI_QUERIES=...            odoo-sql-maint queries run in each Odoo container (default: xss-content,xss-persistence,push-count)
 #   SQLI_ODOO_UNITS=...         systemd units of Odoo whose journal is searched (default: erplibre erplibre_erplibre)
 #   ODOO_SQL_MAINT=PATH         odoo-sql-maint in an Odoo container (default: /opt/rlq-admin-tools/odoo-sql-maint)
@@ -78,7 +78,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.15.20261128.105936"
+readonly SCRIPT_VERSION="1.17.20261128.114717"
 # Roots of the raw logs and of the archive of the logs (variables only for the tests).
 RACINE_LOG="${NGINX_TOOLS_LOG_ROOT:-/var/log}"
 RACINE_VAR="${NGINX_TOOLS_VAR_ROOT:-/var/lib}"
@@ -255,7 +255,7 @@ LXC_LOG_PATHS=$LXC_LOG_PATHS_DEFAUT
 # yes: evidence of an SQL injection (Odoo journal, injection requests of nginx, odoo-sql-maint) in every running Odoo container, copied as they are
 # into one root-only archive *.sqli-evidence.tar.xz, with a verdict per container; no: none.
 SQLI_EVIDENCE=yes
-# attack window, "AAAA-MM-JJ HH:MM:SS" in local time; empty: the last 24 hours.
+# attack window, "AAAA-MM-JJ HH:MM:SS" in local time; empty: the last --days days.
 SQLI_FROM=
 SQLI_TO=
 # odoo-sql-maint in the Odoo containers.
@@ -338,7 +338,7 @@ aide() {
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
 --remove-timer               supprime le minuteur systemd (root) / remove the systemd timer (root)
 --sqli-evidence              preuves d'injection SQL dans CHAQUE conteneur Odoo en marche (défaut) / SQL injection evidence in EVERY running Odoo container (default)
---sqli-from DATE             début de la fenêtre d'attaque, AAAA-MM-JJ HH:MM:SS, heure locale (défaut : 24 h) / start of the attack window, local time (default: 24 hours)
+--sqli-from DATE             début de la fenêtre d'attaque, AAAA-MM-JJ HH:MM:SS, heure locale (défaut : --days) / start of the attack window, local time (default: --days)
 --sqli-to DATE               fin de la fenêtre d'attaque, heure locale (défaut : maintenant) / end of the attack window, local time (default: now)
 --ssh-user USER              compte des VM (sudo sans mot de passe) / account of the VMs (sudo without a password)
 --sync                       met à jour sans question la suite dans les invités en retard / update the suite in the guests that are behind, no question
@@ -772,8 +772,46 @@ plus_ancienne() {
 # verifier_suite: before the collection, compares app-log-live.py of each selected guest with the one next to this program (the folder
 # of the suite). The guests behind (or whose version cannot be read) are listed; with SYNC=ask and a terminal, the update is offered,
 # with SYNC=yes it is done, with SYNC=no nothing is checked. The update is "host-perf-audit.py --guest-sync" (copy of this folder).
+# manifeste_suite DIR: the SHA-256 of every file of the suite folder DIR (not .git, not the Python caches): one "HASH  ./path" per line.
+manifeste_suite() {
+    ( cd "$1" && find . -type f -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -print0 \
+        | sort -z | xargs -0 -r sha256sum ) 2>/dev/null || true
+}
+
+# manifeste_invite KIND VMID ADDRESS DIR: the same manifest in a guest (pct exec, or ssh for a VM); empty when unreachable.
+manifeste_invite() {
+    local kind="$1" vmid="$2" adresse="$3" dir="$4" commande
+    commande="cd '$dir' && find . -type f -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -print0 | sort -z | xargs -0 -r sha256sum"
+    if [[ "$kind" == "lxc" ]]; then
+        pct exec "$vmid" -- sh -c "$commande" </dev/null 2>/dev/null || true
+    else
+        [[ -n "$adresse" ]] || return 0
+        ssh_vm "$adresse" "$commande" 2>/dev/null </dev/null || true
+    fi
+}
+
+# comparer_manifestes REF GUEST: the files of the reference manifest that the guest lacks or has with another content:
+# the first five, then the count. Empty when the guest has every file of the suite identical.
+comparer_manifestes() {
+    local -A recus=()
+    local h p n=0 liste=""
+    while read -r h p; do
+        [[ -n "$p" ]] && recus["$p"]="$h"
+    done <<<"$2"
+    while read -r h p; do
+        [[ -n "$p" ]] || continue
+        if [[ "${recus[$p]:-}" != "$h" ]]; then
+            n=$((n + 1))
+            if (( n <= 5 )); then liste+="${liste:+, }${p#./}"; fi
+        fi
+    done <<<"$1"
+    if (( n > 5 )); then liste+=", ... ($n)"; fi
+    printf '%s' "$liste"
+}
+
 verifier_suite() {
-    local ref ref_num ligne kind vmid name adresse v vn retard=() ids=() rc=0
+    local ref ref_num ref_manifeste ligne kind vmid name adresse v vn guest_manifeste fichiers en_retard
+    local retard=() ids=() rc=0
     [[ "$SYNC" == "no" ]] && { trace "$(t "mise à jour de la suite : désactivée (SYNC=no)" "update of the suite: disabled (SYNC=no)")"; return 0; }
     if [[ ! -x "$SCRIPT_DIR/app-log-live.py" || ! -x "$SCRIPT_DIR/host-perf-audit.py" ]]; then
         trace "$(t "mise à jour de la suite : app-log-live.py ou host-perf-audit.py absent de $SCRIPT_DIR" "update of the suite: app-log-live.py or host-perf-audit.py missing in $SCRIPT_DIR")"
@@ -783,19 +821,37 @@ verifier_suite() {
     ref_num="$(version_num "$ref")"
     [[ -n "$ref_num" ]] || return 0
     printf '%s\n' "$(t "Version de la suite sur cet hôte : app-log-live.py $ref_num ($SCRIPT_DIR)" "Version of the suite on this host: app-log-live.py $ref_num ($SCRIPT_DIR)")"
+    # 1.17: EVERY file of the suite is compared (SHA-256), not only some programs: a guest that lacks a file, or has one with
+    # another content, is behind, and the copy (--guest-sync) takes the whole folder.
+    ref_manifeste="$(manifeste_suite "$SCRIPT_DIR")"
     for ligne in "${CIBLES[@]}"; do
         read -r kind vmid name adresse <<<"$ligne"
+        en_retard=0
         v="$(version_invite "$kind" "$vmid" "$adresse")"
         vn="$(version_num "$v")"
         if [[ -z "$vn" ]]; then
             retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $(t "version illisible (programme absent ou machine injoignable)" "version not readable (program missing or guest not reachable)")")
-            ids+=("$vmid")
+            en_retard=1
         elif plus_ancienne "$vn" "$ref_num"; then
             retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $vn ($(t "plus ancienne" "older"))")
-            ids+=("$vmid")
+            en_retard=1
         else
             trace "${kind^^} $vmid $name : app-log-live.py $vn ($(t "à jour" "up to date"))"
         fi
+        guest_manifeste="$(manifeste_invite "$kind" "$vmid" "$adresse" "${PROGRAM%/*}")"
+        if [[ -z "$guest_manifeste" ]]; then
+            retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $(t "contenu de la suite illisible" "suite content not readable")")
+            en_retard=1
+        else
+            fichiers="$(comparer_manifestes "$ref_manifeste" "$guest_manifeste")"
+            if [[ -n "$fichiers" ]]; then
+                retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $(t "fichiers absents ou différents" "files missing or different") : $fichiers")
+                en_retard=1
+            else
+                trace "${kind^^} $vmid $name : $(t "tous les fichiers de la suite sont identiques" "all the files of the suite are identical")"
+            fi
+        fi
+        if (( en_retard == 1 )); then ids+=("$vmid"); fi
     done
     if (( ${#ids[@]} == 0 )); then
         printf '%s\n' "[OK] $(t "la suite est à jour dans les machines choisies" "the suite is up to date in the selected guests")"
@@ -1166,8 +1222,8 @@ if ! valider_jours "$DAYS"; then
     printf '%s\n' "$(t "--days : un nombre de jours de 1 à 366 est attendu (reçu : " "--days: a number of days from 1 to 366 is expected (got: ")$DAYS)" >&2
     exit 2
 fi
-# SQLI_DEBUT / SQLI_FIN: the attack window, local time (default: the last 24 hours). Checked before any collection.
-if [[ -z "$SQLI_DEBUT" ]]; then SQLI_DEBUT="$(date -d '24 hours ago' '+%Y-%m-%d %H:%M:%S')"; fi
+# SQLI_DEBUT / SQLI_FIN: the attack window, local time (default: the last --days days). Checked before any collection.
+if [[ -z "$SQLI_DEBUT" ]]; then SQLI_DEBUT="$(date -d "$DAYS days ago" '+%Y-%m-%d %H:%M:%S')"; fi
 if [[ -z "$SQLI_FIN" ]]; then SQLI_FIN="$(date '+%Y-%m-%d %H:%M:%S')"; fi
 if ! debut_s="$(date -d "$SQLI_DEBUT" +%s 2>/dev/null)" || ! fin_s="$(date -d "$SQLI_FIN" +%s 2>/dev/null)" || (( debut_s > fin_s )); then
     printf '%s\n' "$(t "--sqli-from / --sqli-to : date AAAA-MM-JJ HH:MM:SS attendue, le début avant la fin (reçu : $SQLI_DEBUT -> $SQLI_FIN)" "--sqli-from / --sqli-to: date YYYY-MM-DD HH:MM:SS expected, start before end (got: $SQLI_DEBUT -> $SQLI_FIN)")" >&2

@@ -631,6 +631,42 @@ Earlier history was archived outside this repository when this file was created.
 
 ## collect-all-advise.sh
 
+### 1.17.20261128.114717 - --sync compares every file of the suite (SHA-256), not only some programs
+
+- Title: a guest is behind when ANY file of the suite is missing or different, and the copy takes the whole folder.
+- Reason for the request: the administrator does not want --sync to check two programs only. If any program changed, every file must be copied, with one command.
+- Changes to collect-all-advise.sh:
+  - manifeste_suite(DIR): SHA-256 of every file of the suite folder (except .git and the Python caches), one "HASH  ./path" per line;
+  - manifeste_invite(KIND, VMID, ADDRESS, DIR): the same manifest read in the guest (pct exec, or ssh for a VM);
+  - comparer_manifestes(REF, GUEST): the files that the guest lacks or has with another content (first five, then the count). Files that exist only in the guest are ignored;
+  - verifier_suite(): a guest is behind when its app-log-live.py version is older (as before) OR when the manifest shows a file missing or different. The message lists the files. The version check of odoo-sql-maint added in 1.16 is replaced by this manifest check.
+  - version_invite(): back to its 1.15 form.
+- Bugs fixed: none. Limit found while writing the change: a guest whose content was modified by hand is also behind and receives the copy; this is the intended behaviour.
+- Safeguards and edge cases:
+  - a guest whose manifest cannot be read (unreachable, folder absent) is reported as "contenu de la suite illisible" and is not compared file by file;
+  - the copy of the whole folder is done once per guest (ids are unique);
+  - the manifest of the host is computed once per run.
+- Checks: test_collect_all_advise: 36 tests OK. The suite tests now use a guest folder that holds a copy of the suite: identical files are up to date; an older program, an older odoo-sql-maint, a different data file (aide.txt) or a missing file each trigger the copy.
+- Action required: none beyond the one-time update of the host folder described in 1.16 (the merged main branch).
+
+### 1.16.20261128.113644 - One command: --sync also copies odoo-sql-maint, the SQL window follows --days
+
+- Title: `collect-all-advise.sh --lang fr --sync --days 2 --no-anonymize --verbose` is enough to copy the latest programs and to collect the SQL evidence for the last 2 days.
+- Reason for the request: the administrator does not want to run other commands on the guests, nor to give the window by hand. The program must find the right parameters from --days.
+- Changes to collect-all-advise.sh:
+  - verifier_suite(): odoo-sql-maint is compared too, in the folder of app-log-live.py (PROGRAM folder, reference: odoo-sql-maint of the host folder). A guest whose copy is missing or older is behind, even when its app-log-live.py is up to date; the copy (host-perf-audit.py --guest-sync) takes the whole folder, so odoo-sql-maint is copied with it.
+  - version_invite(): 4th argument, the program to ask for its version (default: PROGRAM).
+  - the SQL window defaults to the last --days days (it was the last 24 hours). --sqli-from and --sqli-to still work and override the default.
+  - help, header and configuration template updated.
+- Bugs fixed: none. Case found while writing the change: a guest that had app-log-live.py up to date but an old odoo-sql-maint was never copied, because --sync compared only app-log-live.py.
+- Safeguards and edge cases:
+  - a guest without odoo-sql-maint (for example a BigBlueButton VM) is counted as behind, so it receives the folder once; the copy is harmless for it;
+  - without odoo-sql-maint in the host folder, the comparison is skipped (no change of behaviour);
+  - a guest counted several times (app-log-live.py and odoo-sql-maint both behind) is copied once.
+- Checks: test_collect_all_advise: 35 tests OK. New: odoo-sql-maint older than the reference triggers the copy with app-log-live.py up to date; odoo-sql-maint absent counts as behind; the default window follows --days (a request of 2 days ago is outside --days 1).
+- Limit: --sync needs the host folder to contain the new version of the program (the merged main branch). The program cannot update its own host folder.
+- Action required: once the PRs are merged, update the host folder once (git pull on main). After that, the single command is enough. No other command on the guests.
+
 ### 1.15.20261128.105936 - SQL injection evidence collected in every running Odoo container, with a verdict
 
 - Title: the evidence of an SQL injection attack is collected for the attack window, in every running Odoo container, with a verdict per container.
