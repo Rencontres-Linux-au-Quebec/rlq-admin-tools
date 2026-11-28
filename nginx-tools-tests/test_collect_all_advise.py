@@ -46,6 +46,11 @@ SUDO = """#!/bin/bash
 if [[ "$1" == "-u" ]]; then shift 2; fi
 exec "$@"
 """
+SQLMAINT = """#!/bin/bash
+# fake odoo-sql-maint of a guest: its version (GUEST_SQL_VERSION, default: the version of the suite of the tests)
+if [[ "$1" == "--version" ]]; then echo "odoo-sql-maint ${GUEST_SQL_VERSION:-1.10.20261128.104906}"; exit 0; fi
+exit 0
+"""
 APT = """#!/bin/bash
 # fake apt-get: one pending security update (openssl) and one normal update (vim); APT_NONE=1: nothing pending
 case "$*" in
@@ -80,7 +85,8 @@ class CollectAllAdvise(unittest.TestCase):
         self.dest = os.path.join(self.d, "audit")
         self.app_log = os.path.join(self.d, "app.log")
         self.ssh_log = os.path.join(self.d, "ssh.log")
-        for nom, contenu in (("pct", PCT), ("qm", QM), ("ssh", SSH), ("sudo", SUDO), ("apt-get", APT), ("app-log-live.py", APP)):
+        for nom, contenu in (("pct", PCT), ("qm", QM), ("ssh", SSH), ("sudo", SUDO), ("apt-get", APT), ("app-log-live.py", APP),
+                             ("odoo-sql-maint", SQLMAINT)):
             chemin = os.path.join(self.bin, nom)
             with open(chemin, "w") as f:
                 f.write(contenu)
@@ -352,6 +358,24 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertIn("aucune preuve d'attaque", r.stdout)
         self.assertNotIn("VRAIE ATTAQUE", r.stdout)
 
+    def test_fenetre_par_defaut_suit_days(self):
+        """1.16: without --sqli-from / --sqli-to, the window is the last --days days."""
+        maintenant = datetime.datetime.now(datetime.timezone.utc)
+        sortie = ["write_date | " + maintenant.strftime("%Y-%m-%d %H:%M:%S")]
+        nginx = ['1.2.3.4 - - [%s] "GET /x?q=union%%20select%%201 HTTP/1.1" 500 1 "-" "x"' % maintenant.strftime("%d/%b/%Y:%H:%M:%S +0000"),
+                 '1.2.3.4 - - [%s] "GET /x?q=union%%20select%%202 HTTP/1.1" 500 1 "-" "x"' % (maintenant - datetime.timedelta(days=2)).strftime("%d/%b/%Y:%H:%M:%S +0000")]
+        config = self._preuves_sqli(sortie, [], nginx)
+        config = "".join(ligne + "\n" for ligne in config.splitlines() if not ligne.startswith(("SQLI_FROM", "SQLI_TO")))
+        r = self.lancer("--days", "1", "--no-security", "--no-sync", "--no-archive", config=config)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        racine = os.path.join(self.d, "var-default", "collect-all-advise")
+        archive = [n for n in os.listdir(racine) if n.endswith(".sqli-evidence.tar.xz")][0]
+        with tarfile.open(os.path.join(racine, archive), "r:xz") as t:
+            membres = {os.path.basename(m.name): t.extractfile(m).read().decode() for m in t.getmembers() if m.isfile()}
+        self.assertEqual(len(membres["nginx-injections.txt"].splitlines()), 1)    # the request of 2 days ago is outside --days 1
+        jour = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H")
+        self.assertIn(jour, membres["verdict.txt"])
+
     def test_no_sqli_evidence_et_fenetre_invalide(self):
         config = self._preuves_sqli(["x"], [], [])
         r = self.lancer("--days", "1", "--no-security", "--no-sync", "--no-archive", "--no-sqli-evidence", config=config)
@@ -418,6 +442,7 @@ class CollectAllAdvise(unittest.TestCase):
         shutil.copy(PROG, os.path.join(suite, "collect-all-advise.sh"))
         self.sync_log = os.path.join(self.d, "sync.log")
         for nom, contenu in (("app-log-live.py", '#!/bin/bash\necho "app-log-live.py v1.210.20261124.212059"\n'),
+                             ("odoo-sql-maint", '#!/bin/bash\necho "odoo-sql-maint 1.10.20261128.104906"\n'),
                              ("host-perf-audit.py", f'#!/bin/bash\necho "$*" >> {self.sync_log}\n')):
             with open(os.path.join(suite, nom), "w") as f:
                 f.write(contenu)
@@ -453,6 +478,26 @@ class CollectAllAdvise(unittest.TestCase):
         self.assertIn("--guest-sync --guests 101,103,201 --sync-source", appel)
         self.assertIn("--yes", appel)
         self.assertIn("[OK] suite mise à jour dans : 101,103,201", sortie)
+
+    def test_suite_sql_plus_ancien_declenche_la_synchro(self):
+        """1.16: odoo-sql-maint is compared too: an older copy triggers the copy of the suite, even with app-log-live.py up to date."""
+        prog = self.suite_locale()
+        self.env["GUEST_VERSION"] = "1.210.20261124.212059"
+        self.env["GUEST_SQL_VERSION"] = "1.9.20261101.000000"
+        r, sortie = self.lancer_suite(prog, "--sync")
+        self.assertEqual(r.returncode, 0, sortie)
+        self.assertIn("[ATTN] LXC 101 bbb-lxc1 : odoo-sql-maint 1.9.20261101.000000 (plus ancienne)", sortie)
+        self.assertIn("--guest-sync --guests 101,103,201", open(self.sync_log).read())
+        self.assertIn("[OK] suite mise à jour dans : 101,103,201", sortie)
+
+    def test_suite_sql_absent_compte_comme_en_retard(self):
+        """1.16: a guest without odoo-sql-maint is behind (the copy takes the whole folder)."""
+        prog = self.suite_locale()
+        self.env["GUEST_VERSION"] = "1.210.20261124.212059"
+        os.remove(os.path.join(self.bin, "odoo-sql-maint"))
+        r, sortie = self.lancer_suite(prog)
+        self.assertIn("odoo-sql-maint absent ou illisible", sortie)
+        self.assertIn("host-perf-audit.py --guest-sync --guests 101,103,201", sortie)
 
     def test_suite_a_jour_ou_no_sync(self):
         """1.10: guests up to date: nothing offered; --no-sync: no check at all."""
