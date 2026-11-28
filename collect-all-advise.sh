@@ -32,10 +32,14 @@
 #   --no-archive                 no archive: only the folder of the reports
 #   --no-logs                    no archive of the raw logs in /var/lib/collect-all-advise/
 #   --no-lxc-logs                no copy of the logs of the LXC containers
+#   --no-sqli-evidence           no search of the SQL injection evidence in the Odoo containers
 #   --no-security                no check of the security updates
 #   --no-sync                    never offer to update the suite in the guests before the collection
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
 #   --remove-timer               disable and remove the systemd timer (root)
+#   --sqli-evidence              SQL injection evidence in EVERY running Odoo container (default; --no-sqli-evidence: none)
+#   --sqli-from "AAAA-MM-JJ HH:MM:SS"  start of the attack window, local time (default: 24 hours before now)
+#   --sqli-to "AAAA-MM-JJ HH:MM:SS"    end of the attack window, local time (default: now)
 #   --ssh-user USER              account used for the virtual machines; it needs sudo without a password (default: root)
 #   --sync                       update the suite in the guests that are behind, without a question (host-perf-audit.py --guest-sync)
 #   -v, --verbose                show each step and each command run in the guests (their address, exit codes)
@@ -49,6 +53,13 @@
 #   LXC_LOGS=yes                yes or no (--no-lxc-logs): the logs of our programs (LXC_LOG_PATHS) of every running LXC container,
 #                               copied as they are (no anonymisation), packed in one root-only archive *.lxc-logs.tar.xz
 #   LXC_LOG_PATHS=...           paths or globs looked for in each LXC, separated by spaces (no space inside a path)
+#   SQLI_EVIDENCE=yes           yes or no (--no-sqli-evidence): evidence of SQL injection in each Odoo container, archived as
+#                               *.sqli-evidence.tar.xz, with a verdict per container (sqli-verdict.txt)
+#   SQLI_FROM / SQLI_TO         attack window, "AAAA-MM-JJ HH:MM:SS" in local time (empty: the last 24 hours)
+#   SQLI_QUERIES=...            odoo-sql-maint queries run in each Odoo container (default: xss-content,xss-persistence,push-count)
+#   SQLI_ODOO_UNITS=...         systemd units of Odoo whose journal is searched (default: erplibre erplibre_erplibre)
+#   ODOO_SQL_MAINT=PATH         odoo-sql-maint in an Odoo container (default: /opt/rlq-admin-tools/odoo-sql-maint)
+#   SQLI_NGINX_LOGS=...         nginx access logs searched for the injection requests (default: access.log and access.log.1)
 #   SECURITY=yes                yes or no (--no-security): check of the pending security updates of the host and the guests
 #   SYNC=ask                    ask, yes or no (--sync / --no-sync): update the suite in the guests that are behind, before the collection
 #   DAYS=2                      analysis window in days (--days)
@@ -67,7 +78,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.14.20261127.235742"
+readonly SCRIPT_VERSION="1.15.20261128.105936"
 # Roots of the raw logs and of the archive of the logs (variables only for the tests).
 RACINE_LOG="${NGINX_TOOLS_LOG_ROOT:-/var/log}"
 RACINE_VAR="${NGINX_TOOLS_VAR_ROOT:-/var/lib}"
@@ -241,6 +252,14 @@ LOGS=yes
 LXC_LOGS=yes
 # paths or globs looked for in each LXC container, separated by spaces.
 LXC_LOG_PATHS=$LXC_LOG_PATHS_DEFAUT
+# yes: evidence of an SQL injection (Odoo journal, injection requests of nginx, odoo-sql-maint) in every running Odoo container, copied as they are
+# into one root-only archive *.sqli-evidence.tar.xz, with a verdict per container; no: none.
+SQLI_EVIDENCE=yes
+# attack window, "AAAA-MM-JJ HH:MM:SS" in local time; empty: the last 24 hours.
+SQLI_FROM=
+SQLI_TO=
+# odoo-sql-maint in the Odoo containers.
+ODOO_SQL_MAINT=/opt/rlq-admin-tools/odoo-sql-maint
 # analysis window in days, from 1 to 366.
 DAYS=$jours
 # folder of the reports and of the archive.
@@ -313,10 +332,14 @@ aide() {
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
 --no-logs                    pas d'archive des journaux bruts dans /var/lib/collect-all-advise/ / no archive of the raw logs in /var/lib/collect-all-advise/
 --no-lxc-logs                pas de copie des journaux des conteneurs LXC / no copy of the logs of the LXC containers
+--no-sqli-evidence           pas de preuves d'injection SQL dans les conteneurs Odoo / no SQL injection evidence in the Odoo containers
 --no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
 --no-sync                    ne propose pas de mettre à jour la suite dans les invités / never offer to update the suite in the guests
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
 --remove-timer               supprime le minuteur systemd (root) / remove the systemd timer (root)
+--sqli-evidence              preuves d'injection SQL dans CHAQUE conteneur Odoo en marche (défaut) / SQL injection evidence in EVERY running Odoo container (default)
+--sqli-from DATE             début de la fenêtre d'attaque, AAAA-MM-JJ HH:MM:SS, heure locale (défaut : 24 h) / start of the attack window, local time (default: 24 hours)
+--sqli-to DATE               fin de la fenêtre d'attaque, heure locale (défaut : maintenant) / end of the attack window, local time (default: now)
 --ssh-user USER              compte des VM (sudo sans mot de passe) / account of the VMs (sudo without a password)
 --sync                       met à jour sans question la suite dans les invités en retard / update the suite in the guests that are behind, no question
 -v, --verbose                affiche chaque étape et chaque commande lancée dans les invités / show each step and each command run in the guests
@@ -497,6 +520,65 @@ signaler_aucune() {
 }
 
 # LXC_LOG_PATHS_DEFAUT: the logs of our programs, searched in every running LXC container (paths or globs, see LXC_LOG_PATHS).
+ODOO_SQL_MAINT_DEFAUT="${NGINX_TOOLS_ODOO_SQL_MAINT:-/opt/rlq-admin-tools/odoo-sql-maint}"
+# SQLI_NGINX_LOGS_DEFAUT: nginx access logs searched for the injection requests in every running LXC container.
+SQLI_NGINX_LOGS_DEFAUT="${NGINX_TOOLS_SQLI_NGINX_LOGS:-/var/log/nginx/access.log /var/log/nginx/access.log.1}"
+# SQLI_MOTIF: regular expression (case insensitive) of an injection request, used by grep in the containers and by the verdict.
+SQLI_MOTIF="union(\s|\+|%20|/\*|%2f)+(all(\s|\+|%20)+)?select|information_schema|pg_sleep|sleep\(|benchmark\(|waitfor(\s|\+|%20)+delay|extractvalue\(|updatexml\(|(\s|\+|%20)or(\s|\+|%20)+1(=|%3d)1|%27|'"
+# PY_SQLI: the verdict of the three criteria (run with python3 -I, never from a file of the containers). Arguments: window start
+# and end (epoch seconds, UTC), odoo-sql-maint output, Odoo journal lines, raw nginx lines, file for the window injection lines,
+# injection regular expression. Standard output: key=value lines. Criteria: 1 = a row of the odoo-sql-maint output (xss-persistence:
+# users, server actions, scheduled actions, API keys, views) created or modified in the window (Odoo dates are UTC); 2 = SQL errors or
+# tracebacks in the Odoo journal of the window; 3 = an injection request of the window answered with a 5xx. VERDICT=REEL when at least
+# one criterion holds (rule to be confirmed by the administrator).
+read -r -d '' PY_SQLI <<'PY' || true
+import datetime
+import re
+import sys
+
+debut, fin = int(sys.argv[1]), int(sys.argv[2])
+sql_fichier, journal_fichier, brut_fichier, sortie_fichier, motif = sys.argv[3:8]
+ts_sql = re.compile(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})")
+erreurs_sql = re.compile(r"psycopg|programmingerror|syntax error|traceback", re.IGNORECASE)
+acces = re.compile(r'\[(\d{2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2}) ([+-]\d{4})\] "([A-Z]+ [^"]*)" (\d{3})')
+injection = re.compile(motif, re.IGNORECASE)
+
+def dans_fenetre(epoque):
+    return debut <= epoque <= fin
+
+criteres = [0, 0, 0]
+with open(sql_fichier, encoding="utf-8", errors="replace") as f:
+    for ligne in f:
+        for m in ts_sql.finditer(ligne):
+            moment = datetime.datetime(*map(int, m.groups()), tzinfo=datetime.timezone.utc)
+            if dans_fenetre(moment.timestamp()):
+                criteres[0] += 1
+                break
+with open(journal_fichier, encoding="utf-8", errors="replace") as f:
+    criteres[1] = sum(1 for ligne in f if erreurs_sql.search(ligne))
+requetes = 0
+with open(brut_fichier, encoding="utf-8", errors="replace") as f, open(sortie_fichier, "w", encoding="utf-8") as out:
+    for ligne in f:
+        m = acces.search(ligne)
+        if not m:
+            continue
+        moment = datetime.datetime.strptime(m.group(1), "%d/%b/%Y:%H:%M:%S")
+        decalage = m.group(2)
+        signe = 1 if decalage[0] == "+" else -1
+        fuseau = datetime.timezone(signe * datetime.timedelta(hours=int(decalage[1:3]), minutes=int(decalage[3:5])))
+        if not dans_fenetre(moment.replace(tzinfo=fuseau).timestamp()):
+            continue
+        if not injection.search(m.group(3)):
+            continue
+        requetes += 1
+        out.write(ligne)
+        if m.group(4).startswith("5"):
+            criteres[2] += 1
+print("REQUETES=%d" % requetes)
+for i, valeur in enumerate(criteres, 1):
+    print("CRITERE%d=%d" % (i, valeur))
+print("VERDICT=" + ("REEL" if any(criteres) else "AUCUN"))
+PY
 LXC_LOG_PATHS_DEFAUT="${NGINX_TOOLS_LXC_LOG_PATHS:-/var/log/app-log-live /var/log/web-monitor /var/log/odoo-update-module /var/log/sync-crowdsec-blocklist.log* /var/log/nginx-log-audit-expiry.log* /var/lib/app-log-live /var/lib/web-monitor /var/lib/nginx-tools /var/lib/host-perf-audit /var/lib/odoo-backup /var/lib/odoo-warmup /var/lib/sync-crowdsec-blocklist /var/lib/sqli-investigate /var/lib/collect-all-advise}"
 
 # SYSTEMD_DIR: unit files of the timer (/etc/systemd/system; NGINX_TOOLS_SYSTEMD_DIR for the tests).
@@ -864,6 +946,104 @@ collecter_journaux_lxc() {
     return 1
 }
 
+# valeur_sqli KEY TEXT: the value of KEY=VALUE in the output of PY_SQLI.
+valeur_sqli() {
+    printf '%s\n' "$2" | sed -n "s/^$1=//p"
+}
+
+# collecter_preuves_sqli: evidence of an SQL injection in EVERY running Odoo container (the one that has odoo-sql-maint), for the
+# attack window SQLI_DEBUT .. SQLI_FIN (local time): the queries of odoo-sql-maint (SQLI_QUERIES, as the odoo user), the lines of
+# the Odoo journal (SQLI_ODOO_UNITS: SQL errors, tracebacks), the injection requests of the nginx access logs (SQLI_NGINX_LOGS),
+# then the verdict of the three criteria (PY_SQLI). The raw excerpts are copied as they are (no anonymisation) into one root-only
+# archive: RACINE_VAR/collect-all-advise/HOST.AAAA-MM-JJ.sqli-evidence.tar.xz (folder 0750, archive 0640). Each run appends one line
+# per container to RACINE_VAR/collect-all-advise/sqli-verdict.txt.
+collecter_preuves_sqli() {
+    local hote date_jour dossier stage base archive tmp n=2 vmid status name cible rc=0 brut resultat verdict
+    local trouves=0 erreurs=0 conteneurs=0 maintenant unite debut_s fin_s requetes c1 c2 c3
+    local -a unites=()
+    command -v pct >/dev/null 2>&1 || { trace "$(t "pct introuvable : pas de preuves SQL" "pct not found: no SQL evidence")"; return 0; }
+    hote="$(uname -n)"
+    date_jour="$(date +%Y-%m-%d)"
+    maintenant="$(date '+%Y-%m-%d %H:%M')"
+    dossier="$RACINE_VAR/$SCRIPT_NAME"
+    mkdir -p "$dossier" && chmod 0750 "$dossier" || { printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "dossier des preuves impossible" "evidence folder not created") : $dossier"; return 1; }
+    stage="$(mktemp -d "$dossier/sqli-evidence.XXXXXX")" || return 1
+    chmod 0700 "$stage"
+    debut_s="$(date -d "$SQLI_DEBUT" +%s)"
+    fin_s="$(date -d "$SQLI_FIN" +%s)"
+    read -r -a unites <<< "$SQLI_ODOO_UNITS"
+    printf '%s\n' "$(t "Fenêtre d'attaque (heure locale) : $SQLI_DEBUT -> $SQLI_FIN" "Attack window (local time): $SQLI_DEBUT -> $SQLI_FIN")"
+    while read -r vmid status name <&3; do
+        [[ "$status" == "running" ]] || { trace "LXC $vmid $name : $(t "ignoré (état $status)" "skipped (status $status)")"; continue; }
+        if ! pct exec "$vmid" -- test -x "$ODOO_SQL_MAINT" </dev/null >/dev/null 2>&1; then
+            trace "LXC $vmid $name : $(t "pas de $ODOO_SQL_MAINT : pas un conteneur Odoo, ignoré" "no $ODOO_SQL_MAINT: not an Odoo container, skipped")"
+            continue
+        fi
+        conteneurs=$((conteneurs + 1))
+        cible="$stage/$vmid-$name"
+        mkdir -p "$cible"
+        # 1. the queries of odoo-sql-maint, as the odoo user (the exit code is written in the verdict)
+        rc=0
+        trace "LXC $vmid $name : pct exec $vmid -- sudo -u odoo $ODOO_SQL_MAINT --run $SQLI_QUERIES"
+        pct exec "$vmid" -- sudo -u odoo "$ODOO_SQL_MAINT" --run "$SQLI_QUERIES" </dev/null >"$cible/odoo-sql-maint.txt" 2>&1 || rc=$?
+        # 2. the Odoo journal: the lines of the window that mention SQL errors or tracebacks
+        : > "$cible/odoo-journal.txt"
+        for unite in "${unites[@]}"; do
+            pct exec "$vmid" -- journalctl -u "$unite" --since "$SQLI_DEBUT" --until "$SQLI_FIN" --no-pager </dev/null 2>/dev/null \
+                | grep -iE "psycopg|syntax|traceback|error" | sed "s/^/[$unite] /" >> "$cible/odoo-journal.txt" || true
+        done
+        # 3. the injection requests of the nginx access logs (raw here, the window is filtered by the verdict)
+        brut="$(mktemp "$stage/brut.XXXXXX")"
+        pct exec "$vmid" -- env "LISTE=$SQLI_NGINX_LOGS" "MOTIF=$SQLI_MOTIF" sh -c 'for f in $LISTE; do [ -r "$f" ] && grep -aiE -- "$MOTIF" "$f"; done; true' \
+            </dev/null >"$brut" 2>/dev/null || true
+        # 4. the verdict of the three criteria
+        if ! resultat="$(python3 -I -c "$PY_SQLI" "$debut_s" "$fin_s" "$cible/odoo-sql-maint.txt" "$cible/odoo-journal.txt" \
+                "$brut" "$cible/nginx-injections.txt" "$SQLI_MOTIF" 2>&1)"; then
+            printf '%s\n' "${C_RED}[ATTN]$C_RESET LXC $vmid $name : $(t "analyse des preuves impossible" "evidence analysis failed") : $resultat"
+            erreurs=$((erreurs + 1))
+            rm -f -- "$brut"
+            continue
+        fi
+        rm -f -- "$brut"
+        { printf '%s\n' "# exit code of odoo-sql-maint: $rc" "# window: $SQLI_DEBUT -> $SQLI_FIN (local time)" "$resultat"; } > "$cible/verdict.txt"
+        verdict="$(valeur_sqli VERDICT "$resultat")"
+        requetes="$(valeur_sqli REQUETES "$resultat")"
+        c1="$(valeur_sqli CRITERE1 "$resultat")"
+        c2="$(valeur_sqli CRITERE2 "$resultat")"
+        c3="$(valeur_sqli CRITERE3 "$resultat")"
+        printf '%s %s %s %s requetes=%s critere1=%s critere2=%s critere3=%s sql_exit=%s\n' \
+            "$maintenant" "$vmid" "$name" "$verdict" "$requetes" "$c1" "$c2" "$c3" "$rc" >> "$dossier/sqli-verdict.txt"
+        trouves=$((trouves + 1))
+        if [[ "$verdict" == "REEL" ]]; then
+            printf '%s\n' "${C_RED}[ATTN]$C_RESET LXC $vmid $name : $(t "preuves d'une VRAIE ATTAQUE" "evidence of a REAL ATTACK") ($(t "requêtes d'injection" "injection requests") : $requetes ; $(t "critères 1, 2, 3" "criteria 1, 2, 3") : $c1, $c2, $c3)"
+        else
+            printf '%s\n' "[OK] LXC $vmid $name : $(t "aucune preuve d'attaque" "no evidence of an attack") ($(t "requêtes d'injection" "injection requests") : $requetes)"
+        fi
+    done 3< <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
+    if (( conteneurs == 0 )); then
+        printf '%s\n' "$(t "aucun conteneur Odoo en marche : pas de preuves SQL" "no running Odoo container: no SQL evidence")"
+        rm -rf "$stage"
+        return 0
+    fi
+    base="$dossier/$hote.$date_jour.sqli-evidence"
+    archive="$base.tar.xz"
+    while [[ -e "$archive" ]]; do
+        archive="$base-$n.tar.xz"
+        n=$((n + 1))
+    done
+    tmp="$archive.part"
+    if ! tar -C "$stage" -cJf "$tmp" .; then
+        rm -f "$tmp"; rm -rf "$stage"
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "archive des preuves SQL non créée" "SQL evidence archive not created") : $archive"
+        return 1
+    fi
+    chmod 0640 "$tmp" && mv -f "$tmp" "$archive"
+    rm -rf "$stage"
+    printf '%s\n' "[OK] $(t "preuves SQL" "SQL evidence") : $archive ($trouves $(t "conteneur(s)" "container(s)"))"
+    if (( erreurs == 0 )); then return 0; fi
+    return 1
+}
+
 # ------------------------------------------------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------------------------------------------------
@@ -898,6 +1078,14 @@ LOGS_ARCHIVE=1
 if [[ "$(oui_non "${CFG[LOGS]:-yes}")" == 0 ]]; then LOGS_ARCHIVE=0; fi
 LXC_LOGS=1
 if [[ "$(oui_non "${CFG[LXC_LOGS]:-yes}")" == 0 ]]; then LXC_LOGS=0; fi
+SQLI_EVIDENCE=1
+if [[ "$(oui_non "${CFG[SQLI_EVIDENCE]:-yes}")" == 0 ]]; then SQLI_EVIDENCE=0; fi
+SQLI_DEBUT="${CFG[SQLI_FROM]:-}"
+SQLI_FIN="${CFG[SQLI_TO]:-}"
+SQLI_QUERIES="${CFG[SQLI_QUERIES]:-xss-content,xss-persistence,push-count}"
+SQLI_ODOO_UNITS="${CFG[SQLI_ODOO_UNITS]:-erplibre erplibre_erplibre}"
+SQLI_NGINX_LOGS="${CFG[SQLI_NGINX_LOGS]:-$SQLI_NGINX_LOGS_DEFAUT}"
+ODOO_SQL_MAINT="${CFG[ODOO_SQL_MAINT]:-$ODOO_SQL_MAINT_DEFAUT}"
 LXC_LOG_PATHS="${CFG[LXC_LOG_PATHS]:-$LXC_LOG_PATHS_DEFAUT}"
 SECURITY=1
 if [[ "$(oui_non "${CFG[SECURITY]:-yes}")" == 0 ]]; then SECURITY=0; fi
@@ -944,6 +1132,16 @@ while [[ $# -gt 0 ]]; do
             PROGRAM="$2"; shift 2 ;;
         --program=*) PROGRAM="${1#--program=}"; shift ;;
         --remove-timer) DO_TIMER="remove"; shift ;;
+        --no-sqli-evidence) SQLI_EVIDENCE=0; shift ;;
+        --sqli-evidence) SQLI_EVIDENCE=1; shift ;;
+        --sqli-from)
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --sqli-from : date attendue" "option --sqli-from: date expected")" >&2; exit 2; fi
+            SQLI_DEBUT="$2"; shift 2 ;;
+        --sqli-from=*) SQLI_DEBUT="${1#--sqli-from=}"; shift ;;
+        --sqli-to)
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --sqli-to : date attendue" "option --sqli-to: date expected")" >&2; exit 2; fi
+            SQLI_FIN="$2"; shift 2 ;;
+        --sqli-to=*) SQLI_FIN="${1#--sqli-to=}"; shift ;;
         --sync) SYNC="yes"; shift ;;
         --ssh-user)
             if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --ssh-user : utilisateur attendu" "option --ssh-user: user expected")" >&2; exit 2; fi
@@ -966,6 +1164,13 @@ if [[ "$DO_TIMER" == "remove" ]]; then desinstaller_minuteur; exit $?; fi
 
 if ! valider_jours "$DAYS"; then
     printf '%s\n' "$(t "--days : un nombre de jours de 1 à 366 est attendu (reçu : " "--days: a number of days from 1 to 366 is expected (got: ")$DAYS)" >&2
+    exit 2
+fi
+# SQLI_DEBUT / SQLI_FIN: the attack window, local time (default: the last 24 hours). Checked before any collection.
+if [[ -z "$SQLI_DEBUT" ]]; then SQLI_DEBUT="$(date -d '24 hours ago' '+%Y-%m-%d %H:%M:%S')"; fi
+if [[ -z "$SQLI_FIN" ]]; then SQLI_FIN="$(date '+%Y-%m-%d %H:%M:%S')"; fi
+if ! debut_s="$(date -d "$SQLI_DEBUT" +%s 2>/dev/null)" || ! fin_s="$(date -d "$SQLI_FIN" +%s 2>/dev/null)" || (( debut_s > fin_s )); then
+    printf '%s\n' "$(t "--sqli-from / --sqli-to : date AAAA-MM-JJ HH:MM:SS attendue, le début avant la fin (reçu : $SQLI_DEBUT -> $SQLI_FIN)" "--sqli-from / --sqli-to: date YYYY-MM-DD HH:MM:SS expected, start before end (got: $SQLI_DEBUT -> $SQLI_FIN)")" >&2
     exit 2
 fi
 # --name is a regular expression used only to filter the guest names (never executed): it must compile (bash status 2 otherwise).
@@ -1064,6 +1269,11 @@ if (( ARCHIVE == 1 && RAPPORTS_OK > 0 )); then
     archiver || ARCHIVE_OK=0
 fi
 
+SQLI_OK=1
+if (( SQLI_EVIDENCE == 1 )); then
+    collecter_preuves_sqli || SQLI_OK=0
+fi
+
 LOGS_OK=1
 if (( LOGS_ARCHIVE == 1 )); then
     archiver_journaux || LOGS_OK=0
@@ -1076,5 +1286,5 @@ if (( SECURITY == 1 )); then
     mises_a_jour_securite
 fi
 
-if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 || LOGS_OK == 0 || LXC_LOGS_OK == 0 )); then exit 1; fi
+if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 || LOGS_OK == 0 || LXC_LOGS_OK == 0 || SQLI_OK == 0 )); then exit 1; fi
 exit 0

@@ -42,6 +42,8 @@ shift
 exec bash -c "$1"
 """
 SUDO = """#!/bin/bash
+# sudo: no-op; "sudo -u USER CMD" runs CMD as the current user (tests)
+if [[ "$1" == "-u" ]]; then shift 2; fi
 exec "$@"
 """
 APT = """#!/bin/bash
@@ -94,6 +96,8 @@ class CollectAllAdvise(unittest.TestCase):
         self.env["APT_LOG"] = os.path.join(self.d, "apt.log")
         self.env["NGINX_TOOLS_VAR_ROOT"] = os.path.join(self.d, "var-default")   # never the real /var/lib
         self.env["NGINX_TOOLS_LXC_LOG_PATHS"] = os.path.join(self.d, "ct-absent")   # no real log of this machine in the containers
+        self.env["NGINX_TOOLS_SQLI_NGINX_LOGS"] = os.path.join(self.d, "ct-absent")   # no real nginx log of this machine
+        self.env["NGINX_TOOLS_ODOO_SQL_MAINT"] = os.path.join(self.d, "ct-absent")    # no odoo-sql-maint: no Odoo container
         self.env["SUDO_USER"] = ""                     # the default folder is the home of the current user
         self.env["HOME"] = self.d
         self.env.pop("LC_ALL", None)
@@ -287,6 +291,76 @@ class CollectAllAdvise(unittest.TestCase):
         # the raw-log archive of the host is not affected by --no-lxc-logs: only the LXC archive must be missing
         dossier = os.path.join(var, "collect-all-advise")
         self.assertFalse([n for n in os.listdir(dossier) if "lxc-logs" in n] if os.path.isdir(dossier) else [])
+
+    def _preuves_sqli(self, maint_sortie, journal_lignes, nginx_lignes):
+        """Fake odoo-sql-maint, journalctl and nginx log in the test folder; returns the window configuration."""
+        maint = os.path.join(self.d, "odoo-sql-maint")
+        with open(maint, "w") as f:
+            f.write("#!/bin/bash\n" + "".join("echo '%s'\n" % ligne for ligne in maint_sortie))
+        os.chmod(maint, 0o755)
+        with open(os.path.join(self.bin, "journalctl"), "w") as f:
+            f.write("#!/bin/bash\n" + "".join("echo '%s'\n" % ligne for ligne in journal_lignes))
+        os.chmod(os.path.join(self.bin, "journalctl"), 0o755)
+        log = os.path.join(self.d, "nginx-access.log")
+        with open(log, "w") as f:
+            f.write("".join(ligne + "\n" for ligne in nginx_lignes))
+        self.env["NGINX_TOOLS_SQLI_NGINX_LOGS"] = log
+        local = datetime.datetime.now()
+        return ("ODOO_SQL_MAINT=%s\nSQLI_FROM=%s\nSQLI_TO=%s\n" % (
+            maint, (local - datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
+            (local + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")))
+
+    def test_preuves_sqli_fenetre_criteres_et_verdict(self):
+        maintenant = datetime.datetime.now(datetime.timezone.utc)
+        dedans = maintenant.strftime("%d/%b/%Y:%H:%M:%S +0000")
+        avant = (maintenant - datetime.timedelta(days=2)).strftime("%d/%b/%Y:%H:%M:%S +0000")
+        sortie = ["write_date | " + maintenant.strftime("%Y-%m-%d %H:%M:%S") + " (UTC, Odoo)"]
+        journal = ["Nov 28 11:22:01 odoo18 erplibre[1]: psycopg2.errors.SyntaxError: fake", "Nov 28 11:22:02 odoo18 erplibre[1]: started"]
+        nginx = [
+            '1.2.3.4 - - [%s] "GET /web/login?q=1%%20union%%20select%%201 HTTP/1.1" 500 12 "-" "x"' % dedans,
+            '1.2.3.4 - - [%s] "GET /web/login?q=1%%20union%%20select%%202 HTTP/1.1" 200 12 "-" "x"' % dedans,
+            '1.2.3.4 - - [%s] "GET /web/login?q=1%%20union%%20select%%203 HTTP/1.1" 500 12 "-" "x"' % avant,
+            '5.6.7.8 - - [%s] "GET /index HTTP/1.1" 500 12 "-" "x"' % dedans,
+        ]
+        config = self._preuves_sqli(sortie, journal, nginx)
+        r = self.lancer("--days", "1", "--no-security", "--no-sync", "--no-archive", config=config)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("preuves d'une VRAIE ATTAQUE", r.stdout)
+        racine = os.path.join(self.d, "var-default", "collect-all-advise")
+        archives = [n for n in os.listdir(racine) if n.endswith(".sqli-evidence.tar.xz")]
+        self.assertEqual(len(archives), 1, os.listdir(racine))
+        with tarfile.open(os.path.join(racine, archives[0]), "r:xz") as t:
+            membres = {os.path.basename(m.name): t.extractfile(m).read().decode() for m in t.getmembers() if m.isfile()}
+        injections = membres["nginx-injections.txt"].splitlines()
+        self.assertEqual(len(injections), 2, injections)           # the two window requests, not the one of 2 days ago
+        self.assertFalse(any("5.6.7.8" in ligne for ligne in injections))
+        self.assertIn("psycopg2.errors.SyntaxError", membres["odoo-journal.txt"])
+        # criterion 2 counts 2 lines: the fake journal answers for both Odoo units (erplibre, erplibre_erplibre)
+        self.assertIn("REQUETES=2 CRITERE1=1 CRITERE2=2 CRITERE3=1", membres["verdict.txt"].replace("\n", " "))
+        self.assertIn("VERDICT=REEL", membres["verdict.txt"])
+        verdicts = open(os.path.join(racine, "sqli-verdict.txt")).read().splitlines()
+        self.assertEqual(len(verdicts), 2, verdicts)                # LXC 101 and 103
+        self.assertTrue(all(" REEL " in v for v in verdicts), verdicts)
+        self.assertTrue(all("requetes=2 critere1=1 critere2=2 critere3=1" in v for v in verdicts), verdicts)
+
+    def test_preuves_sqli_aucune_preuve_sans_requete_ni_erreur(self):
+        maintenant = datetime.datetime.now(datetime.timezone.utc)
+        config = self._preuves_sqli(["no row"], ["Nov 28 11:22:02 odoo18 erplibre[1]: started"],
+                                    ['1.2.3.4 - - [%s] "GET /index HTTP/1.1" 200 12 "-" "x"' % maintenant.strftime("%d/%b/%Y:%H:%M:%S +0000")])
+        r = self.lancer("--days", "1", "--no-security", "--no-sync", "--no-archive", config=config)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("aucune preuve d'attaque", r.stdout)
+        self.assertNotIn("VRAIE ATTAQUE", r.stdout)
+
+    def test_no_sqli_evidence_et_fenetre_invalide(self):
+        config = self._preuves_sqli(["x"], [], [])
+        r = self.lancer("--days", "1", "--no-security", "--no-sync", "--no-archive", "--no-sqli-evidence", config=config)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        racine = os.path.join(self.d, "var-default", "collect-all-advise")
+        self.assertFalse(os.path.isdir(racine) and any("sqli-evidence" in n for n in os.listdir(racine)))
+        r = self.lancer("--days", "1", "--no-security", "--sqli-from", "pas une date", "--sqli-to", "2026-11-28 07:00:00", config=config)
+        self.assertEqual(r.returncode, 2, r.stderr + r.stdout)
+        self.assertIn("--sqli-from / --sqli-to", r.stdout + r.stderr)
 
     def test_archive_du_meme_jour_ne_remplace_pas_la_precedente(self):
         self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1")
