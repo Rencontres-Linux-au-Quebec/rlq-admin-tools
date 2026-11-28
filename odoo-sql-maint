@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.9.20261124.195500"
+__version__="1.10.20261128.104906"
 
 set -u
 set -o pipefail
@@ -772,21 +772,42 @@ run_menu() {
   done
 }
 
-run_cli() {  # run_cli NAME
-  local name="$1" mode="run" rc
-  if [[ -z "${Q_SQL[$name]:-}" ]]; then
-    printf '%s%s%s\n' "$C_ERR" "$(t bad_query "$name")" "$C_RST" >&2
+run_cli() {  # run_cli NAME[,NAME...]
+  # 1.10: several queries separated by commas (e.g. xss-content,xss-persistence,push-count), run in the order given.
+  # Every name is checked before the first query runs; the exit code is the worst one of the queries.
+  local spec="$1" name mode="run" rc=0 rc_one n=0 total
+  local -a names=()
+  IFS=',' read -r -a names <<< "$spec"
+  # read drops a trailing empty field, so a leading, trailing or doubled comma is refused here
+  if (( ${#names[@]} == 0 )) || [[ "$spec" == ,* || "$spec" == *, || "$spec" == *,,* ]]; then
+    printf '%s%s%s\n' "$C_ERR" "$(t bad_query "$spec")" "$C_RST" >&2
     return 2
   fi
+  for name in "${names[@]}"; do
+    if [[ -z "$name" || -z "${Q_SQL[$name]:-}" ]]; then
+      printf '%s%s%s\n' "$C_ERR" "$(t bad_query "$name")" "$C_RST" >&2
+      return 2
+    fi
+  done
   if [[ "$DRY_RUN" -eq 1 ]]; then
     mode="dry"
   fi
-  execute_query "$name" "$mode" cli
-  rc=$?
-  if [[ -n "$LAST_OUTFILE" && -s "$LAST_OUTFILE" ]]; then
-    cat -- "$LAST_OUTFILE"
-  fi
-  cleanup_temp
+  total=${#names[@]}
+  for name in "${names[@]}"; do
+    n=$((n + 1))
+    if (( total > 1 )); then
+      printf '%s\n' "=== $name ($n/$total) ==="
+    fi
+    execute_query "$name" "$mode" cli
+    rc_one=$?
+    if [[ -n "$LAST_OUTFILE" && -s "$LAST_OUTFILE" ]]; then
+      cat -- "$LAST_OUTFILE"
+    fi
+    cleanup_temp
+    if (( rc_one > rc )); then
+      rc=$rc_one
+    fi
+  done
   return "$rc"
 }
 
@@ -845,7 +866,7 @@ Options (alphabetical / ordre alphabetique):
   ${C_OPT}--help${C_RST}             Show this help / Afficher cette aide
   ${C_OPT}--language LANG${C_RST}    Interface language, fr or en / Langue de l'interface, fr ou en
   ${C_OPT}--list${C_RST}             List available queries / Lister les requetes
-  ${C_OPT}--run NAME${C_RST}         Run one query without the menu / Executer une requete sans menu
+  ${C_OPT}--run NAME[,NAME...]${C_RST} Run one or several queries, in order, without the menu / Executer une ou plusieurs requetes, dans l'ordre, sans menu
   ${C_OPT}--verbose${C_RST}          Show the config files read / Afficher les fichiers de config lus
   ${C_OPT}--version${C_RST}          Show the version / Afficher la version
   ${C_OPT}--yes${C_RST}              Skip confirmations, for scripts / Sans confirmation, pour les scripts

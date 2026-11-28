@@ -158,6 +158,23 @@ class AvecPostgreSQL(unittest.TestCase):
         self.assertEqual(rc, 4, out)
         self.assertIn("pgpass", out)
 
+    def test_18_plusieurs_requetes_separees_par_des_virgules(self):
+        # 1.10: a list is checked before anything runs: one unknown name refuses the whole list
+        rc, out = lancer("--run", "connection-test,nom-inconnu", "--dry-run", conf=self.conf)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("nom-inconnu", out)
+        self.assertNotIn("=== connection-test", out)
+        # a trailing, leading or doubled comma is an empty name: refused too
+        for spec in ("connection-test,", ",connection-test", "connection-test,,connection-test"):
+            rc, out = lancer("--run", spec, "--dry-run", conf=self.conf)
+            self.assertEqual(rc, 2, (spec, out))
+            self.assertNotIn("=== connection-test", out)
+        # a valid list: each query has its header, in the order given
+        rc, out = lancer("--run", "connection-test,connection-test", "--dry-run", conf=self.conf)
+        self.assertIn("=== connection-test (1/2) ===", out)
+        self.assertIn("=== connection-test (2/2) ===", out)
+        self.assertLess(out.index("(1/2)"), out.index("(2/2)"))
+
     def test_16_sauvegardes_planifiees(self):
         rc, out = lancer("--run", "backup-crons-disable", "--yes", conf=self.conf)
         self.assertEqual(rc, 0, out)
