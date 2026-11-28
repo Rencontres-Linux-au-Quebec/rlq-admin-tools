@@ -40,7 +40,7 @@
 #     automatic alert with the detail, ONLY if there is a problem;
 #   * DAILY JOURNAL: the live stream (not the startup history) is also written WITH its colors to FOLDER/app-log-live-YYYY-MM-DD.log (mode 600, 30 days kept; --log-dir,
 #     --log-keep-days, --no-log-file): "less -R file" or "tail -f file";
-#   * INVERSE VIDEO: the URL of a SUSPICIOUS request (WordPress, .php, phpMyAdmin, .env, .git, backups, directory traversal, Odoo database manager...) in MAGENTA; the URL of an HTTP 5xx (red) or 4xx (yellow) error, only the URL; the address of a machine of the WHITELIST (white background) or of the PLACES file
+#   * INVERSE VIDEO: the URL of a SUSPICIOUS request (WordPress, .php, phpMyAdmin, .env, .git, backups, directory traversal, Odoo database manager...) or an SQL injection attempt (SQLI_RE, 1.211) in MAGENTA; the URL of an HTTP 5xx (red) or 4xx (yellow) error, only the URL; the address of a machine of the WHITELIST (white background) or of the PLACES file
 #     (gray background), black text (explicit colors: readable on any theme) - with --hide-ip, it is the name that is; the login page keeps its style except on 5xx; a legend is displayed at startup;
 #   * [banned: fail2ban] / [banned: CrowdSec] at the end of the line when the address is CURRENTLY banned (fail2ban-client, ipsets crowdsec-blocklist-v4 / -v6 of sync-crowdsec-blocklist.sh,
 #     "nomatch" = exception; re-read every 60 s; root required; never for the whitelist or a place; --no-banned: disabled);
@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.210.20261124.212059"
+__version__ = "1.211.20261127.235500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2246,8 +2246,8 @@ def crochets(parts, ip, category, surrounded=True):
 # Formatting of a line
 # ------------------------------------------------------------------------------------------------------------------
 def suspect_url(url):
-    """True if the URL is suspicious (SUSPECT_RE), as is or decoded (%2e%2e = ..)."""
-    return bool(SUSPECT_RE.search(url) or SUSPECT_RE.search(unquote(url)))
+    """True if the URL is suspicious (SUSPECT_RE), as is or decoded (%2e%2e = ..), or an SQL injection attempt (SQLI_RE, 1.211)."""
+    return bool(SUSPECT_RE.search(url) or SUSPECT_RE.search(unquote(url)) or SQLI_RE.search(unquote(url)))
 
 
 def suspicious_request(text):
@@ -6951,8 +6951,12 @@ ADVISE_SITEMAP_WAIT_S = 20         # 1.165 --advise: seconds to wait for the fir
 BUFFER_DEFAULT = 200                # 1.113 --buffer N: last displayed lines kept in memory (f: displayed again with the current options; P: printed to a file)
 STATUS_EVERY_DEFAULT = -1          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never; -1 (1.120, 1.131): automatic = two thirds of the terminal height
 # 1.113 SQL injection attempts, on the decoded URL: UNION SELECT, time or error functions (sleep, benchmark, extractvalue...), tautologies (' or 1=1), stacked statements
-SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select|information_schema|\b(?:sleep|benchmark|pg_sleep|load_file|extractvalue|updatexml)\s*\("
-                     r"|\bxp_cmdshell\b|\bor\s*['\"]?\d+['\"]?\s*=\s*['\"]?\d+|'\s*(?:or|and)\s|;\s*(?:drop|insert|update|delete|shutdown)\b|\bconcat\s*\(\s*0x", re.IGNORECASE)
+# 1.211: one list for the whole program. It also colours the URL (suspect_url, inverse video magenta) and no longer only counts it.
+# Same families as SQLI_RE of nginx-log-audit.sh (ORDER BY n, ELT(n), WAITFOR DELAY, CONCAT(0x...)) plus the ones it lacked.
+SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select|information_schema"
+                     r"|\b(?:sleep|benchmark|pg_sleep|load_file|extractvalue|updatexml)\s*\("
+                     r"|\belt\s*\(\s*\d|\bconcat\s*\(\s*0x|\border\s+by\s+\d|\bwaitfor\s+delay\b|\bxp_cmdshell\b"
+                     r"|\bor\s*['\"]?\d+['\"]?\s*=\s*['\"]?\d+|'\s*(?:or|and)\s|;\s*(?:drop|insert|update|delete|shutdown)\b", re.IGNORECASE)
 
 
 STATUS_SLOW_S = 9.0            # 1.119: only the requests slower than this (seconds) change the colour of the status bar

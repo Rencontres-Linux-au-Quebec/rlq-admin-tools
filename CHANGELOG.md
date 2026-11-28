@@ -888,6 +888,32 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.211.20261127.235500 - SQL injection attempts are shown in inverse video, with one pattern list
+
+- Reason for the request: on 2026-11-27 the dashboard counted 121 SQL injection attempts (SQLi) but their URLs were not coloured. The
+  administrator asked that they be shown in inverse video, like the other suspicious requests, and that the patterns be unified.
+- Diagnosis: the URL colour depends on suspect_url(), which tested only SUSPECT_RE (WordPress, .env, .git, backups...). SQLI_RE, which
+  counts the injections, was a separate list used only for the counter, so a line such as "union select" was counted but never
+  coloured. SQLI_RE also lacked the families that nginx-log-audit.sh detects (ORDER BY n, ELT(n), WAITFOR DELAY, CONCAT(0x...)).
+- Changes (app-log-live.py):
+  - SQLI_RE: one list, now a superset: UNION SELECT, information_schema, SLEEP / BENCHMARK / PG_SLEEP / LOAD_FILE / EXTRACTVALUE /
+    UPDATEXML (followed by a parenthesis), ELT(n), CONCAT(0x...), ORDER BY n, WAITFOR DELAY, XP_CMDSHELL, tautologies (' OR 1=1),
+    stacked statements (; DROP, ; INSERT...).
+  - suspect_url(): also true when SQLI_RE matches the URL (as is or decoded). The URL is then shown in inverse video magenta, as the
+    other suspicious requests. The HTTP code keeps its colour. Callers of suspect_url() (errors-only, probe sweep, 404 checks,
+    --suspect) therefore also see injection attempts; no ban decision changes, since bans still go through nginx-log-audit.sh.
+  - __version__ 1.211.20261127.235500.
+- Bugs fixed: symptom: SQLi attempts counted in the dashboard but not in inverse video. Diagnosis: two pattern lists that did not
+  share a source (see above). Fix: one list, used both for the counter and for the colour.
+- Safeguards and edge cases: ORDER BY only matches "order" followed by whitespace and a digit, so "order-by-date" and "order=price"
+  are not flagged. SLEEP is flagged only with an opening parenthesis, so the word "sleep" alone is not. The URL is also tested decoded
+  (%27, %20, +), as before.
+- Not changed: nginx-log-audit.sh keeps its own extended-regex list (SQLI_RE of the shell, used by --ban-sqli). Aligning that list
+  with this one is a separate change, to be tested with run-all.sh.
+- Checks: test_injection_sql_en_video_inverse_magenta (new: six injection URLs in inverse video, four normal Odoo URLs never);
+  test_requetes_suspectes_en_video_inverse (unchanged, still passes). Full module test_app_log_live: see the pull request.
+- Action required: none for the program. Restart app-log-live.py on the servers to see the new colours.
+
 ### 1.210.20261124.212059 - Two functions named local_request: the network calls failed on Odoo LXC containers
 
 - Reason for the request: on 2026-11-24, collect-all-advise.sh on proxmox1: LXC 104 (odoo-dev) and LXC 105 (odoo18) returned exit code 1 with

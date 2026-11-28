@@ -1127,6 +1127,19 @@ class AppLogLive(EnvTest):
         self.assertIn("\x1b[31m404\x1b[0m", text)                                   # the HTTP code keeps its color: only the URL is reversed
         self.assertIn("\x1b[32m200\x1b[0m", text)
 
+    def test_injection_sql_en_video_inverse_magenta(self):
+        """1.211 : une tentative d'injection SQL (UNION SELECT, SLEEP, ' OR 1=1, ORDER BY n...) colore son URL comme une requête
+        suspecte, même si le motif n'est pas dans SUSPECT_RE ; une requête Odoo normale ne l'est jamais."""
+        sqli = ["/event?id=1%20union%20select%201,2", "/x?id=1%27%20or%201=1--", "/x?q=1%20and%20sleep(5)", "/x?order%20by%203--",
+                "/x?v=1%29%20waitfor%20delay%20%270:0:5%27", "/x?c=concat(0x7e,version())"]
+        normaux = ["/event/order-by-date", "/web/login?redirect=/odoo", "/odoo/sale.order/12", "/shop?order=price_asc&search=sleep"]
+        self.journal([werkzeug(DNS, u, 404 if i % 2 else 200) for i, u in enumerate(sqli + normaux)])
+        text = self.en_couleur()
+        for u in sqli:
+            self.assertIn(f"\x1b[7;35m{u}\x1b[0m", text, f"{u} devrait être en vidéo inverse (injection SQL)")
+        for u in normaux:
+            self.assertNotIn(f"\x1b[7;35m{u}\x1b[0m", text, f"{u} est une page normale")
+
     def test_url_en_erreur_critique_rouge_et_avertissement_jaune_en_video_inverse(self):
         """5xx : URL en vidéo inverse rouge ; 4xx : URL en vidéo inverse jaune (seulement le URL) ; 200 et 3xx : aucun ; la page de connexion garde son style
         (sauf en 5xx) ; une page suspecte garde la vidéo inverse magenta."""
