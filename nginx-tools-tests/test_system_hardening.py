@@ -410,5 +410,24 @@ class SystemHardening(EnvTest):
         self.assertIn("vont ensemble", err)
 
 
+    # --- 1.5 : connexion SSH par mot de passe, signalée en évidence (jamais modifiée par le programme) ----------------
+    def test_ssh_mots_de_passe_acceptes_signales_en_evidence(self):
+        self.machine("debian12", "lxc")
+        conf = self.write("ssh/sshd_config", "Include /etc/ssh/sshd_config.d/*.conf\nPasswordAuthentication yes\n")
+        rc, out, err = self.lancer(env_extra={"SYSTEM_HARDENING_SSHD_CONFIG": conf})
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("CONNEXION SSH PAR MOT DE PASSE ACTIVÉE", out)
+        self.assertIn("99-rlq-cles-seulement.conf", out)
+        self.assertIn("PasswordAuthentication yes", open(conf, encoding="utf-8").read())      # the program never changes it
+
+    def test_ssh_drop_in_prime_sur_le_fichier_principal(self):
+        self.machine("debian12", "lxc")
+        conf = self.write("ssh/sshd_config", "Include /etc/ssh/sshd_config.d/*.conf\nPasswordAuthentication yes\n")
+        self.write("ssh/sshd_config.d/99-rlq-cles-seulement.conf", "PasswordAuthentication no\n")
+        rc, out, err = self.lancer(env_extra={"SYSTEM_HARDENING_SSHD_CONFIG": conf})
+        self.assertIn("mots de passe refusés en SSH", out, out + err)
+        self.assertNotIn("CONNEXION SSH PAR MOT DE PASSE ACTIVÉE", out)
+
+
 if __name__ == "__main__":
     unittest.main()
