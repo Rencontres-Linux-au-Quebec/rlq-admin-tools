@@ -78,7 +78,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.16.20261128.113644"
+readonly SCRIPT_VERSION="1.17.20261128.114717"
 # Roots of the raw logs and of the archive of the logs (variables only for the tests).
 RACINE_LOG="${NGINX_TOOLS_LOG_ROOT:-/var/log}"
 RACINE_VAR="${NGINX_TOOLS_VAR_ROOT:-/var/lib}"
@@ -750,12 +750,12 @@ collecter_vm() {
 
 # version_invite KIND VMID ADDRESS: first line of "PROGRAM --version" in a guest (lxc: pct exec; vm: ssh), empty when it cannot be read.
 version_invite() {
-    local kind="$1" vmid="$2" adresse="$3" prog="${4:-$PROGRAM}"
+    local kind="$1" vmid="$2" adresse="$3"
     if [[ "$kind" == "lxc" ]]; then
-        pct exec "$vmid" -- "$prog" --version 2>/dev/null </dev/null | head -1 || true
+        pct exec "$vmid" -- "$PROGRAM" --version 2>/dev/null </dev/null | head -1 || true
     else
         [[ -n "$adresse" ]] || return 0
-        ssh_vm "$adresse" "$prog --version" 2>/dev/null </dev/null | head -1 || true
+        ssh_vm "$adresse" "$PROGRAM --version" 2>/dev/null </dev/null | head -1 || true
     fi
 }
 
@@ -772,8 +772,46 @@ plus_ancienne() {
 # verifier_suite: before the collection, compares app-log-live.py of each selected guest with the one next to this program (the folder
 # of the suite). The guests behind (or whose version cannot be read) are listed; with SYNC=ask and a terminal, the update is offered,
 # with SYNC=yes it is done, with SYNC=no nothing is checked. The update is "host-perf-audit.py --guest-sync" (copy of this folder).
+# manifeste_suite DIR: the SHA-256 of every file of the suite folder DIR (not .git, not the Python caches): one "HASH  ./path" per line.
+manifeste_suite() {
+    ( cd "$1" && find . -type f -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -print0 \
+        | sort -z | xargs -0 -r sha256sum ) 2>/dev/null || true
+}
+
+# manifeste_invite KIND VMID ADDRESS DIR: the same manifest in a guest (pct exec, or ssh for a VM); empty when unreachable.
+manifeste_invite() {
+    local kind="$1" vmid="$2" adresse="$3" dir="$4" commande
+    commande="cd '$dir' && find . -type f -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -print0 | sort -z | xargs -0 -r sha256sum"
+    if [[ "$kind" == "lxc" ]]; then
+        pct exec "$vmid" -- sh -c "$commande" </dev/null 2>/dev/null || true
+    else
+        [[ -n "$adresse" ]] || return 0
+        ssh_vm "$adresse" "$commande" 2>/dev/null </dev/null || true
+    fi
+}
+
+# comparer_manifestes REF GUEST: the files of the reference manifest that the guest lacks or has with another content:
+# the first five, then the count. Empty when the guest has every file of the suite identical.
+comparer_manifestes() {
+    local -A recus=()
+    local h p n=0 liste=""
+    while read -r h p; do
+        [[ -n "$p" ]] && recus["$p"]="$h"
+    done <<<"$2"
+    while read -r h p; do
+        [[ -n "$p" ]] || continue
+        if [[ "${recus[$p]:-}" != "$h" ]]; then
+            n=$((n + 1))
+            if (( n <= 5 )); then liste+="${liste:+, }${p#./}"; fi
+        fi
+    done <<<"$1"
+    if (( n > 5 )); then liste+=", ... ($n)"; fi
+    printf '%s' "$liste"
+}
+
 verifier_suite() {
-    local ref ref_num ref_sql_num ligne kind vmid name adresse v vn vs vsn en_retard retard=() ids=() rc=0
+    local ref ref_num ref_manifeste ligne kind vmid name adresse v vn guest_manifeste fichiers en_retard
+    local retard=() ids=() rc=0
     [[ "$SYNC" == "no" ]] && { trace "$(t "mise à jour de la suite : désactivée (SYNC=no)" "update of the suite: disabled (SYNC=no)")"; return 0; }
     if [[ ! -x "$SCRIPT_DIR/app-log-live.py" || ! -x "$SCRIPT_DIR/host-perf-audit.py" ]]; then
         trace "$(t "mise à jour de la suite : app-log-live.py ou host-perf-audit.py absent de $SCRIPT_DIR" "update of the suite: app-log-live.py or host-perf-audit.py missing in $SCRIPT_DIR")"
@@ -782,13 +820,10 @@ verifier_suite() {
     ref="$("$SCRIPT_DIR/app-log-live.py" --version 2>/dev/null </dev/null | head -1 || true)"
     ref_num="$(version_num "$ref")"
     [[ -n "$ref_num" ]] || return 0
-    # 1.16: odoo-sql-maint (the SQL evidence) is compared too, in the same folder as app-log-live.py: a guest whose copy is
-    # missing or older is behind, even when its app-log-live.py is up to date. The copy (--guest-sync) takes the whole folder.
-    ref_sql_num=""
-    if [[ -x "$SCRIPT_DIR/odoo-sql-maint" ]]; then
-        ref_sql_num="$(version_num "$("$SCRIPT_DIR/odoo-sql-maint" --version 2>/dev/null </dev/null | head -1 || true)")"
-    fi
     printf '%s\n' "$(t "Version de la suite sur cet hôte : app-log-live.py $ref_num ($SCRIPT_DIR)" "Version of the suite on this host: app-log-live.py $ref_num ($SCRIPT_DIR)")"
+    # 1.17: EVERY file of the suite is compared (SHA-256), not only some programs: a guest that lacks a file, or has one with
+    # another content, is behind, and the copy (--guest-sync) takes the whole folder.
+    ref_manifeste="$(manifeste_suite "$SCRIPT_DIR")"
     for ligne in "${CIBLES[@]}"; do
         read -r kind vmid name adresse <<<"$ligne"
         en_retard=0
@@ -803,15 +838,17 @@ verifier_suite() {
         else
             trace "${kind^^} $vmid $name : app-log-live.py $vn ($(t "à jour" "up to date"))"
         fi
-        if [[ -n "$ref_sql_num" ]]; then
-            vs="$(version_invite "$kind" "$vmid" "$adresse" "${PROGRAM%/*}/odoo-sql-maint")"
-            vsn="$(version_num "$vs")"
-            if [[ -z "$vsn" ]]; then
-                retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : odoo-sql-maint $(t "absent ou illisible" "missing or unreadable")")
+        guest_manifeste="$(manifeste_invite "$kind" "$vmid" "$adresse" "${PROGRAM%/*}")"
+        if [[ -z "$guest_manifeste" ]]; then
+            retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $(t "contenu de la suite illisible" "suite content not readable")")
+            en_retard=1
+        else
+            fichiers="$(comparer_manifestes "$ref_manifeste" "$guest_manifeste")"
+            if [[ -n "$fichiers" ]]; then
+                retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : $(t "fichiers absents ou différents" "files missing or different") : $fichiers")
                 en_retard=1
-            elif plus_ancienne "$vsn" "$ref_sql_num"; then
-                retard+=("  ${C_YELLOW}[ATTN]$C_RESET ${kind^^} $vmid $name : odoo-sql-maint $vsn ($(t "plus ancienne" "older"))")
-                en_retard=1
+            else
+                trace "${kind^^} $vmid $name : $(t "tous les fichiers de la suite sont identiques" "all the files of the suite are identical")"
             fi
         fi
         if (( en_retard == 1 )); then ids+=("$vmid"); fi
