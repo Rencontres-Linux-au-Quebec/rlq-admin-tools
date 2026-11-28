@@ -80,7 +80,7 @@ class Correctifs(unittest.TestCase):
         rc, out = self.bash('correctif_liste_bases_off "$1" "$2" "$3"', conf, self.sauv, VERIFIEUR)
         self.assertEqual(rc, 0, out)
         texte = self.lire(conf)
-        self.assertIn("list_db False", texte)
+        self.assertIn("list_db = False", texte)
         self.assertNotIn("list_db = True", texte)
         self.assertEqual(texte.count("list_db"), 1)
 

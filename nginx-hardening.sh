@@ -318,6 +318,7 @@ Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
   --backup NAME                avec --rollback : sauvegarde à restaurer (défaut : la plus récente ; liste : ls /var/backups/nginx-hardening/archives)
+  --badrequests-gate           avec --update : la jail nginx-badrequests bannit par nginx-log-audit.sh (action nginx-gate-ban), jamais directement (copie .bak avant, contrôle fail2ban) ; clé BADREQUESTS_GATE
   --cdn NOM                    CDN devant les sites : none (défaut) ou cloudflare (adresse réelle du visiteur par CF-Connecting-IP)
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
@@ -331,7 +332,6 @@ Options (par ordre alphabétique) :
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)
   --mail-from ADDRESS          expéditeur des courriels de la suite (défaut : l'identifiant du relais)
-  --badrequests-gate           avec --update : la jail nginx-badrequests bannit par nginx-log-audit.sh (action nginx-gate-ban), jamais directement (copie .bak avant, contrôle fail2ban) ; clé BADREQUESTS_GATE
   --mail-host HOST             relais SMTP des courriels des programmes Python et Bash (étape 0d ; demandé la première fois avec --update)
   --mail-port PORT             port du relais SMTP (défaut : 587)
   --mail-security MODE         chiffrement : starttls (défaut), ssl ou none
