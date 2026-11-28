@@ -92,6 +92,8 @@ class CollectAllAdvise(unittest.TestCase):
         self.env["NGINX_TOOLS_ETC_DEFAULT"] = self.etc
         self.env["COLLECT_NO_PROMPT"] = "1"            # no question on the terminal in the tests
         self.env["APT_LOG"] = os.path.join(self.d, "apt.log")
+        self.env["NGINX_TOOLS_VAR_ROOT"] = os.path.join(self.d, "var-default")   # never the real /var/lib
+        self.env["NGINX_TOOLS_LXC_LOG_PATHS"] = os.path.join(self.d, "ct-absent")   # no real log of this machine in the containers
         self.env["SUDO_USER"] = ""                     # the default folder is the home of the current user
         self.env["HOME"] = self.d
         self.env.pop("LC_ALL", None)
@@ -238,7 +240,53 @@ class CollectAllAdvise(unittest.TestCase):
     def test_no_logs_n_archive_pas_les_journaux(self):
         var = self._journaux_factices()
         self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1", "--no-security", "--no-logs")
-        self.assertFalse(os.path.exists(os.path.join(var, "collect-all-advise")))
+        # --no-logs: no archive of the raw logs of the host (the LXC logs, on by default, may still create the folder)
+        dossier = os.path.join(var, "collect-all-advise")
+        self.assertFalse([n for n in os.listdir(dossier) if n.endswith(".logs.tar.xz")] if os.path.isdir(dossier) else [])
+
+    def test_journaux_lxc_de_tous_les_conteneurs_en_marche_sans_anonymisation(self):
+        # the fake pct runs the commands on this machine: the "logs of the containers" are folders of the test folder
+        src = os.path.join(self.d, "ct")
+        os.makedirs(os.path.join(src, "app-log-live"))
+        with open(os.path.join(src, "app-log-live", "live.log"), "w") as f:
+            f.write("203.0.113.7 user@example.org\n")
+        with open(os.path.join(src, "nginx-log-audit-expiry.log.1"), "w") as f:
+            f.write("expiry\n")
+        var = os.path.join(self.d, "var")
+        os.makedirs(var)
+        self.env["NGINX_TOOLS_VAR_ROOT"] = var
+        config = ("LXC_LOG_PATHS=" + os.path.join(src, "app-log-live") + " " + os.path.join(src, "nginx-log-audit-expiry.log*")
+                  + " " + os.path.join(src, "absent") + "\n")
+        r = self.lancer("--days", "2", "--dest", self.dest, "--name", "aucun-nom", "--no-security", config=config)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("LXC 101 bbb-lxc1", r.stdout)
+        self.assertIn("LXC 103 web-odoo", r.stdout)
+        self.assertNotIn("LXC 102", r.stdout)           # stopped: skipped
+        dossier = os.path.join(var, "collect-all-advise")
+        archives = [n for n in os.listdir(dossier) if n.endswith(".lxc-logs.tar.xz")]
+        self.assertEqual(len(archives), 1, archives)
+        chemin = os.path.join(dossier, archives[0])
+        self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(os.stat(dossier).st_mode), 0o750)
+        membres = [m[2:] if m.startswith("./") else m for m in
+                   subprocess.run(["tar", "-tJf", chemin], capture_output=True, text=True, check=True).stdout.split()]
+        for vmid_nom in ("101-bbb-lxc1", "103-web-odoo"):
+            self.assertTrue(any(m.startswith(vmid_nom + "/") and m.endswith("app-log-live/live.log") for m in membres), membres)
+            self.assertTrue(any(m.startswith(vmid_nom + "/") and m.endswith("nginx-log-audit-expiry.log.1") for m in membres), membres)
+        self.assertFalse(any(m.startswith("102-") for m in membres), membres)
+        contenu = subprocess.run(["tar", "-xJOf", chemin], capture_output=True, text=True, check=True).stdout
+        self.assertIn("203.0.113.7 user@example.org", contenu)    # copied as they are: no anonymisation
+        self.assertFalse([n for n in os.listdir(dossier) if n.startswith("lxc-logs.")])   # staging removed
+
+    def test_no_lxc_logs_ne_copie_rien(self):
+        var = os.path.join(self.d, "var")
+        os.makedirs(var)
+        self.env["NGINX_TOOLS_VAR_ROOT"] = var
+        r = self.lancer("--days", "2", "--dest", self.dest, "--name", "aucun-nom", "--no-security", "--no-lxc-logs")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # the raw-log archive of the host is not affected by --no-lxc-logs: only the LXC archive must be missing
+        dossier = os.path.join(var, "collect-all-advise")
+        self.assertFalse([n for n in os.listdir(dossier) if "lxc-logs" in n] if os.path.isdir(dossier) else [])
 
     def test_archive_du_meme_jour_ne_remplace_pas_la_precedente(self):
         self.lancer("--days", "2", "--dest", self.dest, "--name", "bbb-lxc1")
