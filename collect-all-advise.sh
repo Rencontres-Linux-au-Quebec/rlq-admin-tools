@@ -26,10 +26,12 @@
 #   -h, --help                   show this help and exit
 #   --install-timer              install the systemd service and timer: run every day at TIMER_TIME (root)
 #   --lang fr|en                 language of the messages (default: LANGUAGE of the configuration file, then LC_ALL / LC_MESSAGES / LANG)
+#   --lxc-logs                   the logs of our programs of EVERY running LXC container, copied as they are (default; --no-lxc-logs: none)
 #   --name REGEX                 only the guests whose name matches REGEX (default: bbb|odoo)
 #   --no-anonymize               keep the real addresses, e-mails and names in the reports
 #   --no-archive                 no archive: only the folder of the reports
 #   --no-logs                    no archive of the raw logs in /var/lib/collect-all-advise/
+#   --no-lxc-logs                no copy of the logs of the LXC containers
 #   --no-security                no check of the security updates
 #   --no-sync                    never offer to update the suite in the guests before the collection
 #   --program PATH               app-log-live.py on the guests (default: /opt/rlq-admin-tools/app-log-live.py)
@@ -44,6 +46,9 @@
 #   ANONYMIZE=yes               yes or no (--anonymize / --no-anonymize)
 #   ARCHIVE=yes                 yes or no (--no-archive)
 #   LOGS=yes                    yes or no (--no-logs): raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) packed in /var/lib/collect-all-advise/
+#   LXC_LOGS=yes                yes or no (--no-lxc-logs): the logs of our programs (LXC_LOG_PATHS) of every running LXC container,
+#                               copied as they are (no anonymisation), packed in one root-only archive *.lxc-logs.tar.xz
+#   LXC_LOG_PATHS=...           paths or globs looked for in each LXC, separated by spaces (no space inside a path)
 #   SECURITY=yes                yes or no (--no-security): check of the pending security updates of the host and the guests
 #   SYNC=ask                    ask, yes or no (--sync / --no-sync): update the suite in the guests that are behind, before the collection
 #   DAYS=2                      analysis window in days (--days)
@@ -62,7 +67,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.13.20261127.090200"
+readonly SCRIPT_VERSION="1.14.20261127.235742"
 # Roots of the raw logs and of the archive of the logs (variables only for the tests).
 RACINE_LOG="${NGINX_TOOLS_LOG_ROOT:-/var/log}"
 RACINE_VAR="${NGINX_TOOLS_VAR_ROOT:-/var/lib}"
@@ -230,8 +235,12 @@ creer_config() {
 ANONYMIZE=yes
 # yes: the reports are packed in one archive collect-all-advise.HOST.AAAA-MM-JJ.tar.xz; no: the folder only.
 ARCHIVE=yes
-# yes: the raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) are packed in /var/lib/collect-all-advise/, readable by all; no: none.
+# yes: the raw logs of the host (nginx, fail2ban, Odoo, PostgreSQL) are packed in /var/lib/collect-all-advise/, readable by root only; no: none.
 LOGS=yes
+# yes: the logs of our programs are searched in EVERY running LXC container and copied as they are (no anonymisation) into one root-only archive; no: none.
+LXC_LOGS=yes
+# paths or globs looked for in each LXC container, separated by spaces.
+LXC_LOG_PATHS=$LXC_LOG_PATHS_DEFAUT
 # analysis window in days, from 1 to 366.
 DAYS=$jours
 # folder of the reports and of the archive.
@@ -298,10 +307,12 @@ aide() {
 -h, --help                   affiche cette aide et quitte / show this help and exit
 --install-timer              installe le service et le minuteur systemd (quotidien, root) / install the systemd service and timer (daily, root)
 --lang fr|en                 langue des messages et des rapports / language of the messages and the reports
+--lxc-logs                   journaux de nos programmes dans TOUS les conteneurs LXC en marche, copiés tels quels / logs of our programs in EVERY running LXC container, copied as they are
 --name REGEX                 seulement les machines dont le nom correspond (défaut bbb|odoo) / only the guests whose name matches (default bbb|odoo)
 --no-anonymize               garde les vraies adresses, courriels et noms / keep the real addresses, e-mails and names
 --no-archive                 pas d'archive : seulement le dossier / no archive: only the folder
 --no-logs                    pas d'archive des journaux bruts dans /var/lib/collect-all-advise/ / no archive of the raw logs in /var/lib/collect-all-advise/
+--no-lxc-logs                pas de copie des journaux des conteneurs LXC / no copy of the logs of the LXC containers
 --no-security                pas de vérification des mises à jour de sécurité / no check of the security updates
 --no-sync                    ne propose pas de mettre à jour la suite dans les invités / never offer to update the suite in the guests
 --program PATH               app-log-live.py sur les machines / app-log-live.py on the guests
@@ -484,6 +495,9 @@ signaler_aucune() {
             "no running guest matches \"$NAME_RE\" (guests seen: $vus)")"
     fi
 }
+
+# LXC_LOG_PATHS_DEFAUT: the logs of our programs, searched in every running LXC container (paths or globs, see LXC_LOG_PATHS).
+LXC_LOG_PATHS_DEFAUT="${NGINX_TOOLS_LXC_LOG_PATHS:-/var/log/app-log-live /var/log/web-monitor /var/log/odoo-update-module /var/log/sync-crowdsec-blocklist.log* /var/log/nginx-log-audit-expiry.log* /var/lib/app-log-live /var/lib/web-monitor /var/lib/nginx-tools /var/lib/host-perf-audit /var/lib/odoo-backup /var/lib/odoo-warmup /var/lib/sync-crowdsec-blocklist /var/lib/sqli-investigate /var/lib/collect-all-advise}"
 
 # SYSTEMD_DIR: unit files of the timer (/etc/systemd/system; NGINX_TOOLS_SYSTEMD_DIR for the tests).
 # installer_minuteur: a service that runs this script (its configuration is read from /etc/default) and a timer that starts
@@ -780,6 +794,76 @@ archiver_journaux() {
     printf '%s\n' "[OK] $(t "journaux bruts" "raw logs") : $archive ($nombre $(t "fichier(s)" "file(s)"))"
 }
 
+# collecter_journaux_lxc: the logs of our programs (LXC_LOG_PATHS) in EVERY running LXC container, whatever its name (--name does
+# not apply), copied as they are (no anonymisation) into a root-only folder, then packed in one archive:
+# RACINE_VAR/collect-all-advise/HOST.AAAA-MM-JJ.lxc-logs.tar.xz (folder 0750, archive 0640). Layout in the archive: VMID-NAME/ then
+# the path of the container without its leading slash (for example 101-bbb-lxc1/var/log/app-log-live/...).
+collecter_journaux_lxc() {
+    local hote date_jour dossier stage base archive tmp n=2 vmid status name chemin cible rc=0
+    local trouves=0 erreurs=0 conteneurs=0
+    local -a rels
+    command -v pct >/dev/null 2>&1 || { trace "$(t "pct introuvable : pas de journaux LXC" "pct not found: no LXC logs")"; return 0; }
+    hote="$(uname -n)"
+    date_jour="$(date +%Y-%m-%d)"
+    dossier="$RACINE_VAR/$SCRIPT_NAME"
+    mkdir -p "$dossier" && chmod 0750 "$dossier" || { printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "dossier des journaux impossible" "logs folder not created") : $dossier"; return 1; }
+    stage="$(mktemp -d "$dossier/lxc-logs.XXXXXX")" || return 1
+    chmod 0700 "$stage"
+    while read -r vmid status name <&3; do
+        [[ "$status" == "running" ]] || { trace "LXC $vmid $name : $(t "ignoré (état $status)" "skipped (status $status)")"; continue; }
+        conteneurs=$((conteneurs + 1))
+        rels=()
+        # the paths that exist in the container (the globs are expanded there, by its own shell)
+        while IFS= read -r chemin; do
+            [[ -n "$chemin" ]] && rels+=("${chemin#/}")
+        done < <(pct exec "$vmid" -- env "LISTE=$LXC_LOG_PATHS" sh -c 'for p in $LISTE; do for f in $p; do [ -e "$f" ] && printf "%s\n" "$f"; done; done' </dev/null 2>/dev/null || true)
+        if (( ${#rels[@]} == 0 )); then
+            trace "LXC $vmid $name : $(t "aucun journal de nos programmes" "no log of our programs")"
+            continue
+        fi
+        cible="$stage/$vmid-$name"
+        mkdir -p "$cible"
+        trace "LXC $vmid $name : pct exec $vmid -- tar -C / -cf - ${rels[*]}"
+        rc=0
+        pct exec "$vmid" -- tar -C / -cf - --ignore-failed-read "${rels[@]}" </dev/null 2>/dev/null | tar -C "$cible" -xf - || rc=$?
+        if (( rc == 0 )); then
+            printf '%s\n' "[OK] LXC $vmid $name : ${#rels[@]} $(t "chemin(s) copié(s)" "path(s) copied")"
+            trouves=$((trouves + 1))
+        else
+            printf '%s\n' "${C_RED}[ATTN]$C_RESET LXC $vmid $name : $(t "copie incomplète (code $rc)" "incomplete copy (code $rc)")"
+            erreurs=$((erreurs + 1))
+        fi
+    done 3< <(pct list | awk 'NR > 1 {print $1, $2, $NF}')
+    if (( conteneurs == 0 )); then
+        printf '%s\n' "$(t "aucun conteneur LXC en marche : pas de journaux LXC" "no running LXC container: no LXC logs")"
+        rm -rf "$stage"
+        return 0
+    fi
+    if (( trouves == 0 )); then
+        printf '%s\n' "$(t "aucun journal de nos programmes trouvé dans les conteneurs" "no log of our programs found in the containers")"
+        rm -rf "$stage"
+        if (( erreurs == 0 )); then return 0; fi
+        return 1
+    fi
+    base="$dossier/$hote.$date_jour.lxc-logs"
+    archive="$base.tar.xz"
+    while [[ -e "$archive" ]]; do
+        archive="$base-$n.tar.xz"
+        n=$((n + 1))
+    done
+    tmp="$archive.part"
+    if ! tar -C "$stage" -cJf "$tmp" .; then
+        rm -f "$tmp"; rm -rf "$stage"
+        printf '%s\n' "${C_RED}[ATTN]$C_RESET $(t "archive des journaux LXC non créée" "LXC logs archive not created") : $archive"
+        return 1
+    fi
+    chmod 0640 "$tmp" && mv -f "$tmp" "$archive"
+    rm -rf "$stage"
+    printf '%s\n' "[OK] $(t "journaux LXC" "LXC logs") : $archive ($trouves $(t "conteneur(s)" "container(s)"))"
+    if (( erreurs == 0 )); then return 0; fi
+    return 1
+}
+
 # ------------------------------------------------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------------------------------------------------
@@ -812,6 +896,9 @@ ARCHIVE=1
 if [[ "$(oui_non "${CFG[ARCHIVE]:-yes}")" == 0 ]]; then ARCHIVE=0; fi
 LOGS_ARCHIVE=1
 if [[ "$(oui_non "${CFG[LOGS]:-yes}")" == 0 ]]; then LOGS_ARCHIVE=0; fi
+LXC_LOGS=1
+if [[ "$(oui_non "${CFG[LXC_LOGS]:-yes}")" == 0 ]]; then LXC_LOGS=0; fi
+LXC_LOG_PATHS="${CFG[LXC_LOG_PATHS]:-$LXC_LOG_PATHS_DEFAUT}"
 SECURITY=1
 if [[ "$(oui_non "${CFG[SECURITY]:-yes}")" == 0 ]]; then SECURITY=0; fi
 SYNC="${CFG[SYNC]:-ask}"
@@ -841,6 +928,7 @@ while [[ $# -gt 0 ]]; do
             if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --lang : fr ou en attendu" "option --lang: fr or en expected")" >&2; exit 2; fi
             shift 2 ;;
         --lang=*) shift ;;
+        --lxc-logs) LXC_LOGS=1; shift ;;
         --name)
             if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --name : expression attendue" "option --name: expression expected")" >&2; exit 2; fi
             NAME_RE="$2"; shift 2 ;;
@@ -848,6 +936,7 @@ while [[ $# -gt 0 ]]; do
         --no-anonymize) ANONYMIZE_OPT="--no-anonymize"; shift ;;
         --no-archive) ARCHIVE=0; shift ;;
         --no-logs) LOGS_ARCHIVE=0; shift ;;
+        --no-lxc-logs) LXC_LOGS=0; shift ;;
         --no-security) SECURITY=0; shift ;;
         --no-sync) SYNC="no"; shift ;;
         --program)
@@ -965,6 +1054,11 @@ for ligne in "${CIBLES[@]}"; do
     fi
 done
 
+LXC_LOGS_OK=1
+if (( LXC_LOGS == 1 )); then
+    collecter_journaux_lxc || LXC_LOGS_OK=0
+fi
+
 ARCHIVE_OK=1
 if (( ARCHIVE == 1 && RAPPORTS_OK > 0 )); then
     archiver || ARCHIVE_OK=0
@@ -982,5 +1076,5 @@ if (( SECURITY == 1 )); then
     mises_a_jour_securite
 fi
 
-if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 || LOGS_OK == 0 )); then exit 1; fi
+if (( RAPPORTS_KO > 0 || ARCHIVE_OK == 0 || LOGS_OK == 0 || LXC_LOGS_OK == 0 )); then exit 1; fi
 exit 0
